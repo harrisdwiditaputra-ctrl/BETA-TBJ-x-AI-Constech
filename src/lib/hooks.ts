@@ -59,7 +59,11 @@ export function useAuth() {
       toast.success("Login berhasil!");
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("Gagal login: " + (error.message || "Terjadi kesalahan"));
+      if (error.code === 'auth/unauthorized-domain') {
+        toast.error("Domain belum diizinkan di Firebase Console. Silakan tambahkan domain ini ke Authorized Domains.");
+      } else {
+        toast.error("Gagal login: " + (error.message || "Terjadi kesalahan"));
+      }
     }
   };
 

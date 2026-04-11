@@ -2253,7 +2253,7 @@ const LoginPage = ({ onLogin, onGuestLogin }: { onLogin: () => void; onGuestLogi
         Tukang<br/>Bangunan<br/>Jakarta
       </h1>
       <p className="text-neutral-400 font-mono text-sm uppercase tracking-[0.2em] max-w-xl mx-auto">
-        Satu-satunya platform konstruksi di Indonesia dengan integrasi AI Estimator & Real-time Management.
+        Platform konstruksi modern dengan integrasi AI Estimator & Real-time Management.
       </p>
     </div>
 
