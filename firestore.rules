@@ -143,7 +143,7 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if isOwner(userId) || isStaff();
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
       allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isAdmin();
     }
@@ -208,6 +208,11 @@ service cloud.firestore {
     }
 
     match /gallery/{itemId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /status_updates/{itemId} {
       allow read: if true;
       allow write: if isStaff();
     }

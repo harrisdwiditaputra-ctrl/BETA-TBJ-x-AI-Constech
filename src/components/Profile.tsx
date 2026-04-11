@@ -1,21 +1,57 @@
 import { useState } from "react";
-import { useProjects, useAuth } from "@/lib/hooks";
+import { useProjects, useAuth, useWorkforce } from "@/lib/hooks";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, LayoutDashboard, FileText, Clock, CheckCircle2, TrendingUp, Calendar, MapPin, Plus, Camera, CreditCard, ShieldCheck, AlertCircle, ChevronRight, Check, MessageSquare, User, Zap } from "lucide-react";
+import { Loader2, LayoutDashboard, FileText, Clock, CheckCircle2, TrendingUp, Calendar, MapPin, Plus, Camera, CreditCard, ShieldCheck, AlertCircle, ChevronRight, Check, MessageSquare, User, Zap, Lock, Users, Phone, Briefcase } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 export default function Profile() {
   const { user } = useAuth();
   const { projects, loading } = useProjects(user?.uid);
+  const { workforce } = useWorkforce(user?.role, user?.tier);
   const navigate = useNavigate();
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>;
+
+  if (user?.tier === 'prospect') {
+    return (
+      <div className="space-y-12 py-12 flex flex-col items-center text-center">
+        <div className="w-24 h-24 bg-accent/10 rounded-full flex items-center justify-center mb-6">
+          <Lock className="w-12 h-12 text-accent" />
+        </div>
+        <div className="space-y-4 max-w-2xl">
+          <h1 className="text-5xl font-black uppercase tracking-tighter">Dashboard Locked</h1>
+          <p className="uppercase-soft text-neutral-500 text-lg">
+            Dashboard eksklusif hanya tersedia untuk member Tier 2 & 3. 
+            Silahkan lakukan pembayaran Digital Assessment untuk membuka akses penuh.
+          </p>
+          <div className="pt-8">
+            <Button onClick={() => navigate("/assistant")} className="btn-accent h-14 px-12 text-sm">
+              Book Digital Assessment Now
+            </Button>
+          </div>
+        </div>
+        
+        <div className="grid md:grid-cols-3 gap-8 w-full max-w-5xl pt-20">
+          {[
+            { title: "Real-time Tracking", desc: "Pantau progress proyek harian via CCTV & Foto." },
+            { title: "Financial Transparency", desc: "Detail RAB & termin pembayaran yang transparan." },
+            { title: "Priority Support", desc: "Direct chat ke Architect & Project Manager." }
+          ].map((feature, i) => (
+            <div key={i} className="p-8 border-2 border-black rounded-3xl space-y-4">
+              <h3 className="text-xl font-black uppercase tracking-tighter">{feature.title}</h3>
+              <p className="text-xs text-neutral-500 leading-relaxed">{feature.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-12 py-8">
@@ -25,7 +61,7 @@ export default function Profile() {
           <p className="uppercase-soft text-neutral-500">Selamat datang, {user?.displayName}. Pantau progres proyek Anda secara real-time.</p>
         </div>
         <div className="text-right">
-          <Badge className="bg-accent text-white rounded-md px-4 py-1 uppercase-soft">Tier {user?.tier === 'prospect' ? '1' : user?.tier === 'survey' ? '2' : '3'}</Badge>
+          <Badge className="bg-accent text-white rounded-md px-4 py-1 uppercase-soft">Tier {(user?.tier as string) === 'prospect' ? '1' : user?.tier === 'survey' ? '2' : '3'}</Badge>
         </div>
       </div>
 
@@ -394,6 +430,44 @@ export default function Profile() {
                   </div>
                 </Card>
               </div>
+
+              {/* Project Team Section for Tier 3 */}
+              {user?.tier === 'deal' && (
+                <div className="space-y-6 pt-8">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-black uppercase tracking-tighter">Tim Proyek Anda</h2>
+                    <Badge className="bg-black text-white px-3 py-1 rounded-md uppercase-soft">Tier 3 Exclusive</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {workforce.filter(w => w.projectId === project.id || project.workerIds?.includes(w.id)).map((worker) => (
+                      <Card key={worker.id} className="border-2 border-black rounded-2xl overflow-hidden group hover:border-accent transition-all">
+                        <div className="aspect-[3/4] bg-neutral-100 relative">
+                          {worker.photoUrl ? (
+                            <img src={worker.photoUrl} alt={worker.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-neutral-300">
+                              <User className="w-8 h-8" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                            <p className="text-[8px] font-black text-white uppercase tracking-widest">{worker.role}</p>
+                            <p className="text-[10px] font-black text-white uppercase truncate">{worker.name}</p>
+                          </div>
+                        </div>
+                        <div className="p-3 text-center">
+                          <p className="text-[10px] font-black uppercase truncate">{worker.name}</p>
+                          <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">{worker.role}</p>
+                        </div>
+                      </Card>
+                    ))}
+                    {workforce.filter(w => w.projectId === project.id || project.workerIds?.includes(w.id)).length === 0 && (
+                      <div className="col-span-full py-8 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
+                        <p className="uppercase-soft text-neutral-400">Tim lapangan sedang dijadwalkan.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
           {projects.length === 0 && (

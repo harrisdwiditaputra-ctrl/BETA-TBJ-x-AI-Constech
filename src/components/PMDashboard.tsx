@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { 
   Loader2, Calendar, CheckCircle2, Clock, MapPin, User, MessageSquare, 
   Phone, HardHat, Package, Camera, BarChart3, ChevronRight, Plus, 
-  AlertCircle, LayoutDashboard, History, Send, CameraOff, Briefcase
+  AlertCircle, LayoutDashboard, History, Send, CameraOff, Briefcase, ShieldCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -16,13 +16,13 @@ import { Project, MaterialRequest, Attendance, Workforce } from "@/types";
 
 export default function PMDashboard() {
   const { user } = useAuth();
-  const { projects, loading: projectsLoading, updateProject } = useProjects();
-  const { users } = useUsers();
-  const { attendance, checkIn, checkOut } = useAttendance();
-  const { requests, addRequest, updateRequestStatus } = useMaterialRequests();
-  const { workforce } = useWorkforce();
+  const { projects, loading: projectsLoading, updateProject } = useProjects(undefined, user?.role);
+  const { users } = useUsers(user?.role);
+  const { attendance, checkIn, checkOut } = useAttendance(user?.role);
+  const { requests, addRequest, updateRequestStatus } = useMaterialRequests(user?.role);
+  const { workforce } = useWorkforce(user?.role);
 
-  const [activeTab, setActiveTab] = useState<"overview" | "projects" | "materials" | "attendance" | "cctv">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "projects" | "materials" | "attendance" | "cctv" | "timeline" | "safety">("overview");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isScheduling, setIsScheduling] = useState<string | null>(null);
 
@@ -109,6 +109,8 @@ export default function PMDashboard() {
           { id: "materials", label: "Materials", icon: Package },
           { id: "attendance", label: "Attendance", icon: Clock },
           { id: "cctv", label: "Live CCTV", icon: Camera },
+          { id: "timeline", label: "Timeline", icon: BarChart3 },
+          { id: "safety", label: "Safety & HSE", icon: ShieldCheck },
         ].map(tab => (
           <button
             key={tab.id}
@@ -408,6 +410,81 @@ export default function PMDashboard() {
                 </CardHeader>
               </Card>
             ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "timeline" && (
+        <div className="space-y-8">
+          <Card className="border-2 border-black rounded-2xl overflow-hidden shadow-sm">
+            <CardHeader className="bg-neutral-50 border-b-2 border-black">
+              <CardTitle className="text-xl font-black uppercase tracking-tighter">Project Timeline & S-Curve</CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 space-y-8">
+              <div className="grid md:grid-cols-3 gap-8">
+                <div className="p-6 bg-blue-50 rounded-2xl border-2 border-blue-200">
+                  <p className="uppercase-soft text-blue-600 text-[10px]">Planned Progress</p>
+                  <p className="text-3xl font-black text-blue-700">48.5%</p>
+                </div>
+                <div className="p-6 bg-green-50 rounded-2xl border-2 border-green-200">
+                  <p className="uppercase-soft text-green-600 text-[10px]">Actual Progress</p>
+                  <p className="text-3xl font-black text-green-700">45.2%</p>
+                </div>
+                <div className="p-6 bg-red-50 rounded-2xl border-2 border-red-200">
+                  <p className="uppercase-soft text-red-600 text-[10px]">Deviation</p>
+                  <p className="text-3xl font-black text-red-700">-3.3%</p>
+                </div>
+              </div>
+
+              <div className="h-96 bg-neutral-50 rounded-2xl border-2 border-dashed border-black/10 flex items-center justify-center">
+                <div className="text-center">
+                  <BarChart3 className="w-16 h-16 text-neutral-200 mx-auto mb-4" />
+                  <p className="uppercase-soft text-neutral-400">Interactive Gantt Chart & S-Curve Visualization</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "safety" && (
+        <div className="space-y-8">
+          <div className="grid md:grid-cols-2 gap-8">
+            <Card className="border-2 border-black rounded-2xl overflow-hidden shadow-sm">
+              <CardHeader className="bg-neutral-50 border-b-2 border-black">
+                <CardTitle className="text-xl font-black uppercase tracking-tighter">Safety Checklist (HSE)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-8 space-y-4">
+                {[
+                  "Penggunaan APD Lengkap (Helm, Rompi, Sepatu)",
+                  "Area Kerja Bersih & Teratur",
+                  "Peralatan Listrik Aman & Terverifikasi",
+                  "Scaffolding Terpasang Sesuai Standar",
+                  "Papan Peringatan Terpasang di Area Berisiko",
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
+                    <span className="text-xs font-bold uppercase tracking-widest">{item}</span>
+                    <div className="w-6 h-6 border-2 border-black rounded-md flex items-center justify-center bg-green-500">
+                      <CheckCircle2 className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                ))}
+                <Button className="w-full btn-sleek h-12 rounded-xl mt-4">Submit Safety Report</Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-black rounded-2xl overflow-hidden shadow-sm bg-red-50">
+              <CardHeader className="bg-red-100 border-b-2 border-black">
+                <CardTitle className="text-xl font-black uppercase tracking-tighter text-red-900">Incident Log</CardTitle>
+              </CardHeader>
+              <CardContent className="p-8 space-y-4">
+                <div className="flex items-center justify-center h-48 text-red-300">
+                  <AlertCircle className="w-12 h-12" />
+                  <span className="uppercase-soft ml-2">No Incidents Reported</span>
+                </div>
+                <Button variant="destructive" className="w-full h-12 rounded-xl uppercase font-black text-[10px]">Report New Incident</Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}

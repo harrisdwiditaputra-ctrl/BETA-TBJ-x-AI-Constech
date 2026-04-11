@@ -1,50 +1,51 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,900;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "leaflet/dist/leaflet.css";
 
 @theme inline {
-    --font-heading: "Playfair Display", serif;
-    --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-heading: "Plus Jakarta Sans", sans-serif;
+    --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
     
-    --radius-sm: 4px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
-    --radius-xl: 16px;
-    --radius-2xl: 20px;
-    --radius-3xl: 24px;
-    --radius-4xl: 32px;
+    --radius-sm: 2px;
+    --radius-md: 4px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-2xl: 16px;
+    --radius-3xl: 20px;
+    --radius-4xl: 24px;
 
-    --color-background: oklch(1 0 0);
-    --color-foreground: oklch(0 0 0);
-    --color-primary: oklch(0 0 0);
-    --color-primary-foreground: oklch(1 0 0);
-    --color-accent: oklch(0.7 0.2 45); /* Tech Orange */
-    --color-border: oklch(0 0 0 / 10%);
+    --color-background: #F9F9F8; 
+    --color-foreground: #2D2D2D; 
+    --color-primary: #2D2D2D;
+    --color-primary-foreground: #F9F9F8;
+    --color-accent: #FF4500; /* Cosmic Orange */
+    --color-titanium: #3C3C3C; /* Titanium Grey */
+    --color-border: rgba(0, 0, 0, 0.05);
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0 0 0);
-    --primary: oklch(0 0 0);
-    --primary-foreground: oklch(1 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.5 0 0);
-    --accent: oklch(0.7 0.2 45); /* Tech Orange */
-    --accent-foreground: oklch(1 0 0);
-    --destructive: oklch(0.5 0.2 25);
-    --border: oklch(0 0 0 / 10%);
-    --input: oklch(0 0 0 / 10%);
-    --ring: oklch(0.7 0.2 45);
-    --radius: 8px;
+    --background: #F9F9F8;
+    --foreground: #2D2D2D;
+    --card: #FFFFFF;
+    --card-foreground: #2D2D2D;
+    --popover: #FFFFFF;
+    --popover-foreground: #2D2D2D;
+    --primary: #2D2D2D;
+    --primary-foreground: #F9F9F8;
+    --secondary: #F1F1F0;
+    --secondary-foreground: #2D2D2D;
+    --muted: #F1F1F0;
+    --muted-foreground: #717171;
+    --accent: #FF4500;
+    --accent-foreground: #FFFFFF;
+    --destructive: #A65D5D;
+    --border: rgba(0, 0, 0, 0.05);
+    --input: rgba(0, 0, 0, 0.05);
+    --ring: #FF4500;
+    --radius: 4px;
 }
 
 @layer base {
@@ -52,39 +53,42 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased font-light;
     font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-bold tracking-tight;
   }
 }
 
 @layer components {
-  .tech-card {
-    @apply border border-black/10 bg-white transition-all duration-300 hover:border-accent/30 rounded-lg;
+  .sleek-card {
+    @apply border border-black/5 bg-white/50 backdrop-blur-sm transition-all duration-500 hover:border-accent/20 rounded-lg;
   }
   
-  .tech-grid {
-    background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.05) 1px, transparent 0);
+  .sleek-grid {
+    background-image: radial-gradient(circle at 1px 1px, rgba(255, 69, 0, 0.05) 1px, transparent 0);
     background-size: 24px 24px;
   }
 
   .btn-sleek {
-    @apply rounded-lg px-8 py-6 font-bold uppercase tracking-widest transition-all duration-300 border-2 border-black hover:bg-black hover:text-white hover:border-black;
+    @apply rounded-none px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-500 border border-black/10 hover:bg-titanium hover:text-white hover:border-titanium;
   }
 
-  .btn-orange {
-    @apply rounded-lg px-8 py-6 font-bold uppercase tracking-widest transition-all duration-300 border-2 border-accent bg-accent text-white hover:bg-white hover:text-accent hover:shadow-[0_0_20px_rgba(179,89,0,0.3)];
+  .btn-accent {
+    @apply rounded-none px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-500 border border-accent bg-accent text-white hover:bg-titanium hover:text-white hover:border-titanium;
   }
 
   .input-sleek {
-    @apply rounded-md border-2 border-black/10 focus:border-accent focus:ring-0 transition-all bg-transparent px-4 h-12;
+    @apply rounded-none border-b border-black/10 focus:border-accent focus:ring-0 transition-all bg-transparent px-0 h-10 text-sm font-light;
   }
   
-  .heading-edge {
-    @apply font-sans font-light text-black leading-none tracking-tighter text-4xl md:text-7xl;
+  .heading-sleek {
+    @apply font-heading font-extrabold text-foreground leading-tight tracking-tighter text-4xl md:text-6xl;
   }
 
-  .tag-tech {
-    @apply inline-block bg-neutral-50 text-neutral-400 px-4 py-1.5 text-[9px] font-mono capitalize tracking-[0.1em] mb-4 border border-neutral-100 transition-colors hover:border-accent/20 rounded-full;
+  .tag-sleek {
+    @apply inline-block bg-accent/10 text-accent px-3 py-1 text-[10px] font-sans font-bold uppercase tracking-[0.15em] mb-4 border border-accent/10 rounded-none;
   }
 }
 

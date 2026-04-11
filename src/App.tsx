@@ -24,7 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { WorkItemMaster, Property, AIEstimateResponse } from "@/types";
 import { cn } from "@/lib/utils";
 import { getAIEstimation } from "./services/aiEstimator";
-import { Plus, Trash2, ChevronRight, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings } from "lucide-react";
+import { Plus, Trash2, ChevronRight, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck } from "lucide-react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import Gallery from "./components/Gallery";
@@ -141,6 +141,7 @@ const Dashboard = ({ user }: { user: any }) => {
 
 const ProjectsPage = ({ user }: { user: any }) => {
   const { projects, loading, createProject } = useProjects(user?.uid);
+  const { updateProfile } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -156,66 +157,115 @@ const ProjectsPage = ({ user }: { user: any }) => {
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>;
 
+  const aiLimitReached = (user?.aiUsageCount || 0) >= 1 && user?.tier === "prospect";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-12">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">Proyek RAB</h1>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger render={<Button className="gap-2" />}>
-            <Plus className="w-4 h-4" /> Proyek Baru
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Buat Proyek Baru</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nama Proyek</Label>
-                <Input id="name" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Contoh: Renovasi Rumah Tinggal" />
+        <div>
+          <h1 className="heading-sleek">Proyek Saya</h1>
+          <p className="text-neutral-500 font-light">Kelola estimasi dan proyek konstruksi Anda.</p>
+        </div>
+        <div className="flex gap-4">
+          <Button 
+            variant="outline" 
+            className="btn-sleek gap-2"
+            onClick={() => window.open(`https://wa.me/62821942016509?text=Halo%20TBJ%20Architect,%20saya%20ingin%20konsultasi%20desain.`, "_blank")}
+          >
+            <Phone className="w-4 h-4" /> Chat Architect
+          </Button>
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger render={<Button className="btn-accent gap-2" />}>
+              <Plus className="w-4 h-4" /> Proyek Baru
+            </DialogTrigger>
+            <DialogContent className="rounded-2xl border-none shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="font-heading text-2xl">Buat Proyek Baru</DialogTitle>
+                <DialogDescription>Mulai estimasi mandiri untuk proyek Anda.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-xs uppercase tracking-widest opacity-60">Nama Proyek</Label>
+                  <Input id="name" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Contoh: Renovasi Rumah Minimalis" className="input-sleek" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="desc" className="text-xs uppercase tracking-widest opacity-60">Deskripsi Singkat</Label>
+                  <Input id="desc" value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Misal: Perbaikan atap dan cat dinding" className="input-sleek" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="desc">Deskripsi</Label>
-                <Input id="desc" value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Deskripsi singkat proyek" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Batal</Button>
-              <Button onClick={handleCreate}>Simpan</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setIsCreateOpen(false)} className="text-xs uppercase tracking-widest">Batal</Button>
+                <Button onClick={handleCreate} className="btn-accent">Simpan Proyek</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+      {aiLimitReached && (
+        <div className="sleek-card p-8 border-accent/20 bg-accent/5 relative overflow-hidden">
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="space-y-2 text-center md:text-left">
+              <Badge className="tag-sleek bg-accent text-white border-none">AI Limit Reached</Badge>
+              <h3 className="text-2xl font-heading">Digital Assessment Selesai</h3>
+              <p className="text-sm text-neutral-600 max-w-md">
+                Anda telah menggunakan batas 1x analisa AI gratis. Untuk mendapatkan estimasi detail, validasi teknis, dan RAB Final, silakan booking survey lokasi.
+              </p>
+            </div>
+            <Button 
+              className="btn-accent h-14 px-10"
+              onClick={() => navigate("/assistant")}
+            >
+              Booking Survey (Rp 399.000)
+            </Button>
+          </div>
+          <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-accent/10 rounded-full blur-3xl" />
+        </div>
+      )}
+
+      <div className="sleek-card overflow-hidden">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nama Proyek</TableHead>
-              <TableHead>Tanggal</TableHead>
-              <TableHead className="text-right">Total Anggaran</TableHead>
-              <TableHead></TableHead>
+          <TableHeader className="bg-neutral-50/50">
+            <TableRow className="hover:bg-transparent border-b border-black/5">
+              <TableHead className="text-[10px] uppercase tracking-[0.2em] font-medium py-6">Nama Proyek</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-[0.2em] font-medium">Tanggal</TableHead>
+              <TableHead className="text-[10px] uppercase tracking-[0.2em] font-medium text-right">Estimasi Anggaran</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {projects.map(project => (
-              <TableRow key={project.id} className="cursor-pointer" onClick={() => navigate(`/projects/${project.id}`)}>
-                <TableCell className="font-medium">
+              <TableRow 
+                key={project.id} 
+                className="cursor-pointer group border-b border-black/5 last:border-0" 
+                onClick={() => navigate(`/projects/${project.id}`)}
+              >
+                <TableCell className="py-6">
                   <div>
-                    <p>{project.name}</p>
-                    <p className="text-xs text-neutral-500 font-normal">{project.description}</p>
+                    <p className="font-medium text-sm group-hover:text-accent transition-colors">{project.name}</p>
+                    <p className="text-xs text-neutral-400 font-light">{project.description}</p>
                   </div>
                 </TableCell>
-                <TableCell>{new Date(project.createdAt).toLocaleDateString('id-ID')}</TableCell>
-                <TableCell className="text-right font-mono">Rp {project.totalBudget.toLocaleString('id-ID')}</TableCell>
+                <TableCell className="text-xs text-neutral-500 font-light">
+                  {new Date(project.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </TableCell>
+                <TableCell className="text-right font-mono text-xs">
+                  Rp {project.totalBudget.toLocaleString('id-ID')}
+                </TableCell>
                 <TableCell className="text-right">
-                  <ChevronRight className="inline text-neutral-400" />
+                  <ChevronRight className="inline w-4 h-4 text-neutral-300 group-hover:text-accent transition-all group-hover:translate-x-1" />
                 </TableCell>
               </TableRow>
             ))}
             {projects.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-12 text-neutral-500">
-                  Belum ada proyek. Klik "Proyek Baru" untuk memulai.
+                <TableCell colSpan={4} className="text-center py-20">
+                  <div className="space-y-4">
+                    <div className="w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mx-auto">
+                      <Layers className="w-6 h-6 text-neutral-300" />
+                    </div>
+                    <p className="text-sm text-neutral-400 font-light">Belum ada proyek. Mulai dengan membuat proyek baru.</p>
+                  </div>
                 </TableCell>
               </TableRow>
             )}
@@ -679,8 +729,8 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
       const isPro = user?.tier === "survey" || user?.tier === "deal" || user?.tier === "admin";
       const isExpired = user?.proTierExpiresAt && new Date(user.proTierExpiresAt) < new Date();
       
-      if (!isPro && (user?.analysisCount || 0) >= 1) {
-        alert("Batas analisa gratis (1x) telah tercapai. Silakan upgrade ke Tier Pro (Survey Lokasi) untuk analisa tak terbatas selama 3 bulan.");
+      if (!isPro && (user?.aiUsageCount || 0) >= 1) {
+        alert("Batas analisa gratis (1x) telah tercapai. Silakan booking survey lokasi (Digital Assessment) untuk mendapatkan akses estimasi detail dan validasi teknis.");
         setStep(6); // Redirect to survey booking
         return;
       }
@@ -694,7 +744,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
       await updateProfile({ 
         whatsapp: leadData.whatsapp, 
         tier: user?.tier === "prospect" ? "prospect" : user?.tier,
-        analysisCount: (user?.analysisCount || 0) + 1
+        aiUsageCount: (user?.aiUsageCount || 0) + 1
       });
       setStep(5); // Show results
     } else {
@@ -703,9 +753,9 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
   };
 
   const sendToWA = () => {
-    const message = `Halo TBJ Contractor, saya ingin order proyek:\n\n[TBJ CONTRACTOR - ESTIMASI PROYEK]\n\nRingkasan Proyek:\nLokasi: ${projectData.location}\nLuas: ${projectData.area} m2\nTipe: ${projectData.type}\n\nTOTAL ESTIMASI ANGGARAN: Rp ${totalEstimate.toLocaleString('id-ID')}\n\nMohon bantuannya untuk survey lokasi.`;
+    const message = `Halo TBJ Contractor, saya ingin order proyek:\n\n[TBJ CONTRACTOR - ESTIMASI PROYEK]\n\nRingkasan Proyek:\nLokasi: ${projectData.location}\nLuas: ${projectData.area} m2\nTipe: ${projectData.type}\n\nTOTAL ESTIMASI ANGGARAN: Rp ${totalEstimate.toLocaleString('id-ID')}\n\nMohon bantuannya untuk survey lokasi (Digital Assessment).`;
     const encoded = encodeURIComponent(message);
-    window.open(`https://wa.me/${leadData.whatsapp}?text=${encoded}`, "_blank");
+    window.open(`https://wa.me/62821942016509?text=${encoded}`, "_blank");
     setStep(6); // Survey booking
   };
 
@@ -757,7 +807,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                 <p className="uppercase-soft text-white/60">Admin Mode Active</p>
               </div>
               <Link to="/projects">
-                <Button size="sm" variant="outline" className="h-8 text-[10px] uppercase font-bold border-white text-white hover:bg-white hover:text-black rounded-md">
+                <Button variant="outline" className="h-8 text-[10px] uppercase font-bold border-white text-white hover:bg-white hover:text-black rounded-md">
                   Go to Admin RAB Panel
                 </Button>
               </Link>
@@ -1778,25 +1828,34 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
               </div>
               <div className="max-w-md mx-auto border-2 border-black p-8 space-y-8 rounded-2xl">
                 <div className="flex justify-between items-center border-b border-black/10 pb-4">
-                  <span className="uppercase-soft text-neutral-500">Biaya Komitmen Survey</span>
-                  <span className="text-2xl font-black tracking-tighter">Rp 250.000</span>
+                  <div className="text-left">
+                    <span className="uppercase-soft text-neutral-500">Biaya Komitmen Survey</span>
+                    <p className="text-[9px] font-bold text-accent uppercase tracking-widest mt-1">Akses Estimasi AI Lifetime</p>
+                  </div>
+                  <span className="text-2xl font-black tracking-tighter">Rp 399.000</span>
                 </div>
                 <div className="space-y-6 text-left">
                   <div className="bg-neutral-50 p-6 rounded-xl border border-black/5 space-y-4">
                     <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Instruksi Pembayaran:</p>
                     <div className="space-y-2">
-                      <p className="text-xs font-bold">Silakan transfer Rp 250.000 ke:</p>
+                      <p className="text-xs font-bold">Silakan transfer Rp 399.000 ke:</p>
                       <div className="p-4 bg-white border-2 border-black rounded-lg space-y-1">
                         <p className="text-lg font-black tracking-tighter">BCA 667067XXXX</p>
                         <p className="text-[10px] font-bold uppercase">a/n TBJ Contractor</p>
                       </div>
+                      <p className="text-[9px] text-neutral-500 italic">
+                        *Biaya ini sebagai pengurangan nilai kontrak jika proyek berlanjut dan tidak dapat dikembalikan.
+                      </p>
+                      <p className="text-[9px] text-neutral-500 italic">
+                        *Akses estimasi AI detail & validasi teknis terbuka selamanya (Lifetime).
+                      </p>
                       <p className="text-[9px] text-neutral-500 italic">
                         *Setelah transfer, sistem akan memverifikasi otomatis dalam 1-5 menit.
                       </p>
                     </div>
                   </div>
                   <Button className="w-full btn-orange py-8 text-lg" onClick={async () => {
-                    await updateProfile({ tier: "survey" });
+                    await updateProfile({ tier: "survey", lifetimeAccess: true });
                     toast.success("Pembayaran Berhasil! Tim kami akan segera menghubungi Anda untuk jadwal survey.");
                     setTimeout(() => window.location.reload(), 1500);
                   }}>
@@ -1824,10 +1883,10 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {[
-                  { label: "Beli Properti", icon: Home, color: "bg-blue-50 text-blue-600" },
-                  { label: "Sewa Properti", icon: Key, color: "bg-green-50 text-green-600" },
-                  { label: "Titip Jual/Sewa", icon: ExternalLink, color: "bg-orange-50 text-orange-600" },
-                  { label: "Legal & IMB/PBG", icon: Gavel, color: "bg-purple-50 text-purple-600" },
+                  { label: "Beli Properti", icon: Home, color: "bg-blue-50 text-blue-600", type: "beli" },
+                  { label: "Sewa Properti", icon: Key, color: "bg-green-50 text-green-600", type: "sewa" },
+                  { label: "Titip Jual/Sewa", icon: ExternalLink, color: "bg-orange-50 text-orange-600", type: "jual" },
+                  { label: "Legal & IMB/PBG", icon: Gavel, color: "bg-purple-50 text-purple-600", type: "legal" },
                 ].map((svc, idx) => (
                   <div key={idx} className="p-8 border-2 border-black rounded-3xl text-center space-y-4 hover:bg-neutral-50 cursor-pointer transition-all group">
                     <div className={cn("w-16 h-16 mx-auto rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110", svc.color)}>
@@ -2055,6 +2114,70 @@ const ClientDashboard = ({ user }: { user: any }) => {
           </div>
 
           <div className="space-y-8">
+            <Card className="border-2 border-black rounded-2xl overflow-hidden">
+              <CardHeader className="bg-neutral-50 border-b-2 border-black">
+                <CardTitle className="text-xl font-black uppercase tracking-tighter">Project Team</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                <div className="flex items-center gap-4 p-4 border-2 border-black rounded-xl">
+                  <div className="w-12 h-12 bg-black text-white rounded-full flex items-center justify-center font-black">
+                    {project.pmId ? "PM" : "TBJ"}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Project Manager</p>
+                    <p className="font-black text-sm uppercase tracking-tighter">Assigned PM</p>
+                  </div>
+                  <Button variant="ghost" size="icon" className="ml-auto h-10 w-10 rounded-full border border-black/10">
+                    <Phone className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Construction Workers</p>
+                  <div className="flex -space-x-3 overflow-hidden">
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className="inline-block h-10 w-10 rounded-full ring-2 ring-white bg-neutral-200 flex items-center justify-center border border-black/10">
+                        <User className="w-5 h-5 text-neutral-400" />
+                      </div>
+                    ))}
+                    <div className="inline-block h-10 w-10 rounded-full ring-2 ring-white bg-black text-white flex items-center justify-center text-[10px] font-black">
+                      +8
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {user?.tier === "survey" && (
+              <Card className="border-2 border-black bg-accent text-white rounded-2xl overflow-hidden shadow-[10px_10px_0px_0px_rgba(0,0,0,0.1)]">
+                <CardHeader>
+                  <CardTitle className="text-white text-xl font-black uppercase tracking-tighter">Contract Deal</CardTitle>
+                  <CardDescription className="text-white/60 uppercase-soft">Siap untuk memulai pembangunan? Pilih paket kontrak Anda.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Button className="w-full bg-white text-black hover:bg-neutral-100 h-12 rounded-xl font-black uppercase tracking-widest text-[10px]">
+                    Lihat Penawaran Kontrak (Gold Tier)
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="border-2 border-black rounded-2xl overflow-hidden">
+              <CardHeader className="bg-neutral-50 border-b-2 border-black">
+                <CardTitle className="text-xl font-black uppercase tracking-tighter">Support & Architect</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <Button variant="outline" className="w-full border-2 border-black h-12 rounded-xl font-black uppercase tracking-widest text-[10px] flex justify-between group">
+                  <span>Direct Chat to Architect</span>
+                  <MessageSquare className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+                <Button variant="outline" className="w-full border-2 border-black h-12 rounded-xl font-black uppercase tracking-widest text-[10px] flex justify-between group">
+                  <span>Priority Support (24/7)</span>
+                  <ShieldCheck className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader><CardTitle>Timeline Proyek</CardTitle></CardHeader>
               <CardContent className="space-y-6">
@@ -2150,59 +2273,141 @@ const LoginPage = ({ onLogin, onGuestLogin }: { onLogin: () => void; onGuestLogi
 );
 
 const AdminMasterPage = () => {
-  const { masterData, loading, updateMasterItem } = useMasterData();
+  const { user } = useAuth();
+  const { masterData, loading, updateMasterItem, addMasterItem, deleteMasterItem } = useMasterData(user?.role);
   const { properties, addProperty, updateProperty } = useProperties();
   const [activeTab, setActiveTab] = useState<"rab" | "property">("rab");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  if (user?.role !== 'admin' && user?.role !== 'pm') {
+    return (
+      <div className="flex flex-col items-center justify-center py-40 space-y-4">
+        <Lock className="w-12 h-12 text-neutral-200" />
+        <h2 className="text-2xl font-heading">Akses Terbatas</h2>
+        <p className="text-neutral-500 font-light">Halaman ini hanya untuk Admin dan Project Manager.</p>
+        <Link to="/">
+          <Button variant="outline" className="btn-sleek">
+            Kembali ke Beranda
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  const filteredMasterData = masterData.filter(item => 
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.code?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-black uppercase">Admin Control Panel</h1>
-        <div className="flex gap-2 bg-neutral-100 p-1 rounded-lg">
-          <Button variant={activeTab === "rab" ? "default" : "ghost"} size="sm" onClick={() => setActiveTab("rab")}>Master RAB</Button>
-          <Button variant={activeTab === "property" ? "default" : "ghost"} size="sm" onClick={() => setActiveTab("property")}>Master Properti</Button>
+    <div className="space-y-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h1 className="heading-sleek">Master Database</h1>
+          <p className="text-neutral-500 font-light">Kelola database harga satuan dan properti.</p>
+        </div>
+        <div className="flex gap-2 p-1 bg-neutral-100 rounded-full">
+          <Button 
+            variant={activeTab === "rab" ? "default" : "ghost"} 
+            size="sm" 
+            className={cn("rounded-full text-[10px] uppercase tracking-widest px-6", activeTab === "rab" ? "bg-black text-white" : "")}
+            onClick={() => setActiveTab("rab")}
+          >
+            Master RAB
+          </Button>
+          <Button 
+            variant={activeTab === "property" ? "default" : "ghost"} 
+            size="sm" 
+            className={cn("rounded-full text-[10px] uppercase tracking-widest px-6", activeTab === "property" ? "bg-black text-white" : "")}
+            onClick={() => setActiveTab("property")}
+          >
+            Master Properti
+          </Button>
         </div>
       </div>
 
       {activeTab === "rab" ? (
-        <Card>
-          <CardHeader><CardTitle>Database Harga Satuan</CardTitle></CardHeader>
-          <CardContent>
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row gap-4 justify-between">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+              <Input 
+                placeholder="Cari item pekerjaan..." 
+                className="input-sleek pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Button 
+              className="btn-accent"
+              onClick={() => addMasterItem({
+                category: "Pekerjaan Baru",
+                name: "Item Baru",
+                unit: "m2",
+                price: 0,
+                status: "visible"
+              })}
+            >
+              <Plus className="w-4 h-4 mr-2" /> Tambah Item
+            </Button>
+          </div>
+
+          <div className="sleek-card overflow-hidden">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Kategori</TableHead>
-                  <TableHead>Pekerjaan</TableHead>
-                  <TableHead>Satuan</TableHead>
-                  <TableHead className="text-right">Harga (Rp)</TableHead>
+              <TableHeader className="bg-neutral-50/50">
+                <TableRow className="border-b border-black/5">
+                  <TableHead className="text-[10px] uppercase tracking-widest py-6">Kode</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-widest">Kategori</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-widest">Pekerjaan</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-widest">Satuan</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-widest text-right">Harga (Rp)</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {masterData.map(item => (
-                  <TableRow key={item.id}>
-                    <TableCell><Badge variant="outline">{item.category}</Badge></TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{item.unit}</TableCell>
+                {filteredMasterData.map(item => (
+                  <TableRow key={item.id} className="border-b border-black/5 last:border-0">
+                    <TableCell className="font-mono text-[10px] text-neutral-400">{item.code || "N/A"}</TableCell>
+                    <TableCell><Badge variant="outline" className="tag-sleek mb-0">{item.category}</Badge></TableCell>
+                    <TableCell className="font-medium text-sm">
+                      <Input 
+                        defaultValue={item.name} 
+                        className="border-none bg-transparent p-0 h-auto focus-visible:ring-0"
+                        onBlur={(e) => updateMasterItem(item.id, { name: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell className="text-xs font-light">{item.unit}</TableCell>
                     <TableCell className="text-right">
                       <Input 
                         type="number" 
-                        className="w-32 ml-auto text-right" 
+                        className="w-32 ml-auto text-right font-mono text-xs border-none bg-transparent focus-visible:ring-0" 
                         defaultValue={item.price}
                         onBlur={(e) => updateMasterItem(item.id, { price: Number(e.target.value) })}
                       />
+                    </TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-neutral-300 hover:text-red-500"
+                        onClick={() => deleteMasterItem(item.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           <div className="flex justify-end">
-            <Button onClick={() => addProperty({
+            <Button className="btn-accent" onClick={() => addProperty({
               title: "Properti Baru",
               description: "Deskripsi properti...",
               price: 0,
@@ -2212,34 +2417,35 @@ const AdminMasterPage = () => {
               photos: [],
               features: [],
               status: "available"
-            })}>Tambah Listing</Button>
+            })}>
+              <Plus className="w-4 h-4 mr-2" /> Tambah Listing
+            </Button>
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-8 md:grid-cols-2">
             {properties.map(p => (
-              <Card key={p.id}>
-                <CardHeader>
-                  <Input defaultValue={p.title} onBlur={(e) => updateProperty(p.id, { title: e.target.value })} className="text-lg font-bold" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Harga</Label>
-                      <Input type="number" defaultValue={p.price} onBlur={(e) => updateProperty(p.id, { price: Number(e.target.value) })} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Tipe</Label>
-                      <select className="w-full p-2 border rounded-md" defaultValue={p.type} onChange={(e) => updateProperty(p.id, { type: e.target.value as any })}>
-                        <option value="jual">Jual</option>
-                        <option value="sewa">Sewa</option>
-                      </select>
-                    </div>
+              <div key={p.id} className="sleek-card p-6 space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-widest opacity-50">Judul Properti</Label>
+                  <Input defaultValue={p.title} onBlur={(e) => updateProperty(p.id, { title: e.target.value })} className="input-sleek text-xl font-heading" />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase tracking-widest opacity-50">Harga</Label>
+                    <Input type="number" defaultValue={p.price} onBlur={(e) => updateProperty(p.id, { price: Number(e.target.value) })} className="input-sleek font-mono" />
                   </div>
                   <div className="space-y-2">
-                    <Label>URL Foto (Video)</Label>
-                    <Input placeholder="https://..." onBlur={(e) => updateProperty(p.id, { photos: [e.target.value] })} />
+                    <Label className="text-[10px] uppercase tracking-widest opacity-50">Tipe</Label>
+                    <select className="w-full h-10 border-b border-black/10 bg-transparent text-sm font-light focus:outline-none focus:border-accent" defaultValue={p.type} onChange={(e) => updateProperty(p.id, { type: e.target.value as any })}>
+                      <option value="jual">Jual</option>
+                      <option value="sewa">Sewa</option>
+                    </select>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase tracking-widest opacity-50">URL Foto Utama</Label>
+                  <Input placeholder="https://..." onBlur={(e) => updateProperty(p.id, { photos: [e.target.value] })} className="input-sleek" />
+                </div>
+              </div>
             ))}
           </div>
         </div>

@@ -6,12 +6,14 @@ export interface Project {
   description: string;
   ownerId: string;
   pmId?: string;
+  workerIds?: string[]; // Added for Tier 3 tracking
   createdAt: string;
   totalBudget: number;
   status: "draft" | "survey" | "active" | "completed";
   contractUrl?: string;
   timeline?: TimelineEvent[];
   location?: string;
+  locationCoords?: { lat: number; lng: number }; // Added for multi-site tracking
   area?: number;
   dailyReports?: DailyReport[];
   requests?: ProjectRequest[];
@@ -72,12 +74,12 @@ export interface Property {
   title: string;
   description: string;
   price: number;
-  type: "jual" | "sewa";
+  type: "jual" | "beli" | "sewa";
   location: string;
   area: number;
   photos: string[];
   features: string[];
-  status: "available" | "sold" | "rented";
+  status: "available" | "sold" | "rented" | "requested";
 }
 
 export interface Workforce {
@@ -85,7 +87,9 @@ export interface Workforce {
   name: string;
   ktp: string;
   photoUrl: string;
-  role: string;
+  role: "pm" | "designer" | "drafter" | "tukang" | "mandor" | "kenek" | string;
+  whatsapp: string;
+  projectId?: string; // Label proyek dimana
   status: "active" | "inactive";
   location?: { lat: number; lng: number };
   lastSeen?: string;
@@ -139,9 +143,12 @@ export interface UserProfile {
   role: "admin" | "user" | "pm";
   tier: UserTier;
   whatsapp?: string;
+  phoneNumber?: string; // Added for AI limit tracking
+  aiUsageCount?: number; // Added for AI limit tracking
   location?: string;
   createdAt: string;
   lastPaymentStatus?: "unpaid" | "pending" | "paid";
+  lifetimeAccess?: boolean; // Added for lifetime access
 }
 
 export interface AIEstimateItem {

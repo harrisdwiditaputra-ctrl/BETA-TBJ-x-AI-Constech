@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, handleFirestoreError, OperationType } from "@/lib/firebase";
 import { Megaphone } from "lucide-react";
 
 export default function Ticker() {
@@ -20,6 +20,8 @@ export default function Ticker() {
       } else {
         setUpdates(snapshot.docs.map(doc => doc.data().text));
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "status_updates");
     });
     return () => unsubscribe();
   }, []);

@@ -5,11 +5,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Loader2, Search, Save, UserPlus, Database, Settings, ShieldCheck, 
   RefreshCw, TrendingUp, DollarSign, Users, Briefcase, Plus, ChevronDown, 
   ChevronRight, Download, Eye, EyeOff, Trash2, Image as ImageIcon, 
-  LayoutDashboard, FileText, HardHat, Camera, BarChart3, Clock
+  LayoutDashboard, FileText, HardHat, Camera, BarChart3, Clock, Phone, User
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
@@ -20,19 +21,34 @@ import { WorkItemMaster, UserProfile, Project, Workforce, MaterialRequest, Prope
 
 export default function AdminPanel() {
   const { user } = useAuth();
-  const { masterData, loading: masterLoading, addMasterItem, updateMasterItem, deleteMasterItem, resetDatabase } = useMasterData();
-  const { users, loading: usersLoading, updateUser } = useUsers();
-  const { projects, loading: projectsLoading, updateProject, deleteProject } = useProjects();
-  const { workforce, loading: workforceLoading, addWorkforce, updateWorkforce } = useWorkforce();
-  const { requests, loading: requestsLoading, updateRequestStatus } = useMaterialRequests();
+  const { masterData, loading: masterLoading, addMasterItem, updateMasterItem, deleteMasterItem, resetDatabase } = useMasterData(user?.role);
+  const { users, loading: usersLoading, updateUser } = useUsers(user?.role);
+  const { projects, loading: projectsLoading, updateProject, deleteProject } = useProjects(undefined, user?.role);
+  const { workforce, loading: workforceLoading, addWorkforce, updateWorkforce } = useWorkforce(user?.role);
+  const { requests, loading: requestsLoading, updateRequestStatus } = useMaterialRequests(user?.role);
   const { properties, loading: propertiesLoading, addProperty, updateProperty } = useProperties();
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "clients" | "projects" | "workforce" | "cms" | "finance">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "clients" | "projects" | "workforce" | "cms" | "finance" | "marketing" | "management">("dashboard");
   const [search, setSearch] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   
   // Master Data Form
-  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<WorkItemMaster>>({});
+
+  const handleEdit = (item: WorkItemMaster) => {
+    setEditingId(item.id);
+    setEditForm(item);
+  };
+
+  const handleSaveEdit = async () => {
+    if (editingId && editForm) {
+      await updateMasterItem(editingId, editForm);
+      setEditingId(null);
+      setEditForm({});
+      toast.success("Product updated successfully");
+    }
+  };
   const [newProduct, setNewProduct] = useState<Partial<WorkItemMaster>>({
     category: "",
     name: "",
@@ -41,6 +57,25 @@ export default function AdminPanel() {
     price: 0,
     status: "visible"
   });
+  const [showAddProduct, setShowAddProduct] = useState(false);
+
+  const [newProperty, setNewProperty] = useState<Partial<Property>>({
+    title: "",
+    type: "jual",
+    price: 0,
+    area: 0,
+    description: "",
+    status: "available",
+    photos: [],
+    features: []
+  });
+
+  const handleAddProperty = async () => {
+    if (!newProperty.title) return;
+    await addProperty(newProperty as any);
+    setNewProperty({ title: "", type: "jual", price: 0, area: 0, description: "", status: "available", photos: [], features: [] });
+    toast.success("Listing published successfully");
+  };
 
   // Grouping Master Data
   const groupedMaster = useMemo(() => {
@@ -113,6 +148,8 @@ export default function AdminPanel() {
             { id: "workforce", label: "Workforce", icon: HardHat },
             { id: "cms", label: "CMS Content", icon: ImageIcon },
             { id: "finance", label: "Finance", icon: DollarSign },
+            { id: "marketing", label: "Marketing", icon: TrendingUp },
+            { id: "management", label: "Management", icon: Settings },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -150,6 +187,8 @@ export default function AdminPanel() {
                 {activeTab === "workforce" && "Workforce & Security"}
                 {activeTab === "cms" && "Content Management"}
                 {activeTab === "finance" && "Financial Reports"}
+                {activeTab === "marketing" && "Marketing & Engagement"}
+                {activeTab === "management" && "System Management"}
               </h1>
               <p className="uppercase-soft text-neutral-500">Welcome back, {user?.displayName}. System is running optimally.</p>
             </div>
@@ -347,14 +386,41 @@ export default function AdminPanel() {
                             <TableRow key={item.id} className={cn(item.status === 'hidden' && "opacity-50 bg-neutral-50")}>
                               <TableCell className="font-mono text-[10px] font-bold">{item.code || "N/A"}</TableCell>
                               <TableCell>
-                                <div className="space-y-1">
-                                  <p className="font-black text-xs uppercase tracking-widest">{item.name}</p>
-                                  <p className="text-[9px] text-neutral-400 line-clamp-1">{item.description}</p>
-                                </div>
+                                {editingId === item.id ? (
+                                  <Input 
+                                    className="h-8 text-xs font-bold uppercase" 
+                                    value={editForm.name} 
+                                    onChange={e => setEditForm({...editForm, name: e.target.value})}
+                                  />
+                                ) : (
+                                  <div className="space-y-1">
+                                    <p className="font-black text-xs uppercase tracking-widest">{item.name}</p>
+                                    <p className="text-[9px] text-neutral-400 line-clamp-1">{item.description}</p>
+                                  </div>
+                                )}
                               </TableCell>
-                              <TableCell className="text-[10px] font-bold uppercase">{item.unit}</TableCell>
+                              <TableCell className="text-[10px] font-bold uppercase">
+                                {editingId === item.id ? (
+                                  <Input 
+                                    className="h-8 w-16 text-xs font-bold uppercase" 
+                                    value={editForm.unit} 
+                                    onChange={e => setEditForm({...editForm, unit: e.target.value})}
+                                  />
+                                ) : (
+                                  item.unit
+                                )}
+                              </TableCell>
                               <TableCell className="text-right font-mono font-bold">
-                                Rp {item.price.toLocaleString('id-ID')}
+                                {editingId === item.id ? (
+                                  <Input 
+                                    type="number"
+                                    className="h-8 w-24 text-right text-xs font-bold" 
+                                    value={editForm.price} 
+                                    onChange={e => setEditForm({...editForm, price: Number(e.target.value)})}
+                                  />
+                                ) : (
+                                  `Rp ${item.price.toLocaleString('id-ID')}`
+                                )}
                               </TableCell>
                               <TableCell className="text-center">
                                 <div className="text-[9px] uppercase-soft">
@@ -363,6 +429,15 @@ export default function AdminPanel() {
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
+                                  {editingId === item.id ? (
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-green-500" onClick={handleSaveEdit}>
+                                      <Save className="w-4 h-4" />
+                                    </Button>
+                                  ) : (
+                                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleEdit(item)}>
+                                      <FileText className="w-4 h-4" />
+                                    </Button>
+                                  )}
                                   <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => updateMasterItem(item.id, { status: item.status === 'visible' ? 'hidden' : 'visible' })}>
                                     {item.status === 'visible' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                   </Button>
@@ -500,35 +575,75 @@ export default function AdminPanel() {
                 </Button>
               </div>
               
-              <div className="grid md:grid-cols-3 gap-8">
-                {workforce.map(worker => (
-                  <Card key={worker.id} className="border-2 border-black rounded-2xl overflow-hidden">
-                    <div className="h-48 bg-neutral-200 relative">
-                      {worker.photoUrl ? (
-                        <img src={worker.photoUrl} alt={worker.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-neutral-400">
-                          <Users className="w-12 h-12" />
+              <div className="space-y-6">
+                {["pm", "designer", "drafter", "tukang", "mandor", "kenek"].map(role => {
+                  const workers = workforce.filter(w => w.role === role);
+                  return (
+                    <Card key={role} className="border-2 border-black rounded-2xl overflow-hidden shadow-sm">
+                      <button 
+                        onClick={() => toggleCategory(role)}
+                        className="w-full flex items-center justify-between p-4 bg-neutral-50 hover:bg-neutral-100 transition-colors border-b-2 border-black"
+                      >
+                        <div className="flex items-center gap-3">
+                          {expandedCategories.includes(role) ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                          <h3 className="text-sm font-black uppercase tracking-widest">{role}</h3>
+                          <Badge className="bg-black text-white text-[9px]">{workers.length} Personnel</Badge>
+                        </div>
+                      </button>
+                      
+                      {expandedCategories.includes(role) && (
+                        <div className="p-6 grid md:grid-cols-3 gap-6">
+                          {workers.map(worker => (
+                            <Card key={worker.id} className="border-2 border-black/10 rounded-xl overflow-hidden hover:border-accent transition-colors">
+                              <div className="h-40 bg-neutral-100 relative">
+                                {worker.photoUrl ? (
+                                  <img src={worker.photoUrl} alt={worker.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-neutral-300">
+                                    <User className="w-12 h-12" />
+                                  </div>
+                                )}
+                                <Badge className="absolute top-3 right-3 bg-black text-white text-[8px] uppercase font-black">{worker.status}</Badge>
+                              </div>
+                              <CardContent className="p-4 space-y-3">
+                                <div className="space-y-1">
+                                  <p className="font-black text-xs uppercase tracking-widest">{worker.name}</p>
+                                  <p className="text-[9px] text-neutral-400 font-mono">KTP: {worker.ktp}</p>
+                                </div>
+                                <div className="space-y-2 pt-2 border-t border-black/5">
+                                  <div className="flex items-center gap-2 text-[9px] font-bold uppercase text-neutral-500">
+                                    <Phone className="w-3 h-3 text-accent" /> {worker.whatsapp || "No WA"}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-[9px] font-bold uppercase text-neutral-500">
+                                    <Briefcase className="w-3 h-3 text-accent" /> 
+                                    <select 
+                                      className="bg-transparent border-none focus:outline-none text-[9px] font-bold uppercase"
+                                      value={worker.projectId || ""}
+                                      onChange={async (e) => {
+                                        await updateWorkforce(worker.id, { projectId: e.target.value || undefined });
+                                        toast.success(`Worker assigned to ${e.target.value ? "project" : "standby"}`);
+                                      }}
+                                    >
+                                      <option value="">Standby</option>
+                                      {projects.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                          {workers.length === 0 && (
+                            <div className="col-span-full py-12 text-center border-2 border-dashed border-neutral-200 rounded-xl">
+                              <p className="uppercase-soft text-neutral-400">No personnel registered for this category.</p>
+                            </div>
+                          )}
                         </div>
                       )}
-                      <Badge className="absolute top-4 right-4 bg-black text-white uppercase-soft">{worker.role}</Badge>
-                    </div>
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-black text-sm uppercase tracking-widest">{worker.name}</p>
-                          <p className="text-[10px] text-neutral-400">KTP: {worker.ktp}</p>
-                        </div>
-                        <Badge variant="outline" className={cn("text-[9px] uppercase-soft", worker.status === 'active' ? "border-green-500 text-green-500" : "border-red-500 text-red-500")}>
-                          {worker.status}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-neutral-500">
-                        <Clock className="w-3 h-3" /> Last Check-in: {worker.lastSeen || "Never"}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -562,23 +677,81 @@ export default function AdminPanel() {
                   <CardHeader className="bg-neutral-50 border-b-2 border-black">
                     <CardTitle className="text-lg font-black uppercase tracking-tighter">TBJ Jual Beli Sewa</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6 space-y-4">
-                    {properties.map(p => (
-                      <div key={p.id} className="flex items-center justify-between p-3 border-2 border-black rounded-xl">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-neutral-100 rounded-lg" />
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest">{p.title}</p>
-                            <p className="text-[9px] text-neutral-400">Rp {p.price.toLocaleString()}</p>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="space-y-4">
+                      {properties.map(p => (
+                        <div key={p.id} className="flex items-center justify-between p-3 border-2 border-black rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-neutral-100 rounded-lg overflow-hidden">
+                              {p.photos?.[0] && <img src={p.photos[0]} className="w-full h-full object-cover" />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest">{p.title}</p>
+                                <Badge className="text-[8px] uppercase font-black h-4 px-1">{p.type}</Badge>
+                              </div>
+                              <p className="text-[9px] text-neutral-400">Rp {p.price.toLocaleString()}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="icon" variant="ghost" className="h-8 w-8"><Settings className="w-3 h-3" /></Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500"><Trash2 className="w-3 h-3" /></Button>
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button size="icon" variant="ghost" className="h-8 w-8"><Settings className="w-3 h-3" /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500"><Trash2 className="w-3 h-3" /></Button>
+                      ))}
+                    </div>
+
+                    <div className="p-6 border-2 border-black rounded-2xl bg-neutral-50 space-y-4">
+                      <h4 className="text-xs font-black uppercase tracking-widest">Add New Listing</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="uppercase-soft text-[9px]">Title</label>
+                          <Input placeholder="Listing Title" className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="uppercase-soft text-[9px]">Type</label>
+                          <select 
+                            className="w-full h-8 text-xs border-b border-black/10 bg-transparent focus:outline-none"
+                            value={newProperty.type}
+                            onChange={e => setNewProperty({...newProperty, type: e.target.value as any})}
+                          >
+                            <option value="jual">JUAL</option>
+                            <option value="beli">BELI</option>
+                            <option value="sewa">SEWA</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="uppercase-soft text-[9px]">Price (Rp)</label>
+                          <Input 
+                            type="number" 
+                            placeholder="Price" 
+                            className="h-8 text-xs" 
+                            value={newProperty.price}
+                            onChange={e => setNewProperty({...newProperty, price: Number(e.target.value)})}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="uppercase-soft text-[9px]">Area (m2)</label>
+                          <Input 
+                            type="number" 
+                            placeholder="Area" 
+                            className="h-8 text-xs" 
+                            value={newProperty.area}
+                            onChange={e => setNewProperty({...newProperty, area: Number(e.target.value)})}
+                          />
                         </div>
                       </div>
-                    ))}
-                    <Button className="w-full btn-sleek h-10 rounded-xl">Add New Listing</Button>
+                      <div className="space-y-1">
+                        <label className="uppercase-soft text-[9px]">Description</label>
+                        <Textarea 
+                          placeholder="Detailed description..." 
+                          className="text-xs min-h-[80px]" 
+                          value={newProperty.description}
+                          onChange={e => setNewProperty({...newProperty, description: e.target.value})}
+                        />
+                      </div>
+                      <Button onClick={handleAddProperty} className="w-full btn-sleek h-10 rounded-xl">Publish Listing</Button>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -632,6 +805,118 @@ export default function AdminPanel() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          )}
+
+          {activeTab === "marketing" && (
+            <div className="space-y-8">
+              <div className="grid md:grid-cols-3 gap-8">
+                <Card className="border-2 border-black rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="w-6 h-6 text-accent" />
+                    <h3 className="text-lg font-black uppercase tracking-tighter">Engagement Rate</h3>
+                  </div>
+                  <p className="text-4xl font-black">68.4%</p>
+                  <p className="uppercase-soft text-neutral-400">Average client response time: 12 mins</p>
+                </Card>
+                <Card className="border-2 border-black rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Users className="w-6 h-6 text-blue-500" />
+                    <h3 className="text-lg font-black uppercase tracking-tighter">Lead Conversion</h3>
+                  </div>
+                  <p className="text-4xl font-black">24.2%</p>
+                  <p className="uppercase-soft text-neutral-400">Tier 1 to Tier 2 conversion rate</p>
+                </Card>
+                <Card className="border-2 border-black rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <BarChart3 className="w-6 h-6 text-green-500" />
+                    <h3 className="text-lg font-black uppercase tracking-tighter">Campaign ROI</h3>
+                  </div>
+                  <p className="text-4xl font-black">4.2x</p>
+                  <p className="uppercase-soft text-neutral-400">Return on marketing spend</p>
+                </Card>
+              </div>
+
+              <Card className="border-2 border-black rounded-2xl overflow-hidden">
+                <CardHeader className="bg-neutral-50 border-b-2 border-black">
+                  <CardTitle className="text-xl font-black uppercase tracking-tighter">Active Campaigns</CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6">
+                  {[
+                    { name: "Ramadan Construction Promo", status: "Active", reach: "1.2k", conversion: "12%" },
+                    { name: "Interior Design Bundle", status: "Draft", reach: "0", conversion: "0%" },
+                    { name: "Survey Cashback Program", status: "Active", reach: "850", conversion: "18%" },
+                  ].map((c, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
+                      <div className="space-y-1">
+                        <p className="font-black text-sm uppercase tracking-widest">{c.name}</p>
+                        <p className="text-[10px] text-neutral-400">Reach: {c.reach} | Conversion: {c.conversion}</p>
+                      </div>
+                      <Badge className={cn("uppercase-soft", c.status === "Active" ? "bg-green-500" : "bg-neutral-200")}>{c.status}</Badge>
+                    </div>
+                  ))}
+                  <Button className="w-full btn-sleek h-12 rounded-xl">Create New Campaign</Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === "management" && (
+            <div className="space-y-8">
+              <div className="grid md:grid-cols-2 gap-8">
+                <Card className="border-2 border-black rounded-2xl overflow-hidden">
+                  <CardHeader className="bg-neutral-50 border-b-2 border-black">
+                    <CardTitle className="text-xl font-black uppercase tracking-tighter">Access Control</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-8 space-y-6">
+                    <div className="space-y-4">
+                      {[
+                        { role: "Admin Owner", access: "Full System Access", users: 1 },
+                        { role: "Admin", access: "Management & Finance", users: 2 },
+                        { role: "Project Manager", access: "Project & Workforce", users: 5 },
+                      ].map((r, i) => (
+                        <div key={i} className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
+                          <div>
+                            <p className="font-black text-sm uppercase tracking-widest">{r.role}</p>
+                            <p className="text-[10px] text-neutral-400">{r.access}</p>
+                          </div>
+                          <Badge variant="outline" className="border-black rounded-md">{r.users} Users</Badge>
+                        </div>
+                      ))}
+                    </div>
+                    <Button className="w-full btn-sleek h-12 rounded-xl">Manage Permissions</Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2 border-black rounded-2xl overflow-hidden">
+                  <CardHeader className="bg-neutral-50 border-b-2 border-black">
+                    <CardTitle className="text-xl font-black uppercase tracking-tighter">System Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-8 space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
+                        <div>
+                          <p className="font-black text-sm uppercase tracking-widest">Auto-Notification (WA)</p>
+                          <p className="text-[10px] text-neutral-400">Send automatic updates to clients</p>
+                        </div>
+                        <div className="w-12 h-6 bg-green-500 rounded-full relative">
+                          <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
+                        <div>
+                          <p className="font-black text-sm uppercase tracking-widest">AI Analysis Mode</p>
+                          <p className="text-[10px] text-neutral-400">Enhanced accuracy for RAB estimation</p>
+                        </div>
+                        <div className="w-12 h-6 bg-green-500 rounded-full relative">
+                          <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
+                        </div>
+                      </div>
+                    </div>
+                    <Button variant="outline" className="w-full border-2 border-black h-12 rounded-xl uppercase font-black text-[10px]">Advanced Configuration</Button>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
         </div>

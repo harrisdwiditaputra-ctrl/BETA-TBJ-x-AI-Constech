@@ -66,8 +66,8 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
                     className={cn(
                       "px-4 py-2 text-[11px] font-bold uppercase tracking-widest transition-all rounded-xl",
                       location.pathname === item.href
-                        ? "bg-black text-white"
-                        : "text-neutral-500 hover:text-black hover:bg-neutral-100"
+                        ? "bg-accent text-white shadow-lg shadow-accent/20"
+                        : "text-neutral-500 hover:text-white hover:bg-titanium"
                     )}
                   >
                     {item.name}

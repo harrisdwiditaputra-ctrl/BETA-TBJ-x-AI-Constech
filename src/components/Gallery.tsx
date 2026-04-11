@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { handleFirestoreError, OperationType } from "@/lib/firebase";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,8 @@ export default function Gallery() {
         setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as GalleryItem[]);
       }
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "gallery");
     });
     return () => unsubscribe();
   }, []);

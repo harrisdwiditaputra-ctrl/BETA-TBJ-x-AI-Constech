@@ -24,6 +24,7 @@ export function useAuth() {
               photoURL: firebaseUser.photoURL || undefined,
               role: "user",
               tier: "prospect",
+              aiUsageCount: 0, // Initialize AI usage
               createdAt: new Date().toISOString()
             };
             await setDoc(userDocRef, newUser);
@@ -32,7 +33,7 @@ export function useAuth() {
             setUser(userDoc.data() as UserProfile);
           }
         } catch (error) {
-          console.error("Error checking user profile:", error);
+          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
         }
       } else {
         setUser(null);
@@ -94,14 +95,33 @@ export function useAuth() {
     }
   };
 
-  return { user, loading, login, loginAsGuest, logout, updateProfile };
+  const incrementAIUsage = async () => {
+    if (!user || user.uid.startsWith("guest-")) return;
+    const newCount = (user.aiUsageCount || 0) + 1;
+    await updateProfile({ aiUsageCount: newCount });
+  };
+
+  return { user, loading, login, loginAsGuest, logout, updateProfile, incrementAIUsage };
 }
 
-export function useProjects(userId?: string) {
+export function useProjects(userId?: string, userRole?: string) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth.currentUser) {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
+
+    // If userId not provided, we are listing all (Staff only)
+    if (!userId && userRole !== 'admin' && userRole !== 'pm') {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
+
     // If guest, show nothing
     if (userId && userId.startsWith("guest-")) {
       setProjects([]);
@@ -126,7 +146,7 @@ export function useProjects(userId?: string) {
     });
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [auth.currentUser, userId, userRole]);
 
   const createProject = async (name: string, description: string) => {
     if (!userId) return;
@@ -173,7 +193,10 @@ export function useProjectDetails(projectId: string | undefined) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!projectId || projectId.startsWith("guest-")) return;
+    if (!projectId || projectId.startsWith("guest-") || !auth.currentUser) {
+      setLoading(false);
+      return;
+    }
 
     // Project Doc
     const projectUnsubscribe = onSnapshot(doc(db, "projects", projectId), (snapshot) => {
@@ -189,6 +212,8 @@ export function useProjectDetails(projectId: string | undefined) {
       query(collection(db, "projects", projectId, "categories"), orderBy("order", "asc")),
       (snapshot) => {
         setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as BudgetCategory[]);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, `projects/${projectId}/categories`);
       }
     );
 
@@ -197,6 +222,8 @@ export function useProjectDetails(projectId: string | undefined) {
       collection(db, "projects", projectId, "items"),
       (snapshot) => {
         setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as BudgetItem[]);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, `projects/${projectId}/items`);
       }
     );
 
@@ -307,9 +334,11 @@ export function useProperties() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setProperties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Property[]);
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "properties");
     });
     return () => unsubscribe();
-  }, []);
+  }, [auth.currentUser]);
 
   const addProperty = async (data: Omit<Property, "id">) => {
     try {
@@ -330,7 +359,7 @@ export function useProperties() {
   return { properties, loading, addProperty, updateProperty };
 }
 
-export function useMasterData() {
+export function useMasterData(userRole?: string) {
   const [masterData, setMasterData] = useState<WorkItemMaster[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -349,9 +378,11 @@ export function useMasterData() {
         setMasterData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WorkItemMaster[]);
       }
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "master_data");
     });
     return () => unsubscribe();
-  }, []);
+  }, [auth.currentUser, userRole]);
 
   const addMasterItem = async (data: Omit<WorkItemMaster, "id">) => {
     try {
@@ -409,11 +440,16 @@ export function useMasterData() {
   return { masterData, loading, addMasterItem, updateMasterItem, deleteMasterItem, resetDatabase };
 }
 
-export function useUsers() {
+export function useUsers(userRole?: string) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth.currentUser || (userRole !== 'admin' && userRole !== 'pm')) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, "users"), orderBy("role", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ ...doc.data() })) as UserProfile[]);
@@ -422,7 +458,7 @@ export function useUsers() {
       handleFirestoreError(error, OperationType.LIST, "users");
     });
     return () => unsubscribe();
-  }, []);
+  }, [auth.currentUser, userRole]);
 
   const updateUser = async (uid: string, data: Partial<UserProfile>) => {
     try {
@@ -436,18 +472,33 @@ export function useUsers() {
   return { users, loading, updateUser };
 }
 
-export function useWorkforce() {
+export function useWorkforce(userRole?: string, userTier?: string) {
   const [workforce, setWorkforce] = useState<Workforce[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth.currentUser) {
+      setWorkforce([]);
+      setLoading(false);
+      return;
+    }
+
+    // Allow Admin, PM, or Tier 3 users
+    if (userRole !== 'admin' && userRole !== 'pm' && userTier !== 'deal') {
+      setWorkforce([]);
+      setLoading(false);
+      return;
+    }
+
     const q = query(collection(db, "workforce"), orderBy("name", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setWorkforce(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Workforce[]);
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "workforce");
     });
     return () => unsubscribe();
-  }, []);
+  }, [auth.currentUser, userRole]);
 
   const addWorkforce = async (data: Omit<Workforce, "id">) => {
     try {
@@ -469,18 +520,25 @@ export function useWorkforce() {
   return { workforce, loading, addWorkforce, updateWorkforce };
 }
 
-export function useAttendance() {
+export function useAttendance(userRole?: string) {
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth.currentUser || (userRole !== 'admin' && userRole !== 'pm')) {
+      setAttendance([]);
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, "attendance"), orderBy("checkIn", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setAttendance(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Attendance[]);
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "attendance");
     });
     return () => unsubscribe();
-  }, []);
+  }, [auth.currentUser, userRole]);
 
   const checkIn = async (data: Omit<Attendance, "id">) => {
     try {
@@ -506,18 +564,25 @@ export function useAttendance() {
   return { attendance, loading, checkIn, checkOut };
 }
 
-export function useMaterialRequests() {
+export function useMaterialRequests(userRole?: string) {
   const [requests, setRequests] = useState<MaterialRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth.currentUser || (userRole !== 'admin' && userRole !== 'pm')) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, "material_requests"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MaterialRequest[]);
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "material_requests");
     });
     return () => unsubscribe();
-  }, []);
+  }, [auth.currentUser, userRole]);
 
   const addRequest = async (data: Omit<MaterialRequest, "id" | "createdAt" | "updatedAt" | "log">) => {
     try {
