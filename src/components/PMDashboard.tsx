@@ -117,7 +117,7 @@ export default function PMDashboard() {
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
               "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-              activeTab === tab.id ? "bg-black text-white shadow-md" : "text-neutral-500 hover:bg-black/5"
+              activeTab === tab.id ? "bg-black text-white shadow-md" : "text-neutral-500 hover:bg-titanium/10"
             )}
           >
             <tab.icon className="w-4 h-4" />

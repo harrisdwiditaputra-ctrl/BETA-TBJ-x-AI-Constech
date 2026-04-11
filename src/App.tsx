@@ -831,7 +831,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                         handleNext();
                       }
                     }}
-                    className="p-8 border-2 border-black hover:bg-black hover:text-white cursor-pointer transition-all group relative overflow-hidden rounded-3xl"
+                    className="p-8 border-2 border-black hover:bg-titanium hover:text-white cursor-pointer transition-all group relative overflow-hidden rounded-3xl"
                   >
                     <cat.icon className="w-12 h-12 mb-6 transition-transform group-hover:-translate-y-1" />
                     <h3 className="font-black text-xl uppercase tracking-tighter">{cat.label}</h3>

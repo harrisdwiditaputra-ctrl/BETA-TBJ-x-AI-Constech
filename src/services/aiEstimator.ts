@@ -2,7 +2,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { WORK_ITEMS_MASTER } from "../constants";
 import { AIEstimateResponse } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const getApiKey = () => {
+  const key = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  if (!key) {
+    console.warn("GEMINI_API_KEY is not defined. AI features may not work.");
+  }
+  return key || "";
+};
+
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 export async function getAIEstimation(userProblem: string, category: string): Promise<AIEstimateResponse> {
   const masterDataString = WORK_ITEMS_MASTER.map(item => 

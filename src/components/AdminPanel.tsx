@@ -156,7 +156,7 @@ export default function AdminPanel() {
               onClick={() => setActiveTab(tab.id as any)}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                activeTab === tab.id ? "bg-black text-white shadow-lg" : "text-neutral-500 hover:bg-black/5"
+                activeTab === tab.id ? "bg-black text-white shadow-lg" : "text-neutral-500 hover:bg-titanium/10"
               )}
             >
               <tab.icon className="w-4 h-4" />

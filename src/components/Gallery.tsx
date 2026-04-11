@@ -133,13 +133,13 @@ function ProjectCard({ item }: { item: GalleryItem }) {
           
           <button 
             onClick={() => scroll('left')}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full border-2 border-black opacity-0 group-hover:opacity-100 transition-all hover:bg-black hover:text-white"
+            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full border-2 border-black opacity-0 group-hover:opacity-100 transition-all hover:bg-titanium hover:text-white"
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
           <button 
             onClick={() => scroll('right')}
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full border-2 border-black opacity-0 group-hover:opacity-100 transition-all hover:bg-black hover:text-white"
+            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-3 rounded-full border-2 border-black opacity-0 group-hover:opacity-100 transition-all hover:bg-titanium hover:text-white"
           >
             <ChevronRight className="w-6 h-6" />
           </button>

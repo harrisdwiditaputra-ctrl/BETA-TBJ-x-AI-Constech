@@ -42,7 +42,7 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
   ];
 
   return (
-    <div className="min-h-screen bg-white flex flex-col tech-grid">
+    <div className="min-h-screen bg-white flex flex-col sleek-grid">
       <Ticker />
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-black sticky top-0 z-40">
@@ -67,7 +67,7 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
                       "px-4 py-2 text-[11px] font-bold uppercase tracking-widest transition-all rounded-xl",
                       location.pathname === item.href
                         ? "bg-accent text-white shadow-lg shadow-accent/20"
-                        : "text-neutral-500 hover:text-white hover:bg-titanium"
+                        : "text-neutral-500 hover:text-white hover:bg-accent"
                     )}
                   >
                     {item.name}
@@ -82,7 +82,7 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
                     <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-900">{user.displayName}</p>
                     <p className="text-[10px] font-mono text-neutral-400">{user.email}</p>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={onLogout} className="hover:bg-black hover:text-white rounded-md">
+                  <Button variant="ghost" size="icon" onClick={onLogout} className="hover:bg-titanium hover:text-white rounded-md">
                     <LogOut className="w-5 h-5" />
                   </Button>
                 </div>
