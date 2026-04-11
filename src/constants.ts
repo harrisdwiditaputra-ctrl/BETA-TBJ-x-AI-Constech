@@ -4,16 +4,16 @@ export const WORK_ITEMS_MASTER: WorkItemMaster[] = [
   // ==========================================
   // 1. PEKERJAAN PERSIAPAN, GALIAN & TANAH
   // ==========================================
-  { id: "P001", code: "P001", category: "Persiapan", name: "Pembersihan Lapangan dan Perataan", unit: "m2", price: 15000, status: "visible", soldCount: 0, revenue: 0 },
-  { id: "P002", code: "P002", category: "Persiapan", name: "Pasang Bouwplank", unit: "m1", price: 45000, status: "visible", soldCount: 0, revenue: 0 },
-  { id: "P003", code: "P003", category: "Persiapan", name: "Direksi Keet / Gudang Sementara", unit: "m2", price: 750000, status: "visible", soldCount: 0, revenue: 0 },
-  { id: "P004", code: "P004", category: "Persiapan", name: "Pagar Proyek Seng Gelombang t=2m", unit: "m1", price: 225000, status: "visible", soldCount: 0, revenue: 0 },
-  { id: "G001", code: "G001", category: "Galian", name: "Galian Tanah Pondasi (kedalaman < 1m)", unit: "m3", price: 75000, status: "visible", soldCount: 0, revenue: 0 },
-  { id: "G002", code: "G002", category: "Galian", name: "Galian Tanah Pondasi (kedalaman 1-2m)", unit: "m3", price: 95000, status: "visible", soldCount: 0, revenue: 0 },
-  { id: "G003", code: "G003", category: "Galian", name: "Urugan Pasir Bawah Pondasi", unit: "m3", price: 220000, status: "visible", soldCount: 0, revenue: 0 },
-  { id: "G004", code: "G004", category: "Galian", name: "Urugan Tanah Kembali", unit: "m3", price: 35000, status: "visible", soldCount: 0, revenue: 0 },
-  { id: "G005", code: "G005", category: "Galian", name: "Urugan Tanah Peninggian Lantai (Sirtu)", unit: "m3", price: 185000, status: "visible", soldCount: 0, revenue: 0 },
-  { id: "G008", code: "G008", category: "Galian", name: "Pekerjaan Plur / Screed Lantai t=3cm", unit: "m2", price: 55000, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "P001", code: "P001", category: "Persiapan", name: "Pembersihan Lapangan dan Perataan", unit: "m2", price: 20250, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "P002", code: "P002", category: "Persiapan", name: "Pasang Bouwplank", unit: "m1", price: 60750, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "P003", code: "P003", category: "Persiapan", name: "Direksi Keet / Gudang Sementara", unit: "m2", price: 1012500, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "P004", code: "P004", category: "Persiapan", name: "Pagar Proyek Seng Gelombang t=2m", unit: "m1", price: 303750, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "G001", code: "G001", category: "Galian", name: "Galian Tanah Pondasi (kedalaman < 1m)", unit: "m3", price: 101250, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "G002", code: "G002", category: "Galian", name: "Galian Tanah Pondasi (kedalaman 1-2m)", unit: "m3", price: 128250, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "G003", code: "G003", category: "Galian", name: "Urugan Pasir Bawah Pondasi", unit: "m3", price: 297000, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "G004", code: "G004", category: "Galian", name: "Urugan Tanah Kembali", unit: "m3", price: 47250, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "G005", code: "G005", category: "Galian", name: "Urugan Tanah Peninggian Lantai (Sirtu)", unit: "m3", price: 249750, status: "visible", soldCount: 0, revenue: 0 },
+  { id: "G008", code: "G008", category: "Galian", name: "Pekerjaan Plur / Screed Lantai t=3cm", unit: "m2", price: 74250, status: "visible", soldCount: 0, revenue: 0 },
 
   // ==========================================
   // 2. STRUKTUR BETON & PEMBESIAN

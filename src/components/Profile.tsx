@@ -87,25 +87,41 @@ export default function Profile() {
       </div>
 
       {user?.tier === 'deal' && (
-        <div className="grid md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-top-4">
-          <Card className="border-2 border-accent bg-accent/5 rounded-3xl p-8 flex items-center gap-6">
-            <div className="w-16 h-16 bg-accent text-white rounded-2xl flex items-center justify-center shrink-0">
-              <MessageSquare className="w-8 h-8" />
+        <div className="grid md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-4">
+          <Card className="border border-neutral-100 bg-neutral-50/50 rounded-2xl p-4 flex items-center gap-4 hover:bg-white transition-colors cursor-pointer group">
+            <div className="w-10 h-10 bg-black text-white rounded-xl flex items-center justify-center shrink-0 group-hover:rotate-12 transition-transform">
+              <MessageSquare className="w-5 h-5" />
             </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-black uppercase tracking-tighter">Direct Chat to Architect</h3>
-              <p className="text-xs text-neutral-600">Konsultasi desain & teknis langsung dengan Lead Architect kami.</p>
-              <Button className="btn-orange h-9 px-4 text-[10px]">Mulai Chat Sekarang</Button>
+            <div className="space-y-0.5">
+              <h3 className="text-[10px] font-black uppercase tracking-tighter">Architect Chat</h3>
+              <p className="text-[8px] text-neutral-400 uppercase font-bold">Direct Line</p>
             </div>
           </Card>
-          <Card className="border-2 border-black bg-black text-white rounded-3xl p-8 flex items-center gap-6">
-            <div className="w-16 h-16 bg-white text-black rounded-2xl flex items-center justify-center shrink-0">
-              <Zap className="w-8 h-8" />
+          <Card className="border border-neutral-100 bg-neutral-50/50 rounded-2xl p-4 flex items-center gap-4 hover:bg-white transition-colors cursor-pointer group">
+            <div className="w-10 h-10 bg-black text-white rounded-xl flex items-center justify-center shrink-0 group-hover:rotate-12 transition-transform">
+              <Zap className="w-5 h-5" />
             </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-black uppercase tracking-tighter">Priority Support</h3>
-              <p className="text-xs text-white/60">Akses jalur cepat untuk setiap request & kendala di lapangan.</p>
-              <Button variant="outline" className="border-white/20 text-white hover:bg-white hover:text-black h-9 px-4 text-[10px]">Hubungi Support</Button>
+            <div className="space-y-0.5">
+              <h3 className="text-[10px] font-black uppercase tracking-tighter">Priority Support</h3>
+              <p className="text-[8px] text-neutral-400 uppercase font-bold">Fast Response</p>
+            </div>
+          </Card>
+          <Card className="border border-neutral-100 bg-neutral-50/50 rounded-2xl p-4 flex items-center gap-4 hover:bg-white transition-colors cursor-pointer group">
+            <div className="w-10 h-10 bg-black text-white rounded-xl flex items-center justify-center shrink-0 group-hover:rotate-12 transition-transform">
+              <Camera className="w-5 h-5" />
+            </div>
+            <div className="space-y-0.5">
+              <h3 className="text-[10px] font-black uppercase tracking-tighter">Live CCTV</h3>
+              <p className="text-[8px] text-neutral-400 uppercase font-bold">Site Monitor</p>
+            </div>
+          </Card>
+          <Card className="border border-neutral-100 bg-neutral-50/50 rounded-2xl p-4 flex items-center gap-4 hover:bg-white transition-colors cursor-pointer group">
+            <div className="w-10 h-10 bg-black text-white rounded-xl flex items-center justify-center shrink-0 group-hover:rotate-12 transition-transform">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div className="space-y-0.5">
+              <h3 className="text-[10px] font-black uppercase tracking-tighter">Daily Logs</h3>
+              <p className="text-[8px] text-neutral-400 uppercase font-bold">Project History</p>
             </div>
           </Card>
         </div>
@@ -172,9 +188,14 @@ export default function Profile() {
                       </div>
                     </div>
 
-                    <div className="space-y-3 bg-neutral-50 p-6 rounded-2xl border border-black/5">
+                    <div className="space-y-4 bg-neutral-50 p-6 rounded-2xl border border-black/5">
                       <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
                         <span className="flex items-center gap-2"><ShieldCheck className="w-3 h-3 text-green-500" /> Real-time Progress</span>
+                        <div className="flex gap-2">
+                          <Badge className="bg-blue-100 text-blue-700 border-none text-[8px] h-4 px-1">PM VERIFIED</Badge>
+                          <Badge className="bg-neutral-200 text-neutral-700 border-none text-[8px] h-4 px-1">SYSTEM LOGGED</Badge>
+                          <Badge className="bg-orange-100 text-orange-700 border-none text-[8px] h-4 px-1">CLIENT APPROVED</Badge>
+                        </div>
                         <span className="text-accent">45.8%</span>
                       </div>
                       <Progress value={45.8} className="h-2.5 bg-neutral-200" />
@@ -274,14 +295,14 @@ export default function Profile() {
                           {t.status === 'pending' && (
                             <div className="pt-2">
                               <Dialog>
-                                <DialogTrigger>
+                                <DialogTrigger render={
                                   <div className="w-full btn-orange h-10 text-[10px] gap-2 flex items-center justify-center cursor-pointer rounded-md">
                                     <ShieldCheck className="w-4 h-4" /> Setujui Pencairan Dana
                                   </div>
-                                </DialogTrigger>
+                                } />
                                 <DialogContent className="border-2 border-black rounded-3xl">
                                   <DialogHeader>
-                                    <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Konfirmasi Pencairan Dana</DialogTitle>
+                                    <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Konfirmasi Pencairan Dana (Fund Reduction)</DialogTitle>
                                     <DialogDescription className="uppercase-soft">
                                       Termin 1 senilai Rp {t.amount.toLocaleString('id-ID')} akan dicairkan dari Escrow ke Kontraktor.
                                     </DialogDescription>

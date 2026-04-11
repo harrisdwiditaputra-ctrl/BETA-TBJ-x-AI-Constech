@@ -354,14 +354,25 @@ const ProjectDetail = () => {
         <div className="text-right">
           <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-bold">Total Anggaran (RAB)</p>
           <p className="text-3xl font-black text-black tracking-tighter">Rp {project.totalBudget.toLocaleString('id-ID')}</p>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="mt-2 text-[10px] uppercase font-bold gap-2 text-accent hover:text-accent hover:bg-accent/5"
+            onClick={() => {
+              const summary = `[TBJ PROJECT SUMMARY]\n\nProyek: ${project.name}\nStatus: ${project.status.toUpperCase()}\nTotal RAB: Rp ${project.totalBudget.toLocaleString('id-ID')}\nProgress: ${currentProgress.toFixed(1)}%\n\nDetail Kategori:\n${categories.map(c => `- ${c.name}: Rp ${items.filter(i => i.categoryId === c.id).reduce((s, it) => s + it.totalPrice, 0).toLocaleString('id-ID')}`).join('\n')}\n\nLaporan terstruktur oleh TBJ Constech Hub.`;
+              window.open(`https://wa.me/?text=${encodeURIComponent(summary)}`, "_blank");
+            }}
+          >
+            <Share2 className="w-3 h-3" /> Share Summary to WA
+          </Button>
         </div>
       </div>
 
       <div className="grid md:grid-cols-4 gap-6">
         <Card className="border-2 border-black rounded-2xl p-6 space-y-2">
-          <p className="text-[10px] font-bold uppercase text-neutral-400">Escrow Account</p>
-          <p className="text-sm font-black">BNI 821942016509</p>
-          <p className="text-[9px] uppercase-soft">a.n TBJ Contractor Hub</p>
+          <p className="text-[10px] font-bold uppercase text-neutral-400">Assessment Account (QRIS)</p>
+          <p className="text-sm font-black">BRI 479201031488535</p>
+          <p className="text-[9px] uppercase-soft">a.n TBJ Architect & Constech</p>
         </Card>
         <Card className="border-2 border-black rounded-2xl p-6 space-y-2">
           <p className="text-[10px] font-bold uppercase text-neutral-400">Total Bobot</p>
@@ -457,7 +468,11 @@ const ProjectDetail = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Jumlah (Volume)</Label>
-                  <Input type="number" value={newItemQty} onChange={e => setNewItemQty(Number(e.target.value))} />
+                  <Input 
+                    type="number" 
+                    value={newItemQty || 0} 
+                    onChange={e => setNewItemQty(Math.max(0, Number(e.target.value)))} 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Satuan</Label>
@@ -466,7 +481,11 @@ const ProjectDetail = () => {
               </div>
               <div className="space-y-2">
                 <Label>Harga Satuan (Rp)</Label>
-                <Input type="number" value={newItemPrice} onChange={e => setNewItemPrice(Number(e.target.value))} />
+                <Input 
+                  type="number" 
+                  value={newItemPrice || 0} 
+                  onChange={e => setNewItemPrice(Math.max(0, Number(e.target.value)))} 
+                />
               </div>
               
               <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200">
@@ -543,9 +562,9 @@ const ProjectDetail = () => {
                         <Input 
                           type="number" 
                           className="w-16 h-8 text-center mx-auto rounded-md border-black/20" 
-                          defaultValue={item.progress || 0}
-                          onBlur={(e) => {
-                            updateItemProgress(item.id, Number(e.target.value));
+                          value={item.progress || 0}
+                          onChange={(e) => {
+                            updateItemProgress(item.id, Math.max(0, Math.min(100, Number(e.target.value))));
                           }}
                         />
                       </TableCell>
@@ -2497,39 +2516,13 @@ function TermsPage() {
   );
 }
 
-function SimulationManager({ updateProfile }: { updateProfile: (data: any) => Promise<void> }) {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const handleSwitch = (e: any) => {
-      const role = e.detail;
-      toast.info(`Switching to ${role} mode...`);
-      
-      if (role === "Admin") {
-        updateProfile({ role: "admin", tier: "deal" });
-        navigate("/admin");
-      } else if (role === "Klien Tier 1") {
-        updateProfile({ role: "user", tier: "prospect" });
-        navigate("/assistant");
-      } else if (role === "PM") {
-        updateProfile({ role: "pm", tier: "deal" });
-        navigate("/pm");
-      } else if (role === "Klien Tier 3") {
-        updateProfile({ role: "user", tier: "deal" });
-        navigate("/profile");
-      }
-    };
-    window.addEventListener('switch-role', handleSwitch);
-    return () => window.removeEventListener('switch-role', handleSwitch);
-  }, [updateProfile, navigate]);
-
-  return null;
-}
-
 export default function App() {
   const { user, loading, login, loginAsGuest, logout, updateProfile } = useAuth();
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin w-10 h-10" /></div>;
+  if (loading) return <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+    <Loader2 className="animate-spin w-12 h-12 text-accent" />
+    <p className="text-xs font-black uppercase tracking-[0.3em] animate-pulse">Loading TBJ Ecosystem...</p>
+  </div>;
 
   const isAdmin = user?.role === "admin" || user?.role === "pm";
   const isClient = user?.role === "user";
@@ -2537,7 +2530,6 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <SimulationManager updateProfile={updateProfile} />
         <Layout user={user} onLogout={logout} onLogin={login}>
           <Routes>
             <Route path="/terms" element={<TermsPage />} />

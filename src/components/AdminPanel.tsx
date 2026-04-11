@@ -6,11 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { 
   Loader2, Search, Save, UserPlus, Database, Settings, ShieldCheck, 
   RefreshCw, TrendingUp, DollarSign, Users, Briefcase, Plus, ChevronDown, 
   ChevronRight, Download, Eye, EyeOff, Trash2, Image as ImageIcon, 
-  LayoutDashboard, FileText, HardHat, Camera, BarChart3, Clock, Phone, User
+  LayoutDashboard, FileText, HardHat, Camera, BarChart3, Clock, Phone, User,
+  CheckCircle2, MapPin
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
@@ -33,6 +36,12 @@ export default function AdminPanel() {
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   
   // Master Data Form
+  const [showActivities, setShowActivities] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<UserProfile | null>(null);
+  const [isEditingClient, setIsEditingClient] = useState(false);
+  const [clientEditForm, setClientEditForm] = useState<Partial<UserProfile>>({});
+  
+  // Master Data Editing
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<WorkItemMaster>>({});
 
@@ -45,8 +54,22 @@ export default function AdminPanel() {
     if (editingId && editForm) {
       await updateMasterItem(editingId, editForm);
       setEditingId(null);
-      setEditForm({});
       toast.success("Product updated successfully");
+    }
+  };
+
+  const handleEditClient = (u: UserProfile) => {
+    setSelectedClient(u);
+    setClientEditForm(u);
+    setIsEditingClient(true);
+  };
+
+  const handleSaveClient = async () => {
+    if (selectedClient && clientEditForm) {
+      await updateUser(selectedClient.uid, clientEditForm);
+      setIsEditingClient(false);
+      setSelectedClient(null);
+      toast.success("Client updated successfully");
     }
   };
   const [newProduct, setNewProduct] = useState<Partial<WorkItemMaster>>({
@@ -197,6 +220,37 @@ export default function AdminPanel() {
                 <p className="text-[10px] font-black uppercase tracking-widest">{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 <p className="text-[10px] uppercase-soft text-accent">Server Status: Online</p>
               </div>
+              <Dialog open={showActivities} onOpenChange={setShowActivities}>
+                <DialogTrigger render={
+                  <Button variant="outline" size="icon" className="rounded-full border-2 border-black relative">
+                    <Clock className="w-4 h-4" />
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full border-2 border-white animate-pulse" />
+                  </Button>
+                } />
+                <DialogContent className="max-w-md rounded-3xl border-2 border-black">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-black uppercase tracking-tighter">Recent Activities</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    {[1, 2, 3, 4, 5, 6].map(i => (
+                      <div key={i} className="flex items-start gap-4 pb-4 border-b border-black/5 last:border-0">
+                        <div className="w-8 h-8 rounded-lg bg-neutral-100 flex items-center justify-center">
+                          <Clock className="w-4 h-4 text-neutral-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-widest">
+                            {i % 2 === 0 ? "Payment Verified" : "New Project Request"}
+                          </p>
+                          <p className="text-[10px] text-neutral-500">
+                            {i % 2 === 0 ? "Klien Budi Santoso (Tier 2) lunas biaya survey." : "Klien Siska mengajukan survey di Jakarta Selatan."}
+                          </p>
+                          <p className="text-[9px] text-accent mt-1">{i * 15} minutes ago</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
               <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white font-black">
                 {user?.displayName?.[0]}
               </div>
@@ -256,30 +310,34 @@ export default function AdminPanel() {
               <div className="grid md:grid-cols-2 gap-8">
                 <Card className="border-2 border-black rounded-2xl shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-xl font-black uppercase tracking-tighter">Recent Activities</CardTitle>
+                    <CardTitle className="text-xl font-black uppercase tracking-tighter">Project Performance</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {[1, 2, 3, 4].map(i => (
-                      <div key={i} className="flex items-start gap-4 pb-4 border-b border-black/5 last:border-0">
-                        <div className="w-8 h-8 rounded-lg bg-neutral-100 flex items-center justify-center">
-                          <Clock className="w-4 h-4 text-neutral-400" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-widest">Payment Verified</p>
-                          <p className="text-[10px] text-neutral-500">Klien Budi Santoso (Tier 2) lunas biaya survey.</p>
-                          <p className="text-[9px] text-accent mt-1">2 hours ago</p>
-                        </div>
-                      </div>
-                    ))}
+                  <CardContent className="h-64 flex items-center justify-center bg-neutral-50 rounded-xl border border-dashed border-black/10">
+                    <div className="text-center">
+                      <BarChart3 className="w-12 h-12 text-neutral-300 mx-auto mb-2" />
+                      <p className="uppercase-soft text-neutral-400">S-Curve Analysis Active</p>
+                    </div>
                   </CardContent>
                 </Card>
                 <Card className="border-2 border-black rounded-2xl shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-xl font-black uppercase tracking-tighter">Project Progress (S-Curve)</CardTitle>
+                    <CardTitle className="text-xl font-black uppercase tracking-tighter">System Health</CardTitle>
                   </CardHeader>
-                  <CardContent className="h-64 flex items-center justify-center bg-neutral-50 rounded-xl border border-dashed border-black/10">
-                    <BarChart3 className="w-12 h-12 text-neutral-300" />
-                    <span className="uppercase-soft text-neutral-400 ml-2">Visualization Placeholder</span>
+                  <CardContent className="space-y-4">
+                    <div className="flex justify-between items-center p-3 bg-green-50 rounded-xl border border-green-100">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-green-600" />
+                        <span className="text-[10px] font-black uppercase">Database Sync</span>
+                      </div>
+                      <Badge className="bg-green-600 text-white">OPTIMAL</Badge>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-xl border border-blue-100">
+                      <div className="flex items-center gap-2">
+                        <RefreshCw className="w-4 h-4 text-blue-600" />
+                        <span className="text-[10px] font-black uppercase">AI Estimator</span>
+                      </div>
+                      <Badge className="bg-blue-600 text-white">READY</Badge>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -334,8 +392,8 @@ export default function AdminPanel() {
                       <label className="uppercase-soft text-[10px]">Price (Rp)</label>
                       <Input 
                         type="number"
-                        value={newProduct.price}
-                        onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})}
+                        value={newProduct.price || 0}
+                        onChange={e => setNewProduct({...newProduct, price: Math.max(0, Number(e.target.value))})}
                       />
                     </div>
                     <div className="md:col-span-2 space-y-2">
@@ -499,13 +557,57 @@ export default function AdminPanel() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={cn(
-                            "uppercase-soft text-[9px] rounded-md",
-                            u.tier === 'deal' ? "bg-accent text-white" : 
-                            u.tier === 'survey' ? "bg-blue-500 text-white" : "bg-neutral-200 text-neutral-600"
-                          )}>
-                            {u.tier === 'deal' ? "Tier 3 (Gold)" : u.tier === 'survey' ? "Tier 2 (Silver)" : "Tier 1 (Lead)"}
-                          </Badge>
+                          <Dialog>
+                            <DialogTrigger render={
+                              <Badge className={cn(
+                                "uppercase-soft text-[9px] rounded-md cursor-pointer hover:opacity-80 transition-opacity",
+                                u.tier === 'deal' ? "bg-accent text-white" : 
+                                u.tier === 'survey' ? "bg-blue-500 text-white" : "bg-neutral-200 text-neutral-600"
+                              )}>
+                                {u.tier === 'deal' ? "Tier 3 (Gold)" : u.tier === 'survey' ? "Tier 2 (Silver)" : "Tier 1 (Lead)"}
+                              </Badge>
+                            } />
+                            <DialogContent className="max-w-2xl rounded-3xl border-2 border-black">
+                              <DialogHeader>
+                                <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Client Dossier: {u.displayName}</DialogTitle>
+                              </DialogHeader>
+                              <div className="grid md:grid-cols-2 gap-6 py-6">
+                                <div className="space-y-4">
+                                  <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
+                                    <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Identity Details</p>
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-bold">Email: <span className="font-normal">{u.email}</span></p>
+                                      <p className="text-xs font-bold">Location: <span className="font-normal">{u.location || "Not set"}</span></p>
+                                      <p className="text-xs font-bold">WhatsApp: <span className="font-normal">{u.whatsapp || "Not set"}</span></p>
+                                    </div>
+                                  </div>
+                                  <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
+                                    <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Contract Status</p>
+                                    <Badge className="bg-green-100 text-green-700 border-none uppercase-soft">Active Contract</Badge>
+                                    <p className="text-[10px] mt-2">Last Updated: {new Date().toLocaleDateString()}</p>
+                                  </div>
+                                </div>
+                                <div className="space-y-4">
+                                  <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
+                                    <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Project & RAB</p>
+                                    <div className="space-y-2">
+                                      <Button variant="outline" className="w-full h-8 text-[10px] uppercase font-black rounded-lg justify-between">
+                                        View Active RAB <ChevronRight className="w-3 h-3" />
+                                      </Button>
+                                      <Button variant="outline" className="w-full h-8 text-[10px] uppercase font-black rounded-lg justify-between">
+                                        Project Timeline <ChevronRight className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <div className="p-4 bg-black text-white rounded-2xl">
+                                    <p className="text-[10px] font-black uppercase text-white/40 mb-2">Financial Summary</p>
+                                    <p className="text-xl font-black tracking-tighter">Rp 450.000.000</p>
+                                    <p className="text-[9px] uppercase-soft text-white/60">Total Budget Approved</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={cn(
@@ -518,50 +620,181 @@ export default function AdminPanel() {
                         <TableCell className="text-[10px] font-bold uppercase">{u.location || "N/A"}</TableCell>
                         <TableCell className="text-[10px] text-neutral-400">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-"}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase">Manage</Button>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClient(u)}>
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </Card>
+
+              {isEditingClient && (
+                <Dialog open={isEditingClient} onOpenChange={setIsEditingClient}>
+                  <DialogContent className="max-w-md rounded-3xl border-2 border-black">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-black uppercase tracking-tighter">Edit Client Info</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-1">
+                        <label className="uppercase-soft text-[10px]">Display Name</label>
+                        <Input 
+                          value={clientEditForm.displayName} 
+                          onChange={e => setClientEditForm({...clientEditForm, displayName: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="uppercase-soft text-[10px]">Location</label>
+                        <Input 
+                          value={clientEditForm.location} 
+                          onChange={e => setClientEditForm({...clientEditForm, location: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="uppercase-soft text-[10px]">Tier</label>
+                        <select 
+                          className="w-full h-10 rounded-md border border-black/10 px-3 text-sm"
+                          value={clientEditForm.tier}
+                          onChange={e => setClientEditForm({...clientEditForm, tier: e.target.value as any})}
+                        >
+                          <option value="prospect">Tier 1 (Lead)</option>
+                          <option value="survey">Tier 2 (Silver)</option>
+                          <option value="deal">Tier 3 (Gold)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="ghost" onClick={() => setIsEditingClient(false)}>Cancel</Button>
+                      <Button className="btn-sleek" onClick={handleSaveClient}>Save Changes</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           )}
 
           {activeTab === "projects" && (
             <div className="space-y-8">
-              <div className="grid md:grid-cols-3 gap-8">
-                {["active", "survey", "completed"].map(status => (
-                  <div key={status} className="space-y-4">
-                    <h3 className="text-lg font-black uppercase tracking-tighter flex items-center gap-2">
-                      <div className={cn("w-2 h-2 rounded-full", 
-                        status === 'active' ? "bg-green-500" : 
-                        status === 'survey' ? "bg-blue-500" : "bg-neutral-400"
-                      )} />
-                      {status} Projects
-                    </h3>
-                    <div className="space-y-4">
-                      {projects.filter(p => p.status === status).map(p => (
-                        <Card key={p.id} className="border-2 border-black rounded-2xl p-4 hover:shadow-md transition-shadow cursor-pointer">
-                          <div className="flex justify-between items-start mb-3">
-                            <h4 className="font-black text-xs uppercase tracking-widest">{p.name}</h4>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={(e) => { e.stopPropagation(); deleteProject(p.id); }}>
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-[10px] text-neutral-500">
-                              <Users className="w-3 h-3" /> PM: {users.find(u => u.uid === p.pmId)?.displayName || "Unassigned"}
-                            </div>
-                            <div className="flex items-center gap-2 text-[10px] text-neutral-500">
-                              <Clock className="w-3 h-3" /> Created: {new Date(p.createdAt).toLocaleDateString()}
-                            </div>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-black uppercase tracking-tighter">Project Portfolio</h2>
+                <div className="flex gap-2">
+                  <Badge className="bg-green-100 text-green-700 border-none uppercase-soft">Active: {projects.filter(p => p.status === 'active').length}</Badge>
+                  <Badge className="bg-blue-100 text-blue-700 border-none uppercase-soft">Survey: {projects.filter(p => p.status === 'survey').length}</Badge>
+                  <Badge className="bg-neutral-100 text-neutral-700 border-none uppercase-soft">Completed: 1</Badge>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {/* Sample Active Project */}
+                <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-sm group hover:border-accent transition-all">
+                  <div className="h-48 bg-neutral-100 relative">
+                    <img src="https://picsum.photos/seed/active/400/300" className="w-full h-full object-cover" />
+                    <Badge className="absolute top-4 right-4 bg-green-500 text-white uppercase-soft">ACTIVE</Badge>
                   </div>
-                ))}
+                  <CardContent className="p-6 space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-black uppercase tracking-tighter">Renovasi Rumah Pondok Indah</h3>
+                      <p className="text-[10px] text-neutral-400 uppercase font-bold">Client: Bpk. Gunawan</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[10px] font-black uppercase">
+                        <span>Progress</span>
+                        <span>65%</span>
+                      </div>
+                      <Progress value={65} className="h-1.5" />
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <p className="text-xs font-black">Rp 1.250.000.000</p>
+                      <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase">Details</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Sample Survey Project */}
+                <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-sm group hover:border-accent transition-all">
+                  <div className="h-48 bg-neutral-100 relative">
+                    <img src="https://picsum.photos/seed/survey/400/300" className="w-full h-full object-cover" />
+                    <Badge className="absolute top-4 right-4 bg-blue-500 text-white uppercase-soft">SURVEY</Badge>
+                  </div>
+                  <CardContent className="p-6 space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-black uppercase tracking-tighter">Interior Apartemen Menteng</h3>
+                      <p className="text-[10px] text-neutral-400 uppercase font-bold">Client: Ibu Sarah</p>
+                    </div>
+                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                      <p className="text-[9px] font-bold uppercase text-blue-700">Survey Scheduled: 15 Apr 2026</p>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <p className="text-xs font-black">Rp 350.000.000 (Est)</p>
+                      <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase">Details</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Sample Completed Project */}
+                <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-sm group hover:border-accent transition-all opacity-80">
+                  <div className="h-48 bg-neutral-100 relative grayscale">
+                    <img src="https://picsum.photos/seed/completed/400/300" className="w-full h-full object-cover" />
+                    <Badge className="absolute top-4 right-4 bg-neutral-500 text-white uppercase-soft">COMPLETED</Badge>
+                  </div>
+                  <CardContent className="p-6 space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-black uppercase tracking-tighter">Pembangunan Ruko BSD</h3>
+                      <p className="text-[10px] text-neutral-400 uppercase font-bold">Client: PT. Maju Jaya</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase">Handover Finished</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <p className="text-xs font-black">Rp 2.800.000.000</p>
+                      <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase">Archive</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="pt-8 border-t border-black/5">
+                <h3 className="text-xl font-black uppercase tracking-tighter mb-6">All Projects (Database)</h3>
+                <div className="grid md:grid-cols-3 gap-8">
+                  {["active", "survey", "completed"].map(status => (
+                    <div key={status} className="space-y-4">
+                      <h3 className="text-sm font-black uppercase tracking-tighter flex items-center gap-2">
+                        <div className={cn("w-2 h-2 rounded-full", 
+                          status === 'active' ? "bg-green-500" : 
+                          status === 'survey' ? "bg-blue-500" : "bg-neutral-400"
+                        )} />
+                        {status} Projects
+                      </h3>
+                      <div className="space-y-4">
+                        {projects.filter(p => p.status === status).map(p => (
+                          <Card key={p.id} className="border-2 border-black rounded-2xl p-4 hover:shadow-md transition-shadow cursor-pointer">
+                            <div className="flex justify-between items-start mb-3">
+                              <h4 className="font-black text-xs uppercase tracking-widest">{p.name}</h4>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={(e) => { e.stopPropagation(); deleteProject(p.id); }}>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-[10px] text-neutral-500">
+                                <Users className="w-3 h-3" /> PM: {users.find(u => u.uid === p.pmId)?.displayName || "Unassigned"}
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] text-neutral-500">
+                                <Clock className="w-3 h-3" /> Created: {new Date(p.createdAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -594,45 +827,77 @@ export default function AdminPanel() {
                       {expandedCategories.includes(role) && (
                         <div className="p-6 grid md:grid-cols-3 gap-6">
                           {workers.map(worker => (
-                            <Card key={worker.id} className="border-2 border-black/10 rounded-xl overflow-hidden hover:border-accent transition-colors">
-                              <div className="h-40 bg-neutral-100 relative">
-                                {worker.photoUrl ? (
-                                  <img src={worker.photoUrl} alt={worker.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-neutral-300">
-                                    <User className="w-12 h-12" />
+                            <Dialog key={worker.id}>
+                              <DialogTrigger render={
+                                <Card className="border-2 border-black/10 rounded-xl overflow-hidden hover:border-accent transition-all cursor-pointer group">
+                                  <div className="h-40 bg-neutral-100 relative">
+                                    {worker.photoUrl ? (
+                                      <img src={worker.photoUrl} alt={worker.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-neutral-300">
+                                        <User className="w-12 h-12" />
+                                      </div>
+                                    )}
+                                    <Badge className="absolute top-3 right-3 bg-black text-white text-[8px] uppercase font-black">{worker.status}</Badge>
                                   </div>
-                                )}
-                                <Badge className="absolute top-3 right-3 bg-black text-white text-[8px] uppercase font-black">{worker.status}</Badge>
-                              </div>
-                              <CardContent className="p-4 space-y-3">
-                                <div className="space-y-1">
-                                  <p className="font-black text-xs uppercase tracking-widest">{worker.name}</p>
-                                  <p className="text-[9px] text-neutral-400 font-mono">KTP: {worker.ktp}</p>
+                                  <CardContent className="p-4 space-y-3">
+                                    <div className="space-y-1">
+                                      <p className="font-black text-xs uppercase tracking-widest">{worker.name}</p>
+                                      <p className="text-[9px] text-neutral-400 font-mono">KTP: {worker.ktp}</p>
+                                    </div>
+                                    <div className="space-y-2 pt-2 border-t border-black/5">
+                                      <div className="flex items-center gap-2 text-[9px] font-bold uppercase text-neutral-500">
+                                        <Phone className="w-3 h-3 text-accent" /> {worker.whatsapp || "No WA"}
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              } />
+                              <DialogContent className="max-w-3xl rounded-3xl border-2 border-black">
+                                <DialogHeader>
+                                  <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Personnel Profile: {worker.name}</DialogTitle>
+                                </DialogHeader>
+                                <div className="grid md:grid-cols-2 gap-8 py-6">
+                                  <div className="space-y-6">
+                                    <div className="aspect-square rounded-2xl overflow-hidden border-2 border-black/10">
+                                      <img src={worker.photoUrl || `https://picsum.photos/seed/${worker.id}/400/400`} className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="aspect-video rounded-xl overflow-hidden border-2 border-black/10 bg-neutral-50 flex flex-col items-center justify-center">
+                                        <ImageIcon className="w-6 h-6 text-neutral-300 mb-1" />
+                                        <p className="text-[8px] font-black uppercase">KTP Photo</p>
+                                      </div>
+                                      <div className="aspect-video rounded-xl overflow-hidden border-2 border-black/10 bg-neutral-50 flex flex-col items-center justify-center">
+                                        <MapPin className="w-6 h-6 text-neutral-300 mb-1" />
+                                        <p className="text-[8px] font-black uppercase">GPS Location</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-6">
+                                    <div className="p-6 bg-neutral-50 rounded-2xl border border-black/5 space-y-4">
+                                      <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase text-neutral-400">Personal Info</p>
+                                        <p className="text-sm font-bold">Address: <span className="font-normal">Jl. Raya Jakarta No. {worker.id.slice(-2)}</span></p>
+                                        <p className="text-sm font-bold">DOB: <span className="font-normal">12 Jan 199{worker.id.slice(-1)}</span></p>
+                                        <p className="text-sm font-bold">WhatsApp: <span className="font-normal">{worker.whatsapp}</span></p>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase text-neutral-400">Current Assignment</p>
+                                        <p className="text-sm font-bold">Project: <span className="font-normal">{projects.find(p => p.id === worker.projectId)?.name || "Standby"}</span></p>
+                                      </div>
+                                    </div>
+                                    <div className="p-6 bg-accent/5 rounded-2xl border border-accent/20">
+                                      <p className="text-[10px] font-black uppercase text-accent mb-2">Live Status</p>
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                                        <p className="text-xs font-bold uppercase">Online - On Site</p>
+                                      </div>
+                                      <p className="text-[9px] mt-2 text-neutral-500">Last GPS Ping: 5 mins ago</p>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="space-y-2 pt-2 border-t border-black/5">
-                                  <div className="flex items-center gap-2 text-[9px] font-bold uppercase text-neutral-500">
-                                    <Phone className="w-3 h-3 text-accent" /> {worker.whatsapp || "No WA"}
-                                  </div>
-                                  <div className="flex items-center gap-2 text-[9px] font-bold uppercase text-neutral-500">
-                                    <Briefcase className="w-3 h-3 text-accent" /> 
-                                    <select 
-                                      className="bg-transparent border-none focus:outline-none text-[9px] font-bold uppercase"
-                                      value={worker.projectId || ""}
-                                      onChange={async (e) => {
-                                        await updateWorkforce(worker.id, { projectId: e.target.value || undefined });
-                                        toast.success(`Worker assigned to ${e.target.value ? "project" : "standby"}`);
-                                      }}
-                                    >
-                                      <option value="">Standby</option>
-                                      {projects.map(p => (
-                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
+                              </DialogContent>
+                            </Dialog>
                           ))}
                           {workers.length === 0 && (
                             <div className="col-span-full py-12 text-center border-2 border-dashed border-neutral-200 rounded-xl">
@@ -655,20 +920,38 @@ export default function AdminPanel() {
                   <CardHeader className="bg-neutral-50 border-b-2 border-black">
                     <CardTitle className="text-lg font-black uppercase tracking-tighter">Gallery Management</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6 space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
-                      {[1, 2, 3].map(i => (
-                        <div key={i} className="aspect-square bg-neutral-100 rounded-xl border-2 border-dashed border-black/10 flex items-center justify-center relative group">
-                          <ImageIcon className="w-6 h-6 text-neutral-300" />
-                          <button className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      {[1, 2].map(i => (
+                        <div key={i} className="space-y-2">
+                          <div className="aspect-video bg-neutral-100 rounded-xl border-2 border-black/10 overflow-hidden relative group">
+                            <img src={`https://picsum.photos/seed/gallery${i}/400/300`} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <Button size="icon" variant="ghost" className="text-white"><Settings className="w-4 h-4" /></Button>
+                              <Button size="icon" variant="ghost" className="text-white"><Trash2 className="w-4 h-4" /></Button>
+                            </div>
+                          </div>
+                          <Input placeholder="Content Description..." className="h-8 text-[10px] uppercase font-bold" />
                         </div>
                       ))}
-                      <button className="aspect-square bg-neutral-50 rounded-xl border-2 border-dashed border-black/20 flex flex-col items-center justify-center hover:bg-neutral-100 transition-colors">
+                      <button className="aspect-video bg-neutral-50 rounded-xl border-2 border-dashed border-black/20 flex flex-col items-center justify-center hover:bg-neutral-100 transition-colors">
                         <Plus className="w-6 h-6 text-neutral-400" />
-                        <span className="text-[9px] font-black uppercase mt-1">Add Photo</span>
+                        <span className="text-[9px] font-black uppercase mt-1">Add New Content</span>
                       </button>
+                    </div>
+
+                    <div className="pt-6 border-t border-black/5">
+                      <h4 className="text-xs font-black uppercase tracking-widest mb-4">Banner Status Management</h4>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-black/5">
+                          <p className="text-[10px] font-black uppercase">Main Hero Banner</p>
+                          <Badge className="bg-green-500 text-white uppercase-soft">LIVE</Badge>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-black/5">
+                          <p className="text-[10px] font-black uppercase">Promo Ramadan Banner</p>
+                          <Badge variant="outline" className="uppercase-soft">SCHEDULED</Badge>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -721,23 +1004,17 @@ export default function AdminPanel() {
                           </select>
                         </div>
                         <div className="space-y-1">
+                          <label className="uppercase-soft text-[9px]">Permit Hub (Izin)</label>
+                          <Input placeholder="e.g. IMB, SHM, HGB" className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
                           <label className="uppercase-soft text-[9px]">Price (Rp)</label>
                           <Input 
                             type="number" 
                             placeholder="Price" 
                             className="h-8 text-xs" 
-                            value={newProperty.price}
-                            onChange={e => setNewProperty({...newProperty, price: Number(e.target.value)})}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="uppercase-soft text-[9px]">Area (m2)</label>
-                          <Input 
-                            type="number" 
-                            placeholder="Area" 
-                            className="h-8 text-xs" 
-                            value={newProperty.area}
-                            onChange={e => setNewProperty({...newProperty, area: Number(e.target.value)})}
+                            value={newProperty.price || 0}
+                            onChange={e => setNewProperty({...newProperty, price: Math.max(0, Number(e.target.value))})}
                           />
                         </div>
                       </div>
@@ -766,17 +1043,65 @@ export default function AdminPanel() {
                 </CardHeader>
                 <CardContent className="p-8 space-y-8">
                   <div className="grid md:grid-cols-3 gap-8">
-                    <div className="p-6 bg-green-50 rounded-2xl border-2 border-green-200">
-                      <p className="uppercase-soft text-green-600 text-[10px]">Total Income</p>
-                      <p className="text-3xl font-black text-green-700">Rp 4.82B</p>
-                    </div>
-                    <div className="p-6 bg-red-50 rounded-2xl border-2 border-red-200">
-                      <p className="uppercase-soft text-red-600 text-[10px]">Total Expense</p>
-                      <p className="text-3xl font-black text-red-700">Rp 3.15B</p>
-                    </div>
+                    <Dialog>
+                      <DialogTrigger render={
+                        <div className="p-6 bg-green-50 rounded-2xl border-2 border-green-200 cursor-pointer hover:bg-green-100 transition-colors">
+                          <p className="uppercase-soft text-green-600 text-[10px]">Total Income</p>
+                          <p className="text-3xl font-black text-green-700">Rp 4.82B</p>
+                          <p className="text-[8px] uppercase font-bold text-green-600/60 mt-2">Click for breakdown</p>
+                        </div>
+                      } />
+                      <DialogContent className="max-w-2xl rounded-3xl border-2 border-black">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl font-black uppercase tracking-tighter">Income Breakdown</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          {projects.map(p => (
+                            <div key={p.id} className="flex justify-between items-center p-3 bg-neutral-50 rounded-xl border border-black/5">
+                              <div>
+                                <p className="text-[10px] font-black uppercase">{p.name}</p>
+                                <p className="text-[9px] text-neutral-400">Payment Phase 1 & 2</p>
+                              </div>
+                              <p className="text-sm font-black">Rp {(Math.random() * 500000000).toLocaleString()}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+
+                    <Dialog>
+                      <DialogTrigger render={
+                        <div className="p-6 bg-red-50 rounded-2xl border-2 border-red-200 cursor-pointer hover:bg-red-100 transition-colors">
+                          <p className="uppercase-soft text-red-600 text-[10px]">Total Expense</p>
+                          <p className="text-3xl font-black text-red-700">Rp 3.15B</p>
+                          <p className="text-[8px] uppercase font-bold text-red-600/60 mt-2">Click for breakdown</p>
+                        </div>
+                      } />
+                      <DialogContent className="max-w-2xl rounded-3xl border-2 border-black">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl font-black uppercase tracking-tighter">Expense Breakdown</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="p-4 bg-red-50/50 rounded-xl border border-red-100">
+                            <p className="text-[10px] font-black uppercase text-red-600 mb-2">Category: Material Purchase</p>
+                            <p className="text-lg font-black">Rp 2.10B</p>
+                          </div>
+                          <div className="p-4 bg-red-50/50 rounded-xl border border-red-100">
+                            <p className="text-[10px] font-black uppercase text-red-600 mb-2">Category: Workforce Wages</p>
+                            <p className="text-lg font-black">Rp 850M</p>
+                          </div>
+                          <div className="p-4 bg-red-50/50 rounded-xl border border-red-100">
+                            <p className="text-[10px] font-black uppercase text-red-600 mb-2">Category: Operational</p>
+                            <p className="text-lg font-black">Rp 200M</p>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+
                     <div className="p-6 bg-blue-50 rounded-2xl border-2 border-blue-200">
                       <p className="uppercase-soft text-blue-600 text-[10px]">Net Profit</p>
                       <p className="text-3xl font-black text-blue-700">Rp 1.67B</p>
+                      <Badge className="bg-blue-600 text-white text-[8px] mt-2 uppercase font-black">Category: Very Good</Badge>
                     </div>
                   </div>
                   
@@ -795,7 +1120,7 @@ export default function AdminPanel() {
                         {[1, 2, 3].map(i => (
                           <TableRow key={i}>
                             <TableCell className="text-[10px] font-bold">10 Apr 2026</TableCell>
-                            <TableCell className="text-[10px] font-black uppercase">Material Purchase: Hebel PT. Jaya</TableCell>
+                            <TableCell className="text-[10px] font-black uppercase">Material Purchase: Hebel PT. Jaya (Project: Pondok Indah)</TableCell>
                             <TableCell><Badge variant="outline" className="text-[9px] uppercase-soft">Expense</Badge></TableCell>
                             <TableCell className="text-right font-mono font-bold text-red-500">- Rp 45.000.000</TableCell>
                           </TableRow>

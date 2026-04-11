@@ -387,26 +387,29 @@ export default function PMDashboard() {
       {activeTab === "cctv" && (
         <div className="space-y-8">
           <div className="grid md:grid-cols-2 gap-8">
-            {[1, 2, 3, 4].map(i => (
-              <Card key={i} className="border-2 border-black rounded-2xl overflow-hidden shadow-sm">
+            {[
+              { id: 1, name: "Main Construction Area", url: "https://www.youtube.com/embed/1EiC9bvVGnk" },
+              { id: 2, name: "Material Storage", url: "https://www.youtube.com/embed/5_XSYlAfJZM" },
+              { id: 3, name: "Site Entrance", url: "https://www.youtube.com/embed/hS5CfP8n_js" },
+              { id: 4, name: "Worker Rest Area", url: "https://www.youtube.com/embed/dQw4w9WgXcQ" }
+            ].map(site => (
+              <Card key={site.id} className="border-2 border-black rounded-2xl overflow-hidden shadow-sm">
                 <div className="aspect-video bg-neutral-900 relative group">
-                  <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest animate-pulse">
-                    <div className="w-2 h-2 rounded-full bg-white" /> LIVE: SITE {i}
+                  <iframe 
+                    src={`${site.url}?autoplay=1&mute=1&controls=0&showinfo=0&rel=0`}
+                    className="w-full h-full border-none"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                  <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest animate-pulse pointer-events-none">
+                    <div className="w-2 h-2 rounded-full bg-white" /> LIVE: {site.name}
                   </div>
-                  <div className="absolute bottom-4 right-4 text-white/40 text-[9px] font-mono">
-                    2026-04-10 13:28:11 UTC
-                  </div>
-                  <div className="w-full h-full flex items-center justify-center text-white/10">
-                    <Camera className="w-16 h-16" />
-                  </div>
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Button variant="outline" className="border-white text-white hover:bg-white hover:text-black rounded-xl">
-                      Full Screen
-                    </Button>
+                  <div className="absolute bottom-4 right-4 text-white/40 text-[9px] font-mono pointer-events-none">
+                    {new Date().toISOString().replace('T', ' ').split('.')[0]} UTC
                   </div>
                 </div>
                 <CardHeader className="p-4 bg-neutral-50 border-t-2 border-black">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest">CCTV {i}: Area Konstruksi Utama</CardTitle>
+                  <CardTitle className="text-xs font-black uppercase tracking-widest">CCTV {site.id}: {site.name}</CardTitle>
                 </CardHeader>
               </Card>
             ))}
@@ -511,8 +514,8 @@ export default function PMDashboard() {
                   <label className="text-[10px] font-black uppercase tracking-widest">Quantity</label>
                   <Input 
                     type="number"
-                    value={newRequest.quantity}
-                    onChange={e => setNewRequest({...newRequest, quantity: Number(e.target.value)})}
+                    value={newRequest.quantity || 0}
+                    onChange={e => setNewRequest({...newRequest, quantity: Math.max(0, Number(e.target.value))})}
                   />
                 </div>
                 <div className="space-y-2">

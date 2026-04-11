@@ -50,12 +50,17 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
           <div className="flex justify-between h-20">
             <div className="flex items-center">
               <Link to="/" className="flex-shrink-0 flex items-center gap-3 group">
-                <div className="w-10 h-10 bg-black flex items-center justify-center transition-transform group-hover:rotate-90">
-                  <Calculator className="text-white w-6 h-6" />
+                <div className="w-12 h-12 bg-black flex items-center justify-center transition-transform group-hover:rotate-6 rounded-xl shadow-xl overflow-hidden">
+                  <img 
+                    src="https://picsum.photos/seed/tbj-logo/200/200" 
+                    alt="TBJ Logo" 
+                    className="w-full h-full object-cover opacity-90"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-black text-2xl tracking-tighter uppercase leading-none">TBJ</span>
-                  <span className="uppercase-soft text-neutral-500">Contractor & Tech</span>
+                  <span className="font-black text-2xl tracking-tighter uppercase leading-none text-black">TBJ</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-accent">Constech Hub</span>
                 </div>
               </Link>
               <nav className="hidden md:ml-12 md:flex md:space-x-1">
@@ -152,45 +157,25 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
       <footer className="bg-white border-t border-black py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex flex-col items-center md:items-start gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-black flex items-center justify-center rounded-sm">
-                <Calculator className="text-white w-4 h-4" />
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-black flex items-center justify-center rounded-lg overflow-hidden">
+                <img 
+                  src="https://picsum.photos/seed/tbj-logo/100/100" 
+                  alt="TBJ Logo" 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
               </div>
-              <span className="font-black text-lg tracking-tighter uppercase">TBJ Contractor</span>
+              <span className="font-black text-lg tracking-tighter uppercase">TBJ Constech</span>
             </div>
-            <p className="uppercase-soft text-neutral-400">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
               Tech-Driven Construction Solutions
             </p>
           </div>
           
           <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 items-center">
-            {/* Developer Mode Switcher */}
-            <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md border-2 border-black/10 text-[9px] font-black uppercase tracking-widest gap-2 h-9 px-3 hover:bg-neutral-50 transition-colors">
-                <Terminal className="w-3 h-3" /> Developer Mode
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" side="top" className="w-56 border-2 border-black rounded-xl mb-2">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel className="uppercase-soft text-[10px]">Simulation Switcher</DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-black/10" />
-                  <DropdownMenuItem className="text-xs font-bold uppercase cursor-pointer" onClick={() => window.dispatchEvent(new CustomEvent('switch-role', { detail: 'Admin' }))}>
-                    <Shield className="w-4 h-4 mr-2" /> Admin Backend
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-xs font-bold uppercase cursor-pointer" onClick={() => window.dispatchEvent(new CustomEvent('switch-role', { detail: 'PM' }))}>
-                    <User className="w-4 h-4 mr-2" /> Project Manager
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-xs font-bold uppercase cursor-pointer" onClick={() => window.dispatchEvent(new CustomEvent('switch-role', { detail: 'Klien Tier 1' }))}>
-                    <Zap className="w-4 h-4 mr-2" /> Client Tier 1
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-xs font-bold uppercase cursor-pointer" onClick={() => window.dispatchEvent(new CustomEvent('switch-role', { detail: 'Klien Tier 3' }))}>
-                    <Zap className="w-4 h-4 mr-2 text-accent" /> Client Tier 3
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
             <a href="https://www.instagram.com/tukang.bangunan.jakarta/" target="_blank" rel="noopener noreferrer" className="text-neutral-400 hover:text-accent transition-colors flex items-center gap-2">
-              <span className="uppercase-soft">Instagram</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">Instagram</span>
               <ExternalLink className="w-3 h-3" />
             </a>
             <a href="https://www.google.com/search?q=Tukang+Bangunan+Jakarta&stick=H4sIAAAAAAAA_-NgU1I1qDBKNbO0SDG3NEkxSU5NtjC0MqgwSTZKTLWwsDA0MTY2MrMwWsQqHlKanZiXruAEJErzEvMUvBKzE4tKEgG7l7KGQwAAAA&hl=id&mat=CSWC37g7HepEElYBTVDHnh8QGuKxe3fzpQOfm7m6YZnN684KAHiUCBz7clraMqVOeYDtCGZPtAJcSYUe0My46hcpQMmvYQI0gnUOMvKh5vid8Y5oy-5fNkrFU5rQcO5stw&authuser=0" target="_blank" rel="noopener noreferrer" className="text-neutral-400 hover:text-accent transition-colors flex items-center gap-2">

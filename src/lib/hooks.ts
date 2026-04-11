@@ -17,20 +17,28 @@ export function useAuth() {
         try {
           const userDoc = await getDoc(userDocRef);
           if (!userDoc.exists()) {
+            const isAdminEmail = firebaseUser.email === "harrisdwiditaputra@gmail.com";
             const newUser: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || "",
               displayName: firebaseUser.displayName || "User",
               photoURL: firebaseUser.photoURL || undefined,
-              role: "user",
-              tier: "prospect",
-              aiUsageCount: 0, // Initialize AI usage
+              role: isAdminEmail ? "admin" : "user",
+              tier: isAdminEmail ? "deal" : "prospect",
+              aiUsageCount: 0,
               createdAt: new Date().toISOString()
             };
             await setDoc(userDocRef, newUser);
             setUser(newUser);
           } else {
-            setUser(userDoc.data() as UserProfile);
+            const data = userDoc.data() as UserProfile;
+            // Auto-promote specific email if not already admin
+            if (firebaseUser.email === "harrisdwiditaputra@gmail.com" && data.role !== "admin") {
+              await updateDoc(userDocRef, { role: "admin", tier: "deal" });
+              setUser({ ...data, role: "admin", tier: "deal" });
+            } else {
+              setUser(data);
+            }
           }
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
