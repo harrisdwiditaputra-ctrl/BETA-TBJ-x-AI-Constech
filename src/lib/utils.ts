@@ -27,7 +27,7 @@ export function calculateClientPrice(basePrice: number, globalMarkup: number = 2
 }
 
 export function getDriveImageUrl(url: string) {
-  if (!url) return "";
+  if (!url) return null;
   if (url.includes("drive.google.com")) {
     const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
     if (idMatch && idMatch[1]) {

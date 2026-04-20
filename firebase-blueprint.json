@@ -150,6 +150,29 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["url", "name", "category", "uploadedBy", "createdAt"]
+    },
+    "MaterialSuggestion": {
+      "title": "MaterialSuggestion",
+      "description": "Saran nama material untuk autocomplete",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "SavedEstimate": {
+      "title": "SavedEstimate",
+      "description": "Draf RAB yang disimpan oleh user",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "items": { "type": "array" },
+        "totalBudget": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "createdAt"]
     }
   },
   "firestore": {
@@ -184,6 +207,14 @@
     "/material_requests/{requestId}": {
       "schema": "MaterialRequest",
       "description": "Permintaan material"
+    },
+    "/material_suggestions/{id}": {
+      "schema": "MaterialSuggestion",
+      "description": "Daftar saran material"
+    },
+    "/saved_estimates/{id}": {
+      "schema": "SavedEstimate",
+      "description": "Koleksi draf RAB user"
     },
     "/properties/{propertyId}": {
       "schema": "Property",

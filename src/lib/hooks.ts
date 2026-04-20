@@ -579,6 +579,11 @@ export function useMediaAssets(category?: MediaCategory, projectId?: string) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth.currentUser && category !== 'system' && category !== 'marketing') {
+      setAssets([]);
+      setLoading(false);
+      return;
+    }
     let constraints: any[] = [];
     
     if (category) constraints.push(where("category", "==", category));
@@ -1319,6 +1324,11 @@ export function useMaterialSuggestions() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth.currentUser) {
+      setSuggestions([]);
+      setLoading(false);
+      return;
+    }
     const q = query(collection(db, "material_suggestions"), orderBy("name", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setSuggestions(snapshot.docs.map(doc => doc.data().name));

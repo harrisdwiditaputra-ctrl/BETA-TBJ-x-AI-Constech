@@ -298,7 +298,7 @@ const ProjectDetail = () => {
   const { masterData } = useMasterData(user?.role);
   const { project, categories, items, loading, addCategory, addItem, updateItem, deleteCategory, deleteItem, updateProjectStatus, updateItemProgress, updateTimelineEvent, addTimelineEvent } = useProjectDetails(id);
   const { assets: systemAssets } = useMediaAssets('system');
-  const pdfLogo = systemAssets.find(a => a.name.toLowerCase().includes('pdf'))?.url || systemAssets[0]?.url || "";
+  const pdfLogo = systemAssets.find(a => a.name.toLowerCase().includes('pdf'))?.url || systemAssets[0]?.url || TBJ_LOGO;
   
   const { assets: projectMedia, addAsset: addMedia, deleteAsset: deleteMedia } = useMediaAssets(undefined, id);
   const [newMediaUrl, setNewMediaUrl] = useState("");

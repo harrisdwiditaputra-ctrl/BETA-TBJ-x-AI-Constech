@@ -112,6 +112,17 @@ service cloud.firestore {
     // Rules
     // ===============================================================
 
+    match /material_suggestions/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    match /saved_estimates/{id} {
+      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isStaff());
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isStaff());
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isStaff();
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';

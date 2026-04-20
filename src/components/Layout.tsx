@@ -20,8 +20,8 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
   const location = useLocation();
   const { assets: systemAssets } = useMediaAssets('system');
 
-  const headerLogo = systemAssets.find(a => a.name.toLowerCase().includes('header'))?.url || systemAssets[0]?.url || "";
-  const footerLogo = systemAssets.find(a => a.name.toLowerCase().includes('footer'))?.url || systemAssets[0]?.url || "";
+  const headerLogo = systemAssets.find(a => a.name.toLowerCase().includes('header'))?.url || systemAssets[0]?.url || TBJ_LOGO;
+  const footerLogo = systemAssets.find(a => a.name.toLowerCase().includes('footer'))?.url || systemAssets[0]?.url || TBJ_LOGO;
 
   const isAdmin = user?.role === "admin";
   const isPM = user?.role === "pm";
