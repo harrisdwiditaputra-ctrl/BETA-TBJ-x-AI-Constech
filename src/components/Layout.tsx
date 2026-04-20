@@ -20,8 +20,8 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
   const location = useLocation();
   const { assets: systemAssets } = useMediaAssets('system');
 
-  const headerLogo = TBJ_LOGO;
-  const footerLogo = TBJ_LOGO;
+  const headerLogo = "/57.jpg";
+  const footerLogo = "/57.jpg";
 
   const isAdmin = user?.role === "admin";
   const isPM = user?.role === "pm";
