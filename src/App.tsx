@@ -9,8 +9,8 @@ import { toast } from "sonner";
 import ErrorBoundary from "@/components/ErrorBoundary.tsx";
 import Layout from "@/components/Layout.tsx";
 import { useState, useEffect, useMemo } from "react";
-import { useAuth, useProjects, useProjectDetails, useProperties, useMasterData, useCMSConfig, useSystemConfig, incrementAIUsage } from "@/lib/hooks";
-import { WORK_ITEMS_MASTER, QRIS_IMAGE } from "@/constants";
+import { useAuth, useProjects, useProjectDetails, useProperties, useMasterData, useCMSConfig, useSystemConfig, useMediaAssets, incrementAIUsage } from "@/lib/hooks";
+import { WORK_ITEMS_MASTER, QRIS_IMAGE, TBJ_LOGO } from "@/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -24,8 +24,8 @@ import { Progress } from "@/components/ui/progress";
 import { WorkItemMaster, Property, AIEstimateResponse } from "@/types";
 import { cn, getDriveImageUrl, calculateAdminPrice, calculateClientPrice, formatRupiah } from "@/lib/utils";
 import { getAIEstimation } from "./services/aiEstimator";
-import { generateAIPDF } from "@/lib/pdfUtils";
-import { Plus, Trash2, ChevronRight, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles } from "lucide-react";
+import { generateAIPDF, generateRABPDF } from "@/lib/pdfUtils";
+import { Plus, Trash2, ChevronRight, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles, Minus } from "lucide-react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import Gallery from "./components/Gallery";
@@ -35,6 +35,16 @@ import PMDashboard from "./components/PMDashboard";
 import AIAgent from "./components/AIAgent";
 import RabPage from "./pages/RabPage";
 import ImportPage from "./pages/ImportPage";
+import ProjectTimeline from "./components/ProjectTimeline";
+
+function NotFoundRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    toast.error("Halaman tidak ditemukan. Mengalihkan ke Estimator AI...");
+    navigate("/assistant");
+  }, [navigate]);
+  return null;
+}
 
 // Fix for default marker icon in React-Leaflet using CDN for reliability
 const markerIcon = "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png";
@@ -169,40 +179,42 @@ const ProjectsPage = ({ user }: { user: any }) => {
           <h1 className="heading-sleek">Proyek Saya</h1>
           <p className="text-neutral-500 font-light">Kelola estimasi dan proyek konstruksi Anda.</p>
         </div>
-        <div className="flex gap-4">
-          <Button 
-            variant="outline" 
-            className="btn-sleek gap-2"
-            onClick={() => window.open(`https://wa.me/62821942016509?text=Halo%20TBJ%20Architect,%20saya%20ingin%20konsultasi%20desain.`, "_blank")}
-          >
-            <Phone className="w-4 h-4" /> Chat Architect
-          </Button>
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger render={<Button className="btn-accent gap-2" />}>
-              <Plus className="w-4 h-4" /> Proyek Baru
-            </DialogTrigger>
-            <DialogContent className="rounded-2xl border-none shadow-2xl">
-              <DialogHeader>
-                <DialogTitle className="font-heading text-2xl">Buat Proyek Baru</DialogTitle>
-                <DialogDescription>Mulai estimasi mandiri untuk proyek Anda.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-6 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-xs uppercase tracking-widest opacity-60">Nama Proyek</Label>
-                  <Input id="name" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Contoh: Renovasi Rumah Minimalis" className="input-sleek" />
+        {(user?.role === "admin" || user?.role === "pm") && (
+          <div className="flex gap-4">
+            <Button 
+              variant="outline" 
+              className="btn-sleek gap-2"
+              onClick={() => window.open(`https://wa.me/62821942016509?text=Halo%20TBJ%20Architect,%20saya%20ingin%20konsultasi%20desain.`, "_blank")}
+            >
+              <Phone className="w-4 h-4" /> Chat Architect
+            </Button>
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger render={<Button className="btn-accent gap-2" />}>
+                <Plus className="w-4 h-4" /> Proyek Baru
+              </DialogTrigger>
+              <DialogContent className="rounded-2xl border-none shadow-2xl">
+                <DialogHeader>
+                  <DialogTitle className="font-heading text-2xl">Buat Proyek Baru</DialogTitle>
+                  <DialogDescription>Mulai estimasi mandiri untuk proyek Anda.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-xs uppercase tracking-widest opacity-60">Nama Proyek</Label>
+                    <Input id="name" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Contoh: Renovasi Rumah Minimalis" className="input-sleek" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="desc" className="text-xs uppercase tracking-widest opacity-60">Deskripsi Singkat</Label>
+                    <Input id="desc" value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Misal: Perbaikan atap dan cat dinding" className="input-sleek" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="desc" className="text-xs uppercase tracking-widest opacity-60">Deskripsi Singkat</Label>
-                  <Input id="desc" value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Misal: Perbaikan atap dan cat dinding" className="input-sleek" />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="ghost" onClick={() => setIsCreateOpen(false)} className="text-xs uppercase tracking-widest">Batal</Button>
-                <Button onClick={handleCreate} className="btn-accent">Simpan Proyek</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setIsCreateOpen(false)} className="text-xs uppercase tracking-widest">Batal</Button>
+                  <Button onClick={handleCreate} className="btn-accent">Simpan Proyek</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </div>
 
       {aiLimitReached && (
@@ -282,15 +294,26 @@ const ProjectsPage = ({ user }: { user: any }) => {
 const ProjectDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
+  const { config: sysConfig } = useSystemConfig();
   const { masterData } = useMasterData(user?.role);
-  const { project, categories, items, loading, addCategory, addItem, deleteCategory, deleteItem, updateProjectStatus, updateItemProgress } = useProjectDetails(id);
+  const { project, categories, items, loading, addCategory, addItem, updateItem, deleteCategory, deleteItem, updateProjectStatus, updateItemProgress, updateTimelineEvent, addTimelineEvent } = useProjectDetails(id);
+  const { assets: systemAssets } = useMediaAssets('system');
+  const pdfLogo = systemAssets.find(a => a.name.toLowerCase().includes('pdf'))?.url || systemAssets[0]?.url || "";
+  
+  const { assets: projectMedia, addAsset: addMedia, deleteAsset: deleteMedia } = useMediaAssets(undefined, id);
+  const [newMediaUrl, setNewMediaUrl] = useState("");
+  const [newMediaName, setNewMediaName] = useState("");
   const [newCatName, setNewCatName] = useState("");
   const [newItemName, setNewItemName] = useState("");
+  const [newItemSpecs, setNewItemSpecs] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
   const [newItemUnit, setNewItemUnit] = useState("m2");
   const [newItemPrice, setNewItemPrice] = useState(0);
   const [selectedCatId, setSelectedCatId] = useState("");
   
+  // Editing individual item specs
+  const [editingItemSpecs, setEditingItemSpecs] = useState<{id: string, name: string, specs: string} | null>(null);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<WorkItemMaster[]>([]);
@@ -316,6 +339,7 @@ const ProjectDetail = () => {
     setNewItemName(item.name);
     setNewItemUnit(item.unit);
     setNewItemPrice(item.price);
+    setNewItemSpecs(item.technicalSpecs || "");
     setSearchQuery("");
     setIsSearching(false);
   };
@@ -361,7 +385,7 @@ const ProjectDetail = () => {
         <div className="text-right">
           <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-bold">Total Anggaran (RAB)</p>
           <p className="text-3xl font-black text-black tracking-tighter">
-            {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(project.totalBudget) : calculateClientPrice(project.totalBudget))}
+            {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(project.totalBudget, sysConfig?.globalMarkup) : calculateClientPrice(project.totalBudget, sysConfig?.globalMarkup))}
           </p>
           <Button 
             variant="ghost" 
@@ -388,136 +412,299 @@ const ProjectDetail = () => {
           <p className="text-xl font-black">{totalWeight.toFixed(0)}%</p>
           <Progress value={totalWeight} className="h-1" />
         </Card>
-        <Card className="md:col-span-2 border-2 border-black rounded-2xl p-6 flex items-center justify-between bg-neutral-50">
-          <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase text-neutral-400">Project Timeline</p>
-            <p className="text-sm font-black">20 Mar - 15 Jun 2026</p>
+        <Card className="md:col-span-2 border-2 border-black rounded-2xl p-6 bg-neutral-50">
+          <div className="flex items-center justify-between mb-4">
+             <div>
+               <p className="text-[10px] font-bold uppercase text-neutral-400">Project Timeline</p>
+               <p className="text-sm font-black">Tracking Fasa Pembangunan</p>
+             </div>
+             {(user?.role === 'admin' || user?.role === 'pm') && (
+               <Dialog>
+                 <DialogTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8 rounded-full border border-black"><Plus className="w-4 h-4" /></Button>} />
+                 <DialogContent className="rounded-3xl border-2 border-black">
+                   <DialogHeader>
+                     <DialogTitle className="font-black uppercase tracking-tighter">Add Timeline Event</DialogTitle>
+                   </DialogHeader>
+                   <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label className="uppercase-soft text-[10px]">Event Title</Label>
+                        <Input id="event-title" placeholder="e.g. Mobilisasi Alat" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="uppercase-soft text-[10px]">Start Date</Label>
+                          <Input id="event-start" type="date" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="uppercase-soft text-[10px]">Due Date (Est.)</Label>
+                          <Input id="event-due" type="date" />
+                        </div>
+                      </div>
+                   </div>
+                   <DialogFooter>
+                     <Button className="btn-sleek w-full" onClick={async () => {
+                       const title = (document.getElementById('event-title') as HTMLInputElement).value;
+                       const start = (document.getElementById('event-start') as HTMLInputElement).value;
+                       const due = (document.getElementById('event-due') as HTMLInputElement).value;
+                       if (title && start) {
+                         await addTimelineEvent({
+                           title,
+                           date: start,
+                           dueDate: due,
+                           status: 'pending'
+                         });
+                         toast.success("Timeline event added");
+                       }
+                     }}>Save Event</Button>
+                   </DialogFooter>
+                 </DialogContent>
+               </Dialog>
+             )}
           </div>
-          <Button variant="outline" size="sm" className="rounded-md border-black text-[10px] uppercase font-bold">View S-Curve</Button>
+          <div className="max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
+            <ProjectTimeline 
+              events={project.timeline || []} 
+              onUpdateStatus={updateTimelineEvent} 
+              isAdmin={user?.role === 'admin' || user?.role === 'pm'} 
+            />
+          </div>
         </Card>
       </div>
 
-      <div className="flex gap-4">
-        <Dialog>
-          <DialogTrigger render={<Button variant="outline" className="gap-2" />}>
-            <Plus className="w-4 h-4" /> Tambah Kategori
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Tambah Kategori Baru</DialogTitle></DialogHeader>
-            <div className="py-4 space-y-4">
-              <div className="space-y-2">
-                <Label>Nama Kategori</Label>
-                <Input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Contoh: Pekerjaan Tanah" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => { addCategory(newCatName); setNewCatName(""); }}>Simpan</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog>
-          <DialogTrigger render={<Button className="gap-2" />}>
-            <Plus className="w-4 h-4" /> Tambah Item
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Tambah Item Anggaran</DialogTitle></DialogHeader>
-            <div className="py-4 space-y-4">
-              <div className="space-y-2">
-                <Label>Kategori</Label>
-                <select 
-                  className="w-full p-2 border rounded-md"
-                  value={selectedCatId}
-                  onChange={e => setSelectedCatId(e.target.value)}
-                >
-                  <option value="">Pilih Kategori</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-
-              <div className="space-y-2 relative">
-                <Label>Cari Pekerjaan (Master Data)</Label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-neutral-400" />
+      {/* Progress Photos Section */}
+      <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-white">
+        <CardHeader className="bg-neutral-50 border-b-2 border-black flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-xl font-black uppercase tracking-tighter">Progress Photos</CardTitle>
+            <CardDescription className="uppercase-soft">Dokumentasi progres pembangunan proyek</CardDescription>
+          </div>
+          <Dialog>
+            <DialogTrigger render={
+              <Button size="sm" className="btn-sleek h-9 px-4 rounded-xl">
+                <Upload className="w-3 h-3 mr-2" /> Upload Photo
+              </Button>
+            } />
+            <DialogContent className="rounded-3xl border-2 border-black">
+              <DialogHeader>
+                <DialogTitle className="font-black uppercase tracking-tighter">Upload Progress Photo</DialogTitle>
+                <DialogDescription>Tambahkan foto terbaru terkait progres proyek ini.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label className="uppercase-soft text-[10px]">Photo Name / Title</Label>
                   <Input 
-                    value={searchQuery} 
-                    onChange={e => setSearchQuery(e.target.value)} 
-                    placeholder="Ketik nama pekerjaan (misal: galian, cat, lampu)..." 
-                    className="pl-8"
+                    placeholder="e.g. Pengecoran Plat Lantai 2" 
+                    value={newMediaName}
+                    onChange={e => setNewMediaName(e.target.value)}
                   />
                 </div>
-                <p className="text-[10px] text-neutral-400 mt-1 italic">*Jika tidak ada di database, Anda bisa langsung mengisi form di bawah secara manual.</p>
-                {isSearching && searchResults.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                    {searchResults.map(item => (
-                      <div 
-                        key={item.id} 
-                        className="p-2 hover:bg-neutral-100 cursor-pointer border-b last:border-0"
-                        onClick={() => selectMasterItem(item)}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-sm">{item.name}</span>
-                          <Badge variant="outline" className="text-[10px]">{item.category}</Badge>
-                        </div>
-                        <div className="flex justify-between text-xs text-neutral-500 mt-1">
-                          <span>Satuan: {item.unit}</span>
-                          <span>Rp {item.price.toLocaleString('id-ID')}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Nama Item (Manual Edit)</Label>
-                <Input value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="Nama pekerjaan..." />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Jumlah (Volume)</Label>
+                  <Label className="uppercase-soft text-[10px]">Direct Image URL</Label>
+                  <Input 
+                    placeholder="https://example.com/photo.jpg" 
+                    value={newMediaUrl}
+                    onChange={e => setNewMediaUrl(e.target.value)}
+                  />
+                  <p className="text-[9px] text-neutral-400 italic">Gunakan link langsung ke gambar (Direct URL).</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  className="btn-sleek w-full" 
+                  onClick={async () => {
+                    if (newMediaUrl && newMediaName) {
+                      await addMedia({
+                        name: newMediaName,
+                        url: newMediaUrl,
+                        category: 'projects',
+                        projectId: id,
+                        description: `Auto-uploaded for project: ${project?.name}`,
+                        createdAt: new Date().toISOString(),
+                        uploadedBy: user?.uid || 'system'
+                      });
+                      setNewMediaUrl("");
+                      setNewMediaName("");
+                      toast.success("Photo uploaded successfully");
+                    }
+                  }}
+                >
+                  Confirm Upload
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent className="p-6">
+          {projectMedia.length === 0 ? (
+            <div className="py-12 text-center bg-neutral-50 rounded-2xl border-2 border-dashed border-neutral-200">
+              <Camera className="w-8 h-8 mx-auto text-neutral-300 mb-2" />
+              <p className="text-[10px] font-black uppercase text-neutral-400">No progress photos yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {projectMedia.map(asset => (
+                <div key={asset.id} className="group relative aspect-square border-2 border-black rounded-xl overflow-hidden bg-neutral-100">
+                  <img 
+                    src={getDriveImageUrl(asset.url)} 
+                    alt={asset.name}
+                    className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 text-center">
+                    <p className="text-[9px] font-black text-white uppercase mb-2">{asset.name}</p>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 bg-white/20 text-white hover:bg-white hover:text-black rounded-full" onClick={() => window.open(asset.url, '_blank')}>
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-full" onClick={() => { if(confirm('Hapus foto ini?')) deleteMedia(asset.id); }}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {(user?.role === "admin" || user?.role === "pm") && (
+        <div className="flex gap-4">
+          <Dialog>
+            <DialogTrigger render={<Button variant="outline" className="gap-2" />}>
+              <Plus className="w-4 h-4" /> Tambah Kategori
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Tambah Kategori Baru</DialogTitle></DialogHeader>
+              <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                  <Label>Nama Kategori</Label>
+                  <Input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Contoh: Pekerjaan Tanah" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => { addCategory(newCatName); setNewCatName(""); }}>Simpan</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog>
+            <DialogTrigger render={<Button className="gap-2" />}>
+              <Plus className="w-4 h-4" /> Tambah Item
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader><DialogTitle>Tambah Item Anggaran</DialogTitle></DialogHeader>
+              <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                  <Label>Kategori</Label>
+                  <select 
+                    className="w-full p-2 border rounded-md"
+                    value={selectedCatId}
+                    onChange={e => setSelectedCatId(e.target.value)}
+                  >
+                    <option value="">Pilih Kategori</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-2 relative">
+                  <Label>Cari Pekerjaan (Master Data)</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-neutral-400" />
+                    <Input 
+                      value={searchQuery} 
+                      onChange={e => setSearchQuery(e.target.value)} 
+                      placeholder="Ketik nama pekerjaan (misal: galian, cat, lampu)..." 
+                      className="pl-8"
+                    />
+                  </div>
+                  <p className="text-[10px] text-neutral-400 mt-1 italic">*Jika tidak ada di database, Anda bisa langsung mengisi form di bawah secara manual.</p>
+                  {isSearching && searchResults.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                      {searchResults.map(item => (
+                        <div 
+                          key={item.id} 
+                          className="p-2 hover:bg-neutral-100 cursor-pointer border-b last:border-0"
+                          onClick={() => selectMasterItem(item)}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-sm">{item.name}</span>
+                            <Badge variant="outline" className="text-[10px]">{item.category}</Badge>
+                          </div>
+                          <div className="flex justify-between text-xs text-neutral-500 mt-1">
+                            <span>Satuan: {item.unit}</span>
+                            <span>Rp {item.price.toLocaleString('id-ID')}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Nama Item (Manual Edit)</Label>
+                  <Input value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="Nama pekerjaan..." />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    Spesifikasi Teknis (Merk, Tipe, Material)
+                    <Badge variant="outline" className="text-[8px] uppercase">Optional</Badge>
+                  </Label>
+                  <Textarea 
+                    value={newItemSpecs} 
+                    onChange={e => setNewItemSpecs(e.target.value)} 
+                    placeholder="Ketik spesifikasi khusus untuk penawaran ini..." 
+                    className="min-h-[60px]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Jumlah (Volume)</Label>
+                    <Input 
+                      type="number" 
+                      value={newItemQty || 0} 
+                      onChange={e => setNewItemQty(Math.max(0, Number(e.target.value)))} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Satuan</Label>
+                    <Input value={newItemUnit} onChange={e => setNewItemUnit(e.target.value)} placeholder="m3, m2, kg, dll" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Harga Satuan (Rp)</Label>
                   <Input 
                     type="number" 
-                    value={newItemQty || 0} 
-                    onChange={e => setNewItemQty(Math.max(0, Number(e.target.value)))} 
+                    value={newItemPrice || 0} 
+                    onChange={e => setNewItemPrice(Math.max(0, Number(e.target.value)))} 
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Satuan</Label>
-                  <Input value={newItemUnit} onChange={e => setNewItemUnit(e.target.value)} placeholder="m3, m2, kg, dll" />
+                
+                <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Estimasi Total:</span>
+                    <span className="text-lg font-bold">Rp {(newItemQty * newItemPrice).toLocaleString('id-ID')}</span>
+                  </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Harga Satuan (Rp)</Label>
-                <Input 
-                  type="number" 
-                  value={newItemPrice || 0} 
-                  onChange={e => setNewItemPrice(Math.max(0, Number(e.target.value)))} 
-                />
-              </div>
-              
-              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Estimasi Total:</span>
-                  <span className="text-lg font-bold">Rp {(newItemQty * newItemPrice).toLocaleString('id-ID')}</span>
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => { 
-                if(selectedCatId && newItemName) {
-                  addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice);
-                  setNewItemName("");
-                  setNewItemQty(1);
-                  setNewItemPrice(0);
-                  setSearchQuery("");
-                }
-              }}>Simpan ke RAB</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+              <DialogFooter>
+                <Button onClick={() => { 
+                  if(selectedCatId && newItemName) {
+                    addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs);
+                    setNewItemName("");
+                    setNewItemSpecs("");
+                    setNewItemQty(1);
+                    setNewItemPrice(0);
+                    setSearchQuery("");
+                  }
+                }}>Simpan ke RAB</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
 
       <div className="space-y-12">
         {categories.map(category => (
@@ -560,8 +747,29 @@ const ProjectDetail = () => {
                 </TableHeader>
                 <TableBody>
                   {items.filter(i => i.categoryId === category.id).map(item => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableRow key={item.id} className="group/row">
+                      <TableCell className="font-medium">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold uppercase tracking-tight">{item.name}</span>
+                            <button 
+                              className="text-neutral-300 hover:text-accent transition-colors opacity-0 group-hover/row:opacity-100 transition-opacity"
+                              onClick={() => setEditingItemSpecs({ id: item.id, name: item.name, specs: item.technicalSpecs || "" })}
+                              title="Edit Spesifikasi Teknis"
+                            >
+                               <Minus className="w-3 h-3" />
+                            </button>
+                          </div>
+                          {item.technicalSpecs && (
+                            <div className="flex items-center gap-1">
+                              <div className="w-1 h-1 rounded-full bg-accent/30" />
+                              <p className="text-[9px] italic text-neutral-400 font-normal leading-tight">
+                                {item.technicalSpecs}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">{item.quantity}</TableCell>
                       <TableCell className="text-center">{item.unit}</TableCell>
                       <TableCell className="text-right font-mono text-[10px]">
@@ -610,7 +818,74 @@ const ProjectDetail = () => {
             <p className="text-neutral-500">Belum ada kategori anggaran. Silakan tambah kategori terlebih dahulu.</p>
           </div>
         )}
+
+        <div className="flex justify-center pt-8">
+          <Button 
+            className="btn-accent px-12 h-12 rounded-2xl shadow-lg gap-2"
+            onClick={() => {
+              const cats = categories.map(c => ({ id: c.id, name: c.name }));
+              const formattedItems = items.map(item => ({
+                name: item.name,
+                unit: item.unit,
+                quantity: item.quantity,
+                pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit) : calculateClientPrice(item.pricePerUnit),
+                totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice) : calculateClientPrice(item.totalPrice),
+                categoryId: item.categoryId,
+                technicalSpecs: item.technicalSpecs
+              }));
+              
+              generateRABPDF(
+                `RAB ${project.name}`,
+                cats,
+                formattedItems,
+                pdfLogo,
+                {
+                  name: project.name,
+                  location: project.description || "Jakarta",
+                  client: user?.displayName || "Klien Terhomat"
+                }
+              );
+              toast.success("Project RAB PDF Generated!");
+            }}
+          >
+            <Download className="w-5 h-5" /> Download Professional PDF RAB
+          </Button>
+        </div>
       </div>
+
+      <Dialog open={!!editingItemSpecs} onOpenChange={(open) => !open && setEditingItemSpecs(null)}>
+        <DialogContent className="rounded-3xl border-2 border-black">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tighter">Edit Spesifikasi Teknis</DialogTitle>
+            <DialogDescription>Input Merk, Tipe, atau Material khusus untuk item: {editingItemSpecs?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label className="uppercase-soft text-[10px]">Keterangan Spesifikasi</Label>
+              <Textarea 
+                value={editingItemSpecs?.specs || ""}
+                onChange={e => setEditingItemSpecs(prev => prev ? { ...prev, specs: e.target.value } : null)}
+                placeholder="e.g. Merk Holcim, Besi 12 Sni, dst."
+                className="min-h-[100px] border-2 border-black/10 rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              className="btn-sleek w-full"
+              onClick={async () => {
+                if (editingItemSpecs) {
+                  await updateItem(editingItemSpecs.id, { technicalSpecs: editingItemSpecs.specs });
+                  setEditingItemSpecs(null);
+                  toast.success("Spesifikasi teknis berhasil diperbarui.");
+                }
+              }}
+            >
+              Update Spesifikasi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -618,6 +893,13 @@ const ProjectDetail = () => {
 const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (data: any) => Promise<void> }) => {
   const { config: systemConfig } = useSystemConfig();
   const { masterData } = useMasterData();
+  const { assets: systemAssets } = useMediaAssets('system');
+  const { assets: financeAssets } = useMediaAssets('finance');
+  
+  const assistantLogo = systemAssets.find(a => a.name.toLowerCase().includes('assistant'))?.url || systemAssets[0]?.url || TBJ_LOGO;
+  const pdfLogo = systemAssets.find(a => a.name.toLowerCase().includes('pdf'))?.url || systemAssets[0]?.url || TBJ_LOGO;
+  const qrisImage = financeAssets.find(a => a.name.toLowerCase().includes('qris'))?.url || QRIS_IMAGE;
+
   const [step, setStep] = useState(1);
   const navigate = useNavigate();
   
@@ -663,10 +945,12 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
   }>({});
   const [expandedRoom, setExpandedRoom] = useState<string | null>(null);
   const [expandedFurniture, setExpandedFurniture] = useState<string | null>(null);
+  const [propFilter, setPropFilter] = useState<"lahan" | "bangun" | "sewa" | "perizinan" | "jual" | null>(null);
   const { properties } = useProperties();
 
   const [mapPosition, setMapPosition] = useState<[number, number]>([-6.2088, 106.8456]); // Jakarta
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [showPropMap, setShowPropMap] = useState(false);
 
   const searchLocation = async (query: string) => {
     if (!query) return;
@@ -1901,12 +2185,14 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                 <div className="max-w-2xl mx-auto p-6 border-2 border-black rounded-2xl bg-white text-left space-y-4 animate-in fade-in slide-in-from-bottom-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-accent font-black uppercase tracking-tighter">
-                      <Sparkles className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-lg overflow-hidden border-2 border-black bg-white flex items-center justify-center p-1">
+                        <img src={assistantLogo} alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                      </div>
                       <h4>Hasil Analisa AI TBJ</h4>
                     </div>
                     {user?.waVerified && (
                       <div className="flex gap-2">
-                        <Button variant="outline" size="xs" className="h-7 text-[9px] font-black uppercase border-black" onClick={() => generateAIPDF(projectData.location || "Proyek TBJ", aiEstimation)}>
+                        <Button variant="outline" size="xs" className="h-7 text-[9px] font-black uppercase border-black" onClick={() => generateAIPDF(projectData.location || "Proyek TBJ", aiEstimation, pdfLogo)}>
                           <Download className="w-3 h-3 mr-1" /> PDF
                         </Button>
                         <Button variant="outline" size="xs" className="h-7 text-[9px] font-black uppercase border-black" onClick={() => {
@@ -1978,7 +2264,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                 <div className="pt-4 border-t border-black/10 space-y-4">
                   <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Instruksi Pembayaran:</p>
                   <div className="p-6 bg-white border-2 border-black rounded-3xl space-y-4 text-center">
-                    <img src={QRIS_IMAGE} alt="QRIS TBJ" className="w-48 h-48 mx-auto object-contain" referrerPolicy="no-referrer" />
+                    <img src={qrisImage} alt="QRIS TBJ" className="w-48 h-48 mx-auto object-contain" referrerPolicy="no-referrer" />
                     <div>
                       <p className="text-lg font-black tracking-tighter uppercase">Scan QRIS TBJ</p>
                       <p className="text-[10px] font-bold uppercase text-neutral-400">a/n TBJ Contractor</p>
@@ -2013,12 +2299,16 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {[
-                  { label: "Beli Properti", icon: Home, color: "bg-blue-50 text-blue-600", type: "beli" },
-                  { label: "Sewa Properti", icon: Key, color: "bg-green-50 text-green-600", type: "sewa" },
-                  { label: "Titip Jual/Sewa", icon: ExternalLink, color: "bg-orange-50 text-orange-600", type: "jual" },
-                  { label: "Legal & IMB/PBG", icon: Gavel, color: "bg-purple-50 text-purple-600", type: "legal" },
+                  { label: "Lahan Strategis", icon: MapIcon, color: "bg-blue-50 text-blue-600", type: "lahan" },
+                  { label: "Titip Bangun", icon: Building2, color: "bg-orange-50 text-orange-600", type: "bangun" },
+                  { label: "Sewa & Permit", icon: Key, color: "bg-green-50 text-green-600", type: "sewa" },
+                  { label: "Legal & Perizinan", icon: ShieldCheck, color: "bg-purple-50 text-purple-600", type: "perizinan" },
                 ].map((svc, idx) => (
-                  <div key={idx} className="p-8 border-2 border-black rounded-3xl text-center space-y-4 hover:bg-neutral-50 cursor-pointer transition-all group">
+                  <div 
+                    key={idx} 
+                    className="p-8 border-2 border-black rounded-3xl text-center space-y-4 hover:bg-neutral-50 cursor-pointer transition-all group"
+                    onClick={() => setPropFilter(svc.type as any)}
+                  >
                     <div className={cn("w-16 h-16 mx-auto rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110", svc.color)}>
                       <svc.icon className="w-8 h-8" />
                     </div>
@@ -2027,25 +2317,99 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                 ))}
               </div>
 
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-accent" /> Lokasi Properti & Area
+                  </h3>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-black rounded-xl uppercase-soft text-[10px]"
+                      onClick={() => setShowPropMap(!showPropMap)}
+                    >
+                      {showPropMap ? "Hide Map" : "View Map Search"}
+                    </Button>
+                  </div>
+                </div>
+                
+                {showPropMap && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="Ketik alamat atau area untuk mencari titik..." 
+                        className="border-2 border-black rounded-2xl h-12 px-6"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            searchLocation(e.currentTarget.value);
+                          }
+                        }}
+                      />
+                      <Button 
+                        className="btn-accent h-12 w-12 rounded-2xl shrink-0"
+                        onClick={(e) => {
+                          const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                          searchLocation(input.value);
+                        }}
+                      >
+                        {isSearchingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                    <MapPicker position={mapPosition} setPosition={setMapPosition} />
+                    <div className="p-4 bg-accent/5 border-2 border-accent/20 rounded-2xl">
+                      <p className="text-[10px] uppercase font-black tracking-widest text-accent mb-1">Koordinat Terdeteksi:</p>
+                      <p className="text-xs font-mono">{mapPosition[0].toFixed(6)}, {mapPosition[1].toFixed(6)}</p>
+                      <p className="text-[8px] text-neutral-400 mt-2 italic">*Titik ini akan digunakan Tim TBJ untuk verifikasi Lahan Strategis atau Titip Bangun.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-8">
                 <div className="flex justify-between items-end">
                   <h3 className="text-2xl font-black uppercase tracking-tighter">Featured Listings</h3>
-                  <div className="flex gap-2">
-                    <Badge className="bg-black text-white rounded-md cursor-pointer">Semua</Badge>
-                    <Badge variant="outline" className="border-black rounded-md cursor-pointer">Rumah</Badge>
-                    <Badge variant="outline" className="border-black rounded-md cursor-pointer">Ruko</Badge>
-                    <Badge variant="outline" className="border-black rounded-md cursor-pointer">Tanah</Badge>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge 
+                      className={cn("rounded-md cursor-pointer", !propFilter ? "bg-black text-white" : "bg-neutral-100 text-neutral-600")}
+                      onClick={() => setPropFilter(null)}
+                    >
+                      Semua
+                    </Badge>
+                    <Badge 
+                      className={cn("rounded-md cursor-pointer", propFilter === "lahan" ? "bg-black text-white" : "bg-neutral-100 text-neutral-600")}
+                      onClick={() => setPropFilter("lahan")}
+                    >
+                      Lahan Strategis
+                    </Badge>
+                    <Badge 
+                      className={cn("rounded-md cursor-pointer", propFilter === "bangun" ? "bg-black text-white" : "bg-neutral-100 text-neutral-600")}
+                      onClick={() => setPropFilter("bangun")}
+                    >
+                      Titip Bangun
+                    </Badge>
+                    <Badge 
+                      className={cn("rounded-md cursor-pointer", propFilter === "sewa" ? "bg-black text-white" : "bg-neutral-100 text-neutral-600")}
+                      onClick={() => setPropFilter("sewa")}
+                    >
+                      Sewa & Permit
+                    </Badge>
                   </div>
                 </div>
 
                 <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-                  {properties.length > 0 ? properties.map((p) => (
+                  {properties.filter(p => !propFilter || p.type === propFilter).length > 0 ? properties.filter(p => !propFilter || p.type === propFilter).map((p) => (
                     <div key={p.id} className="group cursor-pointer border border-black/10 rounded-3xl overflow-hidden hover:shadow-xl transition-all duration-500">
                       <div className="aspect-[4/3] bg-neutral-100 relative overflow-hidden">
                         <img src={getDriveImageUrl(p.photos[0]) || `https://picsum.photos/seed/${p.id}/800/600`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
                         <Badge className="absolute top-4 left-4 bg-black text-white px-4 py-1.5 rounded-full uppercase text-[10px] font-black tracking-widest">
-                          {p.type === "jual" ? "Dijual" : p.type === "sewa" ? "Disewakan" : "Dicari"}
+                          {p.type === "lahan" ? "Lahan" : p.type === "bangun" ? "Titip Bangun" : p.type === "sewa" ? "Sewa/Permit" : p.type === "perizinan" ? "Permit" : "Listing"}
                         </Badge>
+                        {p.coordinates && (
+                          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-1.5 rounded-full border border-black/10 text-accent">
+                            <MapPin className="w-3 h-3" />
+                          </div>
+                        )}
                         <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-md border border-black/10 text-[10px] font-black uppercase">
                           {p.area} m2
                         </div>
@@ -2754,7 +3118,7 @@ export default function App() {
                 
                 {/* Default Redirect */}
                 <Route path="/" element={user?.role === "admin" ? <AdminPanel /> : user?.role === "pm" ? <PMDashboard /> : <Profile />} />
-                <Route path="*" element={<div className="text-center py-20">Halaman tidak ditemukan</div>} />
+                <Route path="*" element={<NotFoundRedirect />} />
               </>
             )}
           </Routes>

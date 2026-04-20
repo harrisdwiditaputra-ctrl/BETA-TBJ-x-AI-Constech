@@ -75,6 +75,7 @@ export interface BudgetItem {
   categoryId: string;
   name: string;
   description: string;
+  technicalSpecs?: string; // Brand, Type, Material specific
   quantity: number;
   unit: string;
   pricePerUnit: number;
@@ -94,8 +95,9 @@ export interface Property {
   title: string;
   description: string;
   price: number;
-  type: "jual" | "beli" | "sewa";
+  type: "jual" | "lahan" | "bangun" | "sewa" | "perizinan" | "kerjasama" | "revitalisasi";
   location: string;
+  coordinates?: { lat: number; lng: number };
   area: number;
   photos: string[];
   features: string[];
@@ -153,6 +155,7 @@ export interface WorkItemMaster {
   category: string;
   name: string;
   description?: string;
+  technicalSpecs?: string; // Brand, Type, Material specific
   unit: string;
   price: number;
   status?: "visible" | "hidden" | "deleted";
@@ -262,6 +265,22 @@ export interface GalleryItem {
   createdAt: string;
 }
 
+export type MediaCategory = 'system' | 'finance' | 'marketing' | 'projects';
+
+export interface MediaAsset {
+  id: string;
+  url: string;
+  name: string;
+  category: MediaCategory;
+  projectId?: string;
+  description?: string;
+  uploadedBy: string;
+  uploadedByName?: string;
+  createdAt: string;
+  fileSize?: number;
+  fileType?: string;
+}
+
 export interface FinancialTransaction {
   id: string;
   projectId?: string;
@@ -285,4 +304,13 @@ export interface WorkerWage {
   weekEnding: string;
   status: "pending" | "paid";
   createdAt: string;
+}
+
+export interface MasterDataVersion {
+  id: string;
+  versionName: string;
+  items: WorkItemMaster[];
+  createdAt: string;
+  createdBy: string;
+  notes?: string;
 }

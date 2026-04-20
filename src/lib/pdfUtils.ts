@@ -1,22 +1,41 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { TBJ_LOGO } from '../constants';
 import { AIEstimateResponse } from '../types';
 
-// Extend jsPDF with autotable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
+// Helper to convert image URL to Base64
+const imageUrlToBase64 = async (url: string): Promise<string> => {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.error('Error converting image to base64:', e);
+    return url; // Fallback
   }
-}
+};
 
-export const generateRABPDF = (projectName: string, categories: any[], items: any[]) => {
+export const generateRABPDF = async (
+  projectName: string, 
+  categories: any[], 
+  items: any[], 
+  customLogoUrl?: string,
+  projectIdentity?: { name: string, location: string, client: string }
+) => {
   const doc = new jsPDF();
-  const logoUrl = TBJ_LOGO;
+  const logoUrl = customLogoUrl || TBJ_LOGO;
+  
+  // Convert logo to Base64 to avoid PNG signature errors
+  const base64Logo = await imageUrlToBase64(logoUrl);
 
   // Header
   try {
-    doc.addImage(logoUrl, 'PNG', 10, 10, 30, 30);
+    doc.addImage(base64Logo, 'PNG', 10, 10, 30, 30);
   } catch (e) {
     console.error('Failed to add logo to PDF:', e);
     doc.rect(10, 10, 30, 30, 'S');
@@ -25,68 +44,126 @@ export const generateRABPDF = (projectName: string, categories: any[], items: an
   }
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  doc.text('TBJ CONSTECH', 50, 25);
+  doc.text('TBJ HUB', 50, 25);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text('Professional Construction & Renovation Services', 50, 32);
-  doc.text('Jakarta, Indonesia | +62 812-3456-7890', 50, 37);
+  doc.text('Jakarta, Indonesia | www.tbjconstech.com', 50, 37);
 
   doc.line(10, 45, 200, 45);
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('BILL OF QUANTITIES (RAB)', 10, 55);
-  doc.setFontSize(12);
+  doc.text('RENCANA ANGGARAN BIAYA (RAB)', 10, 55);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  let headerY = 65;
+  if (projectIdentity) {
+    doc.text(`NAMA PROYEK: ${projectIdentity.name.toUpperCase()}`, 10, headerY);
+    doc.text(`LOKASI: ${projectIdentity.location.toUpperCase()}`, 10, headerY + 5);
+    doc.text(`KLIEN: ${projectIdentity.client.toUpperCase()}`, 10, headerY + 10);
+    headerY += 20;
+  } else {
+    doc.text(`PROJECT: ${projectName.toUpperCase()}`, 10, headerY);
+    headerY += 10;
+  }
+  
   doc.setFont('helvetica', 'normal');
-  doc.text(`Project: ${projectName}`, 10, 65);
-  doc.text(`Date: ${new Date().toLocaleDateString()}`, 10, 72);
+  doc.text(`TANGGAL: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, 10, headerY);
 
-  let currentY = 80;
+  let currentY = headerY + 10;
 
   categories.forEach((cat) => {
     const catItems = items.filter(i => i.categoryId === cat.id);
     if (catItems.length === 0) return;
 
-    doc.setFontSize(12);
+    // Check for page break
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text(cat.name.toUpperCase(), 10, currentY);
-    currentY += 5;
+    doc.setFillColor(245, 245, 245);
+    doc.rect(10, currentY - 5, 190, 8, 'F');
+    doc.text(cat.name.toUpperCase(), 12, currentY);
+    currentY += 8;
 
     const tableData = catItems.map(item => [
-      item.name,
+      { 
+        content: `${item.name}${item.technicalSpecs ? `\nSpesifikasi: ${item.technicalSpecs}` : ''}`, 
+        styles: { fontStyle: 'bold' } 
+      },
       item.quantity,
       item.unit,
-      `Rp ${item.pricePerUnit.toLocaleString()}`,
-      `Rp ${item.totalPrice.toLocaleString()}`
+      `Rp ${item.pricePerUnit.toLocaleString('id-ID')}`,
+      `Rp ${item.totalPrice.toLocaleString('id-ID')}`
     ]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: currentY,
-      head: [['Item Description', 'Qty', 'Unit', 'Price', 'Total']],
+      head: [['URAIAN PEKERJAAN', 'QTY', 'UNIT', 'HARGA SATUAN', 'JUMLAH HARGA']],
       body: tableData,
       theme: 'grid',
-      headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
+      headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 9, halign: 'center' },
+      bodyStyles: { fontSize: 8, cellPadding: 3 },
+      columnStyles: {
+        0: { cellWidth: 80 },
+        1: { halign: 'center', cellWidth: 20 },
+        2: { halign: 'center', cellWidth: 20 },
+        3: { halign: 'right', cellWidth: 35 },
+        4: { halign: 'right', cellWidth: 35 }
+      },
       margin: { left: 10, right: 10 },
+      didDrawPage: (data: any) => {
+        currentY = data.cursor.y;
+      }
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 10;
+    currentY = (doc as any).lastAutoTable.finalY + 12;
   });
 
   const totalBudget = items.reduce((acc, i) => acc + i.totalPrice, 0);
-  doc.setFontSize(14);
+  
+  // Final summary
+  if (currentY > 260) {
+    doc.addPage();
+    currentY = 20;
+  }
+  
+  doc.line(130, currentY, 200, currentY);
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text(`TOTAL ESTIMATED COST: Rp ${totalBudget.toLocaleString()}`, 10, currentY + 10);
+  doc.text('TOTAL ESTIMASI BIAYA:', 110, currentY + 10);
+  doc.text(`Rp ${totalBudget.toLocaleString('id-ID')}`, 200, currentY + 10, { align: 'right' });
+
+  // Footer / Signature
+  currentY += 30;
+  if (currentY > 260) {
+    doc.addPage();
+    currentY = 20;
+  }
+  
+  doc.setFontSize(10);
+  doc.text('Hormat Kami,', 150, currentY);
+  doc.text('TBJ HUB', 150, currentY + 5);
+  
+  doc.line(140, currentY + 30, 190, currentY + 30);
+  doc.text('Official Estimator', 150, currentY + 35);
 
   doc.save(`RAB-${projectName.replace(/\s+/g, '-')}.pdf`);
 };
 
-export const generatePOPDF = (request: any, vendor: any) => {
+export const generatePOPDF = async (request: any, vendor: any, customLogoUrl?: string) => {
   const doc = new jsPDF();
-  const logoUrl = TBJ_LOGO;
+  const logoUrl = customLogoUrl || TBJ_LOGO;
+  const base64Logo = await imageUrlToBase64(logoUrl);
 
   // Header
   try {
-    doc.addImage(logoUrl, 'PNG', 10, 10, 30, 30);
+    doc.addImage(base64Logo, 'PNG', 10, 10, 30, 30);
   } catch (e) {
     console.error('Failed to add logo to PDF:', e);
     doc.rect(10, 10, 30, 30, 'S');
@@ -95,58 +172,90 @@ export const generatePOPDF = (request: any, vendor: any) => {
   }
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  doc.text('TBJ CONSTECH', 50, 25);
+  doc.text('TBJ HUB', 50, 25);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('PURCHASE ORDER', 160, 25);
-  doc.text(`PO-${request.id.substring(0, 8).toUpperCase()}`, 160, 32);
+  doc.text('Professional Construction & Renovation Services', 50, 32);
+  doc.text('Jakarta, Indonesia | www.tbjconstech.com', 50, 37);
+
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PURCHASE ORDER', 140, 25);
+  doc.setFontSize(9);
+  doc.text(`NO: PO-${request.id.substring(0, 8).toUpperCase()}`, 140, 32);
+  doc.text(`TGL: ${new Date(request.createdAt).toLocaleDateString('id-ID')}`, 140, 37);
 
   doc.line(10, 45, 200, 45);
 
   // Vendor Info
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('VENDOR:', 10, 55);
+  doc.text('VENDOR / SUPPLIER:', 10, 55);
   doc.setFont('helvetica', 'normal');
-  doc.text(vendor.name, 10, 62);
-  doc.text(vendor.address || 'Alamat tidak tersedia', 10, 69);
-  doc.text(`WA: ${vendor.whatsapp}`, 10, 76);
+  doc.text(vendor.name.toUpperCase(), 10, 62);
+  doc.text(vendor.address || 'Alamat tidak tersedia', 10, 68);
+  doc.text(`UP: Bagian Pengiriman`, 10, 74);
+  doc.text(`WA: ${vendor.whatsapp}`, 10, 80);
 
   // Project Info
   doc.setFont('helvetica', 'bold');
-  doc.text('SHIP TO:', 120, 55);
+  doc.text('LOKASI PENGIRIMAN (SHIP TO):', 110, 55);
   doc.setFont('helvetica', 'normal');
-  doc.text(request.projectName, 120, 62);
-  doc.text('Lokasi Proyek TBJ', 120, 69);
+  doc.text(request.projectName.toUpperCase(), 110, 62);
+  doc.text('Gudang Proyek TBJ Constech', 110, 68);
+  doc.text('Harap konfirmasi sebelum pengiriman.', 110, 74);
 
   const tableBody = request.items && request.items.length > 0
-    ? request.items.map((it: any) => [it.name, it.quantity, it.unit, '-'])
-    : [[request.itemName, request.quantity, request.unit, request.note || '-']];
+    ? request.items.map((it: any, idx: number) => [idx + 1, it.name.toUpperCase(), it.quantity, it.unit, it.specs || it.note || '-'])
+    : [[1, request.itemName.toUpperCase(), request.quantity, request.unit, request.note || '-']];
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: 90,
-    head: [['Item Description', 'Quantity', 'Unit', 'Notes']],
+    head: [['NO', 'ITEM DESCRIPTION / MATERIAL', 'QTY', 'UNIT', 'REMARKS']],
     body: tableBody,
-    theme: 'striped',
-    headStyles: { fillColor: [0, 0, 0] }
+    theme: 'grid',
+    headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], halign: 'center' },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 10 },
+      1: { cellWidth: 100 },
+      2: { halign: 'center', cellWidth: 20 },
+      3: { halign: 'center', cellWidth: 20 },
+      4: { cellWidth: 40 }
+    }
   });
 
   const finalY = (doc as any).lastAutoTable.finalY;
+  
+  // Terms
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Syarat & Ketentuan:', 10, finalY + 15);
+  doc.setFont('helvetica', 'normal');
+  doc.text('1. Barang harus sesuai dengan spesifikasi yang diminta.', 10, finalY + 20);
+  doc.text('2. Lampirkan copy PO ini saat pengiriman barang.', 10, finalY + 25);
+  doc.text('3. Pembayaran dilakukan sesuai termin yang disepakati.', 10, finalY + 30);
+
+  // Signature
   doc.setFontSize(10);
-  doc.text('Authorized Signature:', 10, finalY + 30);
-  doc.line(10, finalY + 50, 60, finalY + 50);
-  doc.text('TBJ Management', 10, finalY + 55);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Authorized By,', 150, finalY + 15);
+  doc.text('TBJ Management', 150, finalY + 20);
+  
+  doc.line(140, finalY + 45, 190, finalY + 45);
+  doc.setFontSize(9);
+  doc.text('Project Manager / Procurement', 145, finalY + 50);
 
   doc.save(`PO-${request.id.substring(0, 8).toUpperCase()}.pdf`);
 };
 
-export const generateAIPDF = (projectName: string, estimation: AIEstimateResponse) => {
+export const generateAIPDF = async (projectName: string, estimation: AIEstimateResponse, customLogoUrl?: string) => {
   const doc = new jsPDF();
-  const logoUrl = TBJ_LOGO;
+  const logoUrl = customLogoUrl || TBJ_LOGO;
+  const base64Logo = await imageUrlToBase64(logoUrl);
 
   // Header
   try {
-    doc.addImage(logoUrl, 'PNG', 10, 10, 30, 30);
+    doc.addImage(base64Logo, 'PNG', 10, 10, 30, 30);
   } catch (e) {
     console.error('Failed to add logo to PDF:', e);
     doc.rect(10, 10, 30, 30, 'S');
@@ -155,7 +264,7 @@ export const generateAIPDF = (projectName: string, estimation: AIEstimateRespons
   }
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  doc.text('TBJ CONSTECH', 50, 25);
+  doc.text('TBJ HUB', 50, 25);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text('AI ESTIMATION SUMMARY', 150, 25);
@@ -185,7 +294,7 @@ export const generateAIPDF = (projectName: string, estimation: AIEstimateRespons
     `Rp ${item.totalPrice.toLocaleString()}`
   ]);
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: startY,
     head: [['Item Description', 'Qty', 'Unit', 'Price', 'Total']],
     body: tableData,

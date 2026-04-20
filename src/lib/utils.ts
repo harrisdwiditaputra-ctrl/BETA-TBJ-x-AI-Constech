@@ -14,13 +14,15 @@ export function formatRupiah(amount: number) {
   }).format(amount);
 }
 
-export function calculateAdminPrice(basePrice: number) {
-  const markedUp = basePrice * 1.2;
+export function calculateAdminPrice(basePrice: number, globalMarkup: number = 20) {
+  const markupFactor = 1 + (globalMarkup / 100);
+  const markedUp = basePrice * markupFactor;
   return Math.ceil(markedUp / 1000) * 1000;
 }
 
-export function calculateClientPrice(basePrice: number) {
-  const markedUp = basePrice * 1.2 * 1.1; // 20% Markup + 10% Profit
+export function calculateClientPrice(basePrice: number, globalMarkup: number = 20) {
+  const markupFactor = 1 + (globalMarkup / 100);
+  const markedUp = basePrice * markupFactor * 1.1; // Baseline Markup + 10% Profit
   return Math.ceil(markedUp / 1000) * 1000;
 }
 

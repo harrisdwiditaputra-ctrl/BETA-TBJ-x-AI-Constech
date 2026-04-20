@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import { cn, getDriveImageUrl, formatRupiah, calculateAdminPrice } from "@/lib/utils";
 import { Project, MaterialRequest, Attendance, Workforce } from "@/types";
 
+import { ImageUpload } from "@/components/ImageUpload";
+
 export default function PMDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -44,7 +46,50 @@ export default function PMDashboard() {
     description: ""
   });
 
+  // Bulk Material Request Form
+  const [showBulkRequest, setShowBulkRequest] = useState(false);
   const [showLogForm, setShowLogForm] = useState(false);
+  const [bulkItems, setBulkItems] = useState<{name: string, quantity: number, unit: string}[]>([
+    { name: "", quantity: 0, unit: "pcs" }
+  ]);
+
+  const handleAddBulkItem = () => {
+    setBulkItems([...bulkItems, { name: "", quantity: 0, unit: "pcs" }]);
+  };
+
+  const handleRemoveBulkItem = (index: number) => {
+    setBulkItems(bulkItems.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateBulkItem = (index: number, updates: any) => {
+    const next = [...bulkItems];
+    next[index] = { ...next[index], ...updates };
+    setBulkItems(next);
+  };
+
+  const handleBulkRequestSubmit = async () => {
+    if (!selectedProject || bulkItems.some(i => !i.name || i.quantity <= 0)) {
+      toast.error("Mohon lengkapi semua data item.");
+      return;
+    }
+
+    await addRequest({
+      projectId: selectedProject.id,
+      projectName: selectedProject.name,
+      requesterId: user?.uid || "",
+      requesterName: user?.displayName || "Unknown",
+      itemName: `${bulkItems.length} Material (Bulk Order)`,
+      quantity: bulkItems.length,
+      unit: "items",
+      status: "pending",
+      note: `Bulk order for ${selectedProject.name}`,
+      items: bulkItems
+    });
+
+    setShowBulkRequest(false);
+    setBulkItems([{ name: "", quantity: 0, unit: "pcs" }]);
+    toast.success("Bulk Material Request submitted!");
+  };
   const [newLog, setNewLog] = useState({
     title: "",
     description: "",
@@ -290,8 +335,11 @@ export default function PMDashboard() {
                       <Button variant="outline" className="border border-black/10 rounded-xl h-10 text-[10px] font-black uppercase">
                         <MessageSquare className="w-4 h-4 mr-2" /> WA Client
                       </Button>
-                      <Button className="btn-orange rounded-xl h-10 text-[10px] font-black uppercase" onClick={() => setShowRequestForm(true)}>
-                        <Plus className="w-4 h-4 mr-2" /> Request Material
+                      <Button className="btn-orange rounded-xl h-10 text-[10px] font-black uppercase" onClick={() => setShowBulkRequest(true)}>
+                        <Plus className="w-4 h-4 mr-2" /> Bulk Order Material
+                      </Button>
+                      <Button variant="outline" className="border-2 border-black rounded-xl h-10 text-[10px] font-black uppercase" onClick={() => setShowRequestForm(true)}>
+                        <Plus className="w-4 h-4 mr-2" /> Single Req
                       </Button>
                     </div>
                   </CardHeader>
@@ -348,21 +396,11 @@ export default function PMDashboard() {
                               />
                             </div>
                             <div className="col-span-2 space-y-1">
-                              <label className="text-[9px] font-black uppercase">Upload Photo</label>
-                              <Input 
-                                type="file"
-                                accept="image/*"
-                                className="h-10 text-xs border-black/10"
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      setNewLog({...newLog, photoUrl: reader.result as string});
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
+                              <label className="text-[9px] font-black uppercase">Progress Photo</label>
+                              <ImageUpload 
+                                path="site_logs"
+                                label="Ambil Foto Progress"
+                                onUploadComplete={(url) => setNewLog({...newLog, photoUrl: url})}
                               />
                             </div>
                             <div className="col-span-2 space-y-1">
@@ -1153,6 +1191,79 @@ export default function PMDashboard() {
                 <Button className="flex-grow btn-orange h-12" onClick={handleMaterialRequest}>
                   <Send className="w-4 h-4 mr-2" /> Submit Request
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      {/* Bulk Material Request Modal */}
+      {showBulkRequest && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl border border-black/10 rounded-3xl overflow-hidden animate-in zoom-in-95 shadow-2xl">
+            <CardHeader className="bg-neutral-50 border-b border-black/10">
+              <CardTitle className="text-xl font-black uppercase tracking-tighter">Bulk Material Procurement</CardTitle>
+              <CardDescription className="uppercase-soft">Request multi-item materials for {selectedProject?.name}.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {bulkItems.map((item, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-3 items-end p-4 bg-neutral-50 rounded-2xl border border-black/5 group">
+                    <div className="col-span-6 space-y-1">
+                      <label className="text-[10px] font-black uppercase text-neutral-400">Material Name</label>
+                      <Input 
+                        placeholder="e.g. Semen, Besi, Pasir"
+                        value={item.name}
+                        onChange={e => handleUpdateBulkItem(index, { name: e.target.value })}
+                        className="h-10 text-xs font-bold"
+                      />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] font-black uppercase text-neutral-400">Qty</label>
+                      <Input 
+                        type="number"
+                        value={item.quantity}
+                        onChange={e => handleUpdateBulkItem(index, { quantity: Number(e.target.value) })}
+                        className="h-10 text-xs font-black text-center"
+                      />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] font-black uppercase text-neutral-400">Unit</label>
+                      <Input 
+                        placeholder="pcs"
+                        value={item.unit}
+                        onChange={e => handleUpdateBulkItem(index, { unit: e.target.value })}
+                        className="h-10 text-xs font-bold"
+                      />
+                    </div>
+                    <div className="col-span-2 flex justify-end">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-10 w-10 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-xl"
+                        onClick={() => handleRemoveBulkItem(index)}
+                        disabled={bulkItems.length === 1}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex justify-between items-center pt-4 border-t border-black/5">
+                <Button 
+                  variant="outline" 
+                  onClick={handleAddBulkItem}
+                  className="h-12 px-6 rounded-xl border-2 border-black font-black uppercase text-[10px]"
+                >
+                  <Plus className="w-4 h-4 mr-2" /> Add Material Row
+                </Button>
+                <div className="flex gap-4">
+                  <Button variant="ghost" className="px-8 rounded-xl uppercase font-black text-[10px]" onClick={() => setShowBulkRequest(false)}>Cancel</Button>
+                  <Button className="btn-orange h-12 px-8 rounded-xl uppercase font-black text-[10px]" onClick={handleBulkRequestSubmit}>
+                    Submit Bulk Order
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

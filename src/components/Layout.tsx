@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Ticker from "./Ticker";
 import { TBJ_LOGO } from "@/constants";
+import { useMediaAssets } from "@/lib/hooks";
 
 interface LayoutProps {
   children: ReactNode;
@@ -17,6 +18,10 @@ interface LayoutProps {
 export default function Layout({ children, user, onLogout, onLogin }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { assets: systemAssets } = useMediaAssets('system');
+
+  const headerLogo = systemAssets.find(a => a.name.toLowerCase().includes('header'))?.url || systemAssets[0]?.url || "";
+  const footerLogo = systemAssets.find(a => a.name.toLowerCase().includes('footer'))?.url || systemAssets[0]?.url || "";
 
   const isAdmin = user?.role === "admin";
   const isPM = user?.role === "pm";
@@ -55,7 +60,7 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
               <Link to="/" className="flex-shrink-0 flex items-center gap-3 group">
                 <div className="w-12 h-12 flex items-center justify-center transition-transform group-hover:rotate-6 rounded-xl overflow-hidden">
                   <img 
-                    src={TBJ_LOGO} 
+                    src={headerLogo} 
                     alt="TBJ Logo" 
                     className="w-full h-full object-contain"
                     referrerPolicy="no-referrer"
@@ -163,7 +168,7 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 flex items-center justify-center rounded-lg overflow-hidden">
                 <img 
-                  src={TBJ_LOGO} 
+                  src={footerLogo} 
                   alt="TBJ Logo" 
                   className="w-full h-full object-contain"
                   referrerPolicy="no-referrer"

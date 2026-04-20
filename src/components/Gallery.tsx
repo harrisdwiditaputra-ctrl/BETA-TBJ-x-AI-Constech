@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Calendar, Tag, DollarSign, Quote, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { getDriveImageUrl } from "@/lib/utils";
+import { useMediaAssets } from "@/lib/hooks";
 
 interface GalleryItem {
   id: string;
@@ -24,6 +25,7 @@ interface GalleryItem {
 export default function Gallery() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { assets: marketingAssets } = useMediaAssets('marketing');
 
   useEffect(() => {
     const q = query(collection(db, "gallery"), orderBy("date", "desc"));
@@ -99,6 +101,32 @@ export default function Gallery() {
           <ProjectCard key={item.id} item={item} />
         ))}
       </div>
+
+      {/* Marketing / Highlights Section */}
+      {marketingAssets.length > 0 && (
+        <div className="space-y-8 pt-12 border-t border-neutral-100">
+          <div className="text-center space-y-2">
+            <h2 className="text-3xl font-black uppercase tracking-tighter">Marketing Gallery</h2>
+            <p className="uppercase-soft text-neutral-400">Snapshot aktivitas dan konten marketing terbaru</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {marketingAssets.map(asset => (
+              <div key={asset.id} className="group relative aspect-square rounded-2xl overflow-hidden border-2 border-black bg-neutral-100">
+                <img 
+                  src={getDriveImageUrl(asset.url)} 
+                  alt={asset.name}
+                  className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center">
+                  <p className="text-[10px] font-black text-white uppercase">{asset.name}</p>
+                  <p className="text-[8px] text-neutral-300 uppercase-soft mt-1">{asset.description || 'Marketing Content'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useAuth, useMasterData } from "@/lib/hooks";
+import { useAuth, useMasterData, useMediaAssets } from "@/lib/hooks";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,9 @@ interface Message {
 export default function AIAgent() {
   const { user } = useAuth();
   const { masterData } = useMasterData();
+  const { assets: systemAssets } = useMediaAssets('system');
+  const assistantLogo = systemAssets.find(a => a.name.toLowerCase().includes('assistant'))?.url || systemAssets.find(a => a.name.toLowerCase().includes('logo'))?.url || TBJ_LOGO;
+
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: "Halo! Saya TBJ AI Agent. Ada yang bisa saya bantu terkait proyek konstruksi, renovasi, atau desain interior Anda hari ini? Anda juga bisa mengirimkan foto area yang ingin dikonsultasikan." }
   ]);
@@ -206,7 +209,7 @@ export default function AIAgent() {
                   "w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 border-2 border-black shadow-sm overflow-hidden",
                   msg.role === "user" ? "bg-black text-white" : "bg-white"
                 )}>
-                  {msg.role === "user" ? <User className="w-5 h-5" /> : <img src={TBJ_LOGO} className="w-full h-full object-contain p-1" />}
+                  {msg.role === "user" ? <User className="w-5 h-5" /> : <img src={assistantLogo} className="w-full h-full object-contain p-1" referrerPolicy="no-referrer" />}
                 </div>
                 <div className="space-y-2">
                   <div className={cn(

@@ -57,9 +57,8 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() &&
-        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          getUserData().role == 'admin') ||
-         (request.auth.token.email == "harrisdwiditaputra@gmail.com" && request.auth.token.email_verified == true));
+        (request.auth.token.email == "harrisdwiditaputra@gmail.com" && request.auth.token.email_verified == true || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == 'admin'));
     }
 
     function isPM() {
@@ -69,7 +68,9 @@ service cloud.firestore {
     }
 
     function isStaff() {
-      return isPM() || isAdmin();
+      // Prioritize email check for the main admin to avoid get() calls
+      return (isAuthenticated() && request.auth.token.email == "harrisdwiditaputra@gmail.com" && request.auth.token.email_verified == true) || 
+             isPM() || isAdmin();
     }
 
     function isTier3() {
@@ -162,6 +163,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /master_data_versions/{versionId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
     match /workforce/{workerId} {
       allow read: if isTier3();
       allow write: if isStaff();
@@ -213,6 +219,22 @@ service cloud.firestore {
     match /campaigns/{campaignId} {
       allow read: if isStaff();
       allow write: if isAdmin();
+    }
+
+    match /media_assets/{assetId} {
+      // system and marketing are public (logos, gallery)
+      // projects is specific to owner or staff
+      // finance is staff-only
+      allow read: if (resource.data.category in ['system', 'marketing']) ||
+                   (isAuthenticated() && (
+                     isStaff() ||
+                     (resource.data.category == 'finance' && isStaff()) ||
+                     (resource.data.category == 'projects' && 
+                       resource.data.get('projectId', '') != '' &&
+                       get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.ownerId == request.auth.uid
+                     )
+                   ));
+      allow write: if isStaff();
     }
     
     // Default Deny

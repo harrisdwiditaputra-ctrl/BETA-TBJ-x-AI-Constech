@@ -1,20 +1,24 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMasterData, useAuth } from "@/lib/hooks";
+import { useMasterData, useAuth, useMediaAssets, useSavedEstimates } from "@/lib/hooks";
 import { WorkItemMaster, UserTier } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Search, Plus, Trash2, Download, Share2, Instagram, Phone, Mail, Building2, Save, FileText, ChevronRight, Calculator } from "lucide-react";
+import { Search, Plus, Minus, Trash2, Download, Share2, Instagram, Phone, Mail, Building2, Save, FileText, ChevronRight, Calculator, MoreHorizontal, Eraser, Edit3, Loader2, History as HistoryIcon } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 import { TBJ_LOGO } from "@/constants";
+
+import { generateRABPDF } from "@/lib/pdfUtils";
 
 interface RabItem extends WorkItemMaster {
   volume: number;
@@ -23,10 +27,17 @@ interface RabItem extends WorkItemMaster {
   notes?: string;
 }
 
-const RabPage = ({ user }: { user: any }) => {
+export default function RabPage({ user }: { user: any }) {
   const navigate = useNavigate();
   const { masterData } = useMasterData(user?.role);
+  const { assets: systemAssets } = useMediaAssets('system');
+  const { estimates, saveEstimate, deleteEstimate, loading: estimatesLoading } = useSavedEstimates(user?.uid);
+  const headerLogo = systemAssets.find(a => a.name.toLowerCase().includes('header'))?.url || systemAssets[0]?.url || TBJ_LOGO;
+  const pdfLogo = systemAssets.find(a => a.name.toLowerCase().includes('pdf'))?.url || systemAssets[0]?.url || TBJ_LOGO;
+
+  const [activeTab, setActiveTab] = useState<"editor" | "archive">("editor");
   const [rabItems, setRabItems] = useState<RabItem[]>([]);
+  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
   const [categories, setCategories] = useState<string[]>([
     "ARSITEKTUR", 
     "Struktur", 
@@ -85,11 +96,35 @@ const RabPage = ({ user }: { user: any }) => {
       volume: 1,
       total: master.price,
       code: master.code || master.id,
-      notes: ""
+      notes: "",
+      technicalSpecs: master.technicalSpecs || ""
     };
     setRabItems([...rabItems, newItem]);
     setSearchQuery("");
     setIsAddingItem(false);
+  };
+
+  const toggleExpand = (index: number) => {
+    const next = new Set(expandedItems);
+    if (next.has(index)) next.delete(index);
+    else next.add(index);
+    setExpandedItems(next);
+  };
+
+  const handleSaveDraft = async () => {
+    if (rabItems.length === 0) {
+      toast.error("Tidak ada item untuk disimpan.");
+      return;
+    }
+    const draftData = {
+      projectName: projectInfo.projectName,
+      clientName: projectInfo.clientName,
+      address: projectInfo.address,
+      items: rabItems,
+      totalBudget: grandTotal,
+      date: projectInfo.date
+    };
+    await saveEstimate(draftData);
   };
 
   const updateItem = (index: number, updates: Partial<RabItem>) => {
@@ -119,67 +154,37 @@ const RabPage = ({ user }: { user: any }) => {
 
   const grandTotal = rabItems.reduce((sum, item) => sum + item.total, 0);
 
-  const exportToPDF = () => {
-    const doc = new jsPDF() as any;
-    
-    // Header with Logo
-    doc.addImage(TBJ_LOGO, 'PNG', 14, 10, 15, 15);
-    doc.setFontSize(22);
-    doc.setTextColor(0, 0, 0);
-    doc.text("TBJ CONTRACTOR HUB", 35, 22);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text("Digital Ecosystem: AI-Powered Construction & Design", 14, 26);
-    doc.text("Instagram: @tukang.bangunan.jakarta | WA: +62 821-9420-1650", 14, 31);
-    
-    doc.setDrawColor(0, 0, 0);
-    doc.line(14, 35, 196, 35);
-
-    // Project Info
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text("RENCANA ANGGARAN BIAYA (RAB)", 14, 45);
-    
-    doc.setFontSize(10);
-    doc.text(`Proyek: ${projectInfo.projectName}`, 14, 55);
-    doc.text(`Klien: ${projectInfo.clientName}`, 14, 60);
-    doc.text(`Alamat: ${projectInfo.address}`, 14, 65);
-    doc.text(`Tanggal: ${projectInfo.date}`, 14, 70);
-
-    // Table
-    const tableData = rabItems.map((item, index) => [
-      index + 1,
-      item.code || "N/A",
-      item.category,
-      item.name,
-      item.volume,
-      item.unit,
-      `Rp ${item.price.toLocaleString('id-ID')}`,
-      `Rp ${item.total.toLocaleString('id-ID')}`
-    ]);
-
-    doc.autoTable({
-      startY: 80,
-      head: [['No', 'Kode', 'Kategori', 'Pekerjaan', 'Vol', 'Sat', 'Harga', 'Total']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
-      foot: [['', '', '', '', '', '', 'GRAND TOTAL', `Rp ${grandTotal.toLocaleString('id-ID')}`]],
-      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+  const exportToPDF = async () => {
+    toast.promise(generateRABPDF(projectInfo.projectName, categories.map(c => ({ id: c, name: c })), rabItems.map(item => ({
+      ...item,
+      quantity: item.volume,
+      pricePerUnit: item.price,
+      totalPrice: item.total
+    })), pdfLogo), {
+      loading: 'Generating PDF...',
+      success: 'RAB PDF Exported!',
+      error: 'Failed to generate PDF'
     });
+  };
 
-    // Footer
-    const finalY = (doc as any).lastAutoTable.finalY || 150;
-    doc.setFontSize(9);
-    doc.text("Catatan:", 14, finalY + 10);
-    doc.text("1. Harga sudah termasuk jasa dan material standard TBJ.", 14, finalY + 15);
-    doc.text("2. Penawaran ini berlaku selama 14 hari kalender.", 14, finalY + 20);
-    
-    doc.text("Hormat Kami,", 150, finalY + 35);
-    doc.text("TBJ Estimator Team", 150, finalY + 55);
+  const handleLoadEstimate = (est: any) => {
+    setProjectInfo({
+      clientName: est.clientName || user?.displayName || "",
+      projectName: est.projectName || "",
+      address: est.address || "",
+      date: est.date || new Date().toLocaleDateString('id-ID'),
+      contact: est.contact || user?.whatsapp || "",
+    });
+    setRabItems(est.items || []);
+    setActiveTab("editor");
+    toast.success("Estimasi berhasil dimuat.");
+  };
 
-    doc.save(`RAB_TBJ_${projectInfo.clientName.replace(/\s+/g, '_')}.pdf`);
+  const handleDeleteEstimate = async (id: string) => {
+    if (confirm("Apakah Anda yakin ingin menghapus arsip ini?")) {
+      await deleteEstimate(id);
+      toast.success("Estimasi dihapus.");
+    }
   };
 
   return (
@@ -189,7 +194,7 @@ const RabPage = ({ user }: { user: any }) => {
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 flex items-center justify-center rounded-xl overflow-hidden">
-              <img src={TBJ_LOGO} alt="TBJ Logo" className="w-full h-full object-contain" />
+              <img src={headerLogo} alt="TBJ Logo" className="w-full h-full object-contain" />
             </div>
             <div className="h-8 w-[1px] bg-neutral-200" />
             <Badge variant="outline" className="border-neutral-200 text-neutral-400 uppercase-soft text-[9px] h-6">Master RAB Engine v2.0</Badge>
@@ -204,18 +209,100 @@ const RabPage = ({ user }: { user: any }) => {
           <Button variant="outline" className="border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-full gap-2 h-12 px-8 uppercase-soft text-[10px] font-black" onClick={exportToPDF}>
             <Download className="w-4 h-4" /> Export PDF
           </Button>
-          <Button variant="outline" className="border-green-200 text-green-600 hover:bg-green-50 rounded-full gap-2 h-12 px-8 uppercase-soft text-[10px] font-black" onClick={shareToWhatsApp}>
-            <Phone className="w-4 h-4" /> Share WA
-          </Button>
           {canEdit && (
-            <Button className="bg-black text-white hover:bg-neutral-800 rounded-full gap-2 h-12 px-8 uppercase-soft text-[10px] font-black shadow-xl shadow-black/10">
-              <Save className="w-4 h-4" /> Save Master
+            <Button 
+              className="bg-black text-white hover:bg-neutral-800 rounded-full gap-2 h-12 px-8 uppercase-soft text-[10px] font-black shadow-xl shadow-black/10"
+              onClick={handleSaveDraft}
+            >
+              <Save className="w-4 h-4" /> Simpan Draft
             </Button>
           )}
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-4 gap-12">
+      <div className="flex gap-2 p-1 bg-neutral-100 rounded-2xl w-fit mb-8">
+        <button
+          onClick={() => setActiveTab("editor")}
+          className={cn(
+            "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+            activeTab === "editor" ? "bg-black text-white shadow-md" : "text-neutral-500 hover:bg-black/5"
+          )}
+        >
+          <Calculator className="w-4 h-4" />
+          Editor RAB
+        </button>
+        <button
+          onClick={() => setActiveTab("archive")}
+          className={cn(
+            "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+            activeTab === "archive" ? "bg-black text-white shadow-md" : "text-neutral-500 hover:bg-black/5"
+          )}
+        >
+          <HistoryIcon className="w-4 h-4" />
+          Arsip Estimasi
+          {estimates.length > 0 && (
+            <Badge className="bg-accent text-white border-none ml-2 rounded-md h-5 px-1.5">{estimates.length}</Badge>
+          )}
+        </button>
+      </div>
+
+      {activeTab === "archive" ? (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {estimates.map((est) => (
+              <Card key={est.id} className="border border-neutral-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all group">
+                <CardHeader className="bg-neutral-50 border-b border-neutral-100 py-6">
+                  <div className="flex justify-between items-start">
+                    <Badge variant="outline" className="text-[8px] uppercase font-black border-neutral-200">
+                      {new Date(est.createdAt).toLocaleDateString()}
+                    </Badge>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-neutral-300 hover:text-red-500 hover:bg-red-50 rounded-full"
+                      onClick={() => handleDeleteEstimate(est.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <CardTitle className="text-xl font-black uppercase tracking-tighter mt-4 leading-tight truncate">{est.projectName || "Estimasi Tanpa Nama"}</CardTitle>
+                  <CardDescription className="uppercase-soft text-[10px]">{est.clientName}</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  <div className="flex justify-between items-end">
+                    <div className="space-y-1">
+                      <p className="text-[9px] font-black uppercase text-neutral-400 tracking-widest">Total Estimasi</p>
+                      <p className="text-xl font-black tracking-tighter">Rp {est.totalBudget.toLocaleString('id-ID')}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-black uppercase text-neutral-400 tracking-widest">Item Pekerjaan</p>
+                      <p className="text-sm font-bold">{est.items?.length || 0} Item</p>
+                    </div>
+                  </div>
+                  <Button 
+                    className="w-full btn-sleek rounded-2xl h-12 uppercase font-black text-[10px] gap-2"
+                    onClick={() => handleLoadEstimate(est)}
+                  >
+                    <Plus className="w-4 h-4" /> Buka & Edit
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+            {estimates.length === 0 && !estimatesLoading && (
+              <div className="col-span-full py-32 text-center border-2 border-dashed border-neutral-100 rounded-[40px] flex flex-col items-center gap-4">
+                <HistoryIcon className="w-16 h-16 text-neutral-100" />
+                <p className="uppercase-soft text-neutral-400 font-bold">Belum ada estimasi yang disimpan.</p>
+              </div>
+            )}
+            {estimatesLoading && (
+              <div className="col-span-full py-32 text-center">
+                <Loader2 className="w-12 h-12 animate-spin mx-auto text-neutral-200" />
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="grid lg:grid-cols-4 gap-12 animate-in fade-in slide-in-from-bottom-4">
         {/* Project Info - Thinner Design */}
         <div className="lg:col-span-1 space-y-8">
           <div className="space-y-6">
@@ -381,37 +468,76 @@ const RabPage = ({ user }: { user: any }) => {
                     )}
                     {items.map((item, index) => {
                       const globalIndex = rabItems.findIndex(ri => ri.id === item.id && ri.name === item.name);
+                      const isExpanded = expandedItems.has(globalIndex);
                       return (
-                        <TableRow key={index} className="border-b border-neutral-50 hover:bg-neutral-50/30 transition-colors">
-                          <TableCell className="font-mono text-[9px] text-neutral-400 font-bold px-6">{item.code || "N/A"}</TableCell>
-                          <TableCell className="max-w-[200px] md:max-w-[350px]">
-                            <p className="font-bold text-[11px] uppercase tracking-tight text-neutral-800 break-words whitespace-normal leading-tight">{item.name}</p>
-                            <p className="text-[8px] text-neutral-400 uppercase font-bold">{item.category}</p>
-                          </TableCell>
-                          <TableCell>
-                            <Input 
-                              disabled={!canEdit}
-                              type="number" 
-                              value={item.volume || 0} 
-                              onChange={e => updateItem(globalIndex, { volume: Math.max(0, Number(e.target.value)) })}
-                              className="h-7 text-center border-neutral-100 rounded-lg font-bold text-xs bg-transparent focus-visible:ring-black"
-                            />
-                          </TableCell>
-                          <TableCell className="text-center font-bold text-[10px] uppercase text-neutral-400">{item.unit}</TableCell>
-                          <TableCell className="text-right font-bold text-[10px] text-neutral-600">
-                            Rp {item.price.toLocaleString('id-ID')}
-                          </TableCell>
-                          <TableCell className="text-right font-black text-xs tracking-tighter px-6">
-                            Rp {item.total.toLocaleString('id-ID')}
-                          </TableCell>
-                          {canEdit && (
-                            <TableCell>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 text-neutral-200 hover:text-red-500" onClick={() => removeItem(globalIndex)}>
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
+                        <React.Fragment key={index}>
+                          <TableRow className="border-b border-neutral-50 hover:bg-neutral-50/30 transition-colors">
+                            <TableCell className="font-mono text-[9px] text-neutral-400 font-bold px-6">{item.code || "N/A"}</TableCell>
+                            <TableCell className="max-w-[200px] md:max-w-[350px]">
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-[11px] uppercase tracking-tight text-neutral-800 break-words whitespace-normal leading-tight">{item.name}</p>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-5 w-5 rounded-full hover:bg-accent hover:text-white"
+                                  onClick={() => toggleExpand(globalIndex)}
+                                >
+                                  {isExpanded ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                                </Button>
+                              </div>
+                              <p className="text-[8px] text-neutral-400 uppercase font-bold">{item.category}</p>
+                              {item.technicalSpecs && !isExpanded && (
+                                <p className="text-[8px] text-neutral-500 italic mt-1 truncate max-w-[200px]">{item.technicalSpecs}</p>
+                              )}
                             </TableCell>
+                            <TableCell>
+                              <Input 
+                                disabled={!canEdit}
+                                type="number" 
+                                value={item.volume || 0} 
+                                onChange={e => updateItem(globalIndex, { volume: Math.max(0, Number(e.target.value)) })}
+                                className="h-7 text-center border-neutral-100 rounded-lg font-bold text-xs bg-transparent focus-visible:ring-black"
+                              />
+                            </TableCell>
+                            <TableCell className="text-center font-bold text-[10px] uppercase text-neutral-400">{item.unit}</TableCell>
+                            <TableCell className="text-right font-bold text-[10px] text-neutral-600">
+                              Rp {item.price.toLocaleString('id-ID')}
+                            </TableCell>
+                            <TableCell className="text-right font-black text-xs tracking-tighter px-6">
+                              Rp {item.total.toLocaleString('id-ID')}
+                            </TableCell>
+                            {canEdit && (
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>} />
+                                  <DropdownMenuContent align="end" className="rounded-xl">
+                                    <DropdownMenuItem className="text-xs uppercase font-bold gap-2" onClick={() => toggleExpand(globalIndex)}>
+                                      <Edit3 className="w-3 h-3" /> Edit Specs
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem className="text-xs uppercase font-bold gap-2 text-red-600" onClick={() => removeItem(globalIndex)}>
+                                      <Eraser className="w-3 h-3" /> Remove Item
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow className="bg-neutral-50/20">
+                              <TableCell colSpan={canEdit ? 7 : 6} className="px-6 py-4">
+                                <div className="space-y-2">
+                                  <Label className="text-[9px] font-black uppercase text-neutral-400">Keterangan Spesifikasi (Merk, Tipe, Material)</Label>
+                                  <Textarea 
+                                    value={item.technicalSpecs || ""}
+                                    onChange={e => updateItem(globalIndex, { technicalSpecs: e.target.value })}
+                                    placeholder="Masukkan spesifikasi teknis untuk item ini..."
+                                    className="min-h-[60px] text-xs font-bold rounded-xl border-neutral-100 focus:border-black"
+                                  />
+                                </div>
+                              </TableCell>
+                            </TableRow>
                           )}
-                        </TableRow>
+                        </React.Fragment>
                       );
                     })}
                   </React.Fragment>
@@ -431,6 +557,7 @@ const RabPage = ({ user }: { user: any }) => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Footer Branding */}
       <div className="flex flex-col md:flex-row justify-between items-center py-12 border-t-2 border-black/5 gap-8">
@@ -456,5 +583,3 @@ const RabPage = ({ user }: { user: any }) => {
     </div>
   );
 };
-
-export default RabPage;

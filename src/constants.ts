@@ -1,6 +1,6 @@
 import { WorkItemMaster } from "./types";
 
-export const TBJ_LOGO = "https://placehold.co/400x400/FF6B00/FFFFFF/png?text=TBJ+CONSTECH";
+export const TBJ_LOGO = "https://placehold.co/400x400/333333/FFFFFF/png?text=ConsTech+Hub";
 export const QRIS_IMAGE = "https://picsum.photos/seed/qris/400/400"; // Placeholder QRIS
 
 export const WORK_ITEMS_MASTER: WorkItemMaster[] = [

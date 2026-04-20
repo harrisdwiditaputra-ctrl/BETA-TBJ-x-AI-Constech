@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useProjects, useAuth, useWorkforce, useUser } from "@/lib/hooks";
+import { useProjects, useAuth, useWorkforce, useUser, useSystemConfig } from "@/lib/hooks";
+import { formatRupiah, calculateAdminPrice, calculateClientPrice, getDriveImageUrl } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 
 export default function Profile() {
   const { user: currentUser } = useAuth();
+  const { config: sysConfig } = useSystemConfig();
   const { id } = useParams();
   const { user: profileUser, loading: userLoading } = useUser(id);
   const user = id ? profileUser : currentUser;
@@ -256,12 +258,16 @@ export default function Profile() {
                   <div className="bg-neutral-900 p-8 text-white flex flex-col justify-center items-center text-center space-y-4">
                     <div className="space-y-1">
                       <p className="uppercase-soft text-white/40">Total Nilai Kontrak</p>
-                      <p className="text-2xl font-black tracking-tighter">Rp {project.totalBudget.toLocaleString('id-ID')}</p>
+                      <p className="text-2xl font-black tracking-tighter">
+                        {formatRupiah(calculateClientPrice(project.totalBudget, sysConfig?.globalMarkup))}
+                      </p>
                     </div>
                     <div className="w-full h-px bg-white/10" />
                     <div className="space-y-1">
                       <p className="uppercase-soft text-white/40">Dana Terbayar</p>
-                      <p className="text-xl font-black text-green-400">Rp {(project.totalBudget * 0.3).toLocaleString('id-ID')}</p>
+                      <p className="text-xl font-black text-green-400">
+                        {formatRupiah(calculateClientPrice(project.totalBudget * 0.3, sysConfig?.globalMarkup))}
+                      </p>
                     </div>
                     <Button variant="outline" className="w-full rounded-xl uppercase-soft border-white/20 text-white hover:bg-white hover:text-black">Detail Keuangan</Button>
                   </div>

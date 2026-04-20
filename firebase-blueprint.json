@@ -135,6 +135,21 @@
         "status": { "type": "string" }
       },
       "required": ["title", "price", "type"]
+    },
+    "MediaAsset": {
+      "title": "MediaAsset",
+      "description": "Gudang media (gambar/file) terpusat",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["system", "finance", "marketing", "projects"] },
+        "projectId": { "type": "string" },
+        "description": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["url", "name", "category", "uploadedBy", "createdAt"]
     }
   },
   "firestore": {
@@ -173,6 +188,10 @@
     "/properties/{propertyId}": {
       "schema": "Property",
       "description": "Listing properti"
+    },
+    "/media_assets/{assetId}": {
+      "schema": "MediaAsset",
+      "description": "Koleksi aset media terpusat"
     }
   }
 }

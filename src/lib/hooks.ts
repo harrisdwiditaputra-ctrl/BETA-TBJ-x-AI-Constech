@@ -1,11 +1,39 @@
 import { useState, useEffect } from "react";
-import { auth, db, handleFirestoreError, OperationType } from "@/lib/firebase";
+import { auth, db, storage, handleFirestoreError, OperationType } from "@/lib/firebase";
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from "firebase/auth";
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy, addDoc, updateDoc, deleteDoc, getDocs, writeBatch, limit } from "firebase/firestore";
-import { Project, BudgetCategory, BudgetItem, UserProfile, Property, WorkItemMaster, Workforce, Attendance, MaterialRequest, CMSConfig, Campaign, SystemConfig, Vendor, GalleryItem, TimelineEvent } from "@/types";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { Project, BudgetCategory, BudgetItem, UserProfile, Property, WorkItemMaster, Workforce, Attendance, MaterialRequest, CMSConfig, Campaign, SystemConfig, Vendor, GalleryItem, TimelineEvent, MediaAsset, MediaCategory, MasterDataVersion } from "@/types";
 import { WORK_ITEMS_MASTER } from "@/constants";
 import { nuclearWipe } from "./database";
 import { toast } from "sonner";
+
+export const uploadImage = async (
+  file: File, 
+  path: string, 
+  onProgress?: (progress: number) => void
+): Promise<string> => {
+  const storageRef = ref(storage, path);
+  const uploadTask = uploadBytesResumable(storageRef, file);
+
+  return new Promise((resolve, reject) => {
+    uploadTask.on('state_changed', 
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        if (onProgress) onProgress(progress);
+      }, 
+      (error) => {
+        console.error("Upload error:", error);
+        toast.error("Gagal mengupload gambar.");
+        reject(error);
+      }, 
+      async () => {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        resolve(downloadURL);
+      }
+    );
+  });
+};
 
 export function useAuth() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -286,7 +314,7 @@ export function useProjectDetails(projectId: string | undefined) {
     }
   };
 
-  const addItem = async (categoryId: string, name: string, quantity: number, unit: string, pricePerUnit: number) => {
+  const addItem = async (categoryId: string, name: string, quantity: number, unit: string, pricePerUnit: number, technicalSpecs?: string) => {
     if (!projectId) return;
     try {
       const totalPrice = quantity * pricePerUnit;
@@ -294,10 +322,12 @@ export function useProjectDetails(projectId: string | undefined) {
         projectId,
         categoryId,
         name,
+        technicalSpecs: technicalSpecs || "",
         quantity,
         unit,
         pricePerUnit,
-        totalPrice
+        totalPrice,
+        progress: 0
       });
 
       // Update project total budget (simplified, in real app use cloud functions or transactions)
@@ -373,6 +403,15 @@ export function useProjectDetails(projectId: string | undefined) {
     }
   };
 
+  const updateItem = async (itemId: string, data: Partial<BudgetItem>) => {
+    if (!projectId) return;
+    try {
+      await updateDoc(doc(db, "projects", projectId, "items", itemId), data);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}/items/${itemId}`);
+    }
+  };
+
   const releaseMilestone = async (milestoneId: string) => {
     if (!projectId || !project) return;
     try {
@@ -434,7 +473,18 @@ export function useProjectDetails(projectId: string | undefined) {
     }
   };
 
-  return { project, categories, items, loading, addCategory, addItem, deleteCategory, deleteItem, updateProjectStatus, updateItemProgress, releaseMilestone, addSiteLog, addTimelineEvent };
+  const updateTimelineEvent = async (eventId: string, status: TimelineEvent["status"]) => {
+    if (!projectId || !project) return;
+    try {
+      const newTimeline = (project.timeline || []).map(e => e.id === eventId ? { ...e, status } : e);
+      await updateDoc(doc(db, "projects", projectId), { timeline: newTimeline });
+      toast.success("Timeline updated");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
+    }
+  };
+
+  return { project, categories, items, loading, addCategory, addItem, updateItem, deleteCategory, deleteItem, updateProjectStatus, updateItemProgress, releaseMilestone, addSiteLog, addTimelineEvent, updateTimelineEvent };
 }
 
 export function useProperties() {
@@ -523,6 +573,160 @@ export function useGallery() {
 
   return { gallery, loading, addGalleryItem, deleteGalleryItem };
 }
+
+export function useMediaAssets(category?: MediaCategory, projectId?: string) {
+  const [assets, setAssets] = useState<MediaAsset[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let constraints: any[] = [];
+    
+    if (category) constraints.push(where("category", "==", category));
+    if (projectId) constraints.push(where("projectId", "==", projectId));
+    
+    // Always sort by date
+    constraints.push(orderBy("createdAt", "desc"));
+    
+    const q = query(collection(db, "media_assets"), ...constraints);
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MediaAsset[];
+      setAssets(data);
+      setLoading(false);
+    }, (error) => {
+      console.error("Media assets error:", error);
+      // Fallback if index not ready
+      if (error.code === 'failed-precondition') {
+        const simpleQ = query(collection(db, "media_assets"), orderBy("createdAt", "desc"));
+        onSnapshot(simpleQ, (snap) => {
+          const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MediaAsset[];
+          setAssets(category ? d.filter(a => a.category === category) : d);
+          setLoading(false);
+        });
+      } else {
+        handleFirestoreError(error, OperationType.LIST, "media_assets");
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [category, projectId]);
+
+  const addAsset = async (data: Omit<MediaAsset, "id">) => {
+    try {
+      // Filter out undefined values as Firestore doesn't support them
+      const cleanData = Object.fromEntries(
+        Object.entries(data).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(db, "media_assets"), cleanData);
+      toast.success("Aset media berhasil ditambahkan.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "media_assets");
+    }
+  };
+
+  const deleteAsset = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "media_assets", id));
+      toast.success("Aset media berhasil dihapus.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, "media_assets");
+    }
+  };
+
+  const updateAsset = async (id: string, data: Partial<MediaAsset>) => {
+    try {
+      const cleanData = Object.fromEntries(
+        Object.entries(data).filter(([_, v]) => v !== undefined)
+      );
+      await updateDoc(doc(db, "media_assets", id), cleanData);
+      toast.success("Aset media berhasil diperbarui.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, "media_assets");
+    }
+  };
+
+  return { assets, loading, addAsset, deleteAsset, updateAsset };
+}
+
+export function useSavedEstimates(userId?: string) {
+  const [estimates, setEstimates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId && !auth.currentUser) {
+      setEstimates([]);
+      setLoading(false);
+      return;
+    }
+    const targetUserId = userId || auth.currentUser?.uid;
+    if (!targetUserId) return;
+
+    const q = query(collection(db, "saved_estimates"), where("ownerId", "==", targetUserId), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setEstimates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "saved_estimates");
+    });
+    return () => unsubscribe();
+  }, [userId]);
+
+  const saveEstimate = async (data: any) => {
+    try {
+      const estRef = doc(collection(db, "saved_estimates"));
+      await setDoc(estRef, {
+        ...data,
+        ownerId: auth.currentUser?.uid,
+        createdAt: new Date().toISOString()
+      });
+      toast.success("Draf RAB berhasil disimpan ke saved_estimates.");
+      return estRef.id;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "saved_estimates");
+    }
+  };
+
+  const deleteEstimate = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "saved_estimates", id));
+      toast.success("Draf RAB berhasil dihapus.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `saved_estimates/${id}`);
+    }
+  };
+
+  return { estimates, loading, saveEstimate, deleteEstimate };
+}
+
+export const saveImageToGudang = async (file: File, category: MediaCategory = "projects", projectId?: string, name?: string) => {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        const base64 = reader.result as string;
+        const assetData: Omit<MediaAsset, "id"> = {
+          name: name || file.name,
+          url: base64,
+          category,
+          projectId,
+          fileType: "image",
+          uploadedBy: auth.currentUser?.uid || "system",
+          uploadedByName: auth.currentUser?.displayName || "System",
+          createdAt: new Date().toISOString()
+        };
+        const docRef = await addDoc(collection(db, "media_assets"), assetData);
+        toast.success("Gambar berhasil disimpan ke Gudang Gambar.");
+        resolve(base64);
+      } catch (error) {
+        toast.error("Gagal menyimpan gambar.");
+        reject(error);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 export function useVendors() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -680,6 +884,86 @@ export function useMasterData(userRole?: string) {
     }
   };
 
+  const [masterVersions, setMasterVersions] = useState<MasterDataVersion[]>([]);
+
+  useEffect(() => {
+    if (userRole !== "admin") return;
+    const q = query(collection(db, "master_data_versions"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setMasterVersions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MasterDataVersion)));
+    });
+    return () => unsubscribe();
+  }, [userRole]);
+
+  const saveVersion = async (versionName: string, notes?: string) => {
+    try {
+      const versionDoc: Omit<MasterDataVersion, "id"> = {
+        versionName,
+        items: masterData,
+        createdAt: new Date().toISOString(),
+        createdBy: auth.currentUser?.uid || 'system',
+        notes
+      };
+      await addDoc(collection(db, "master_data_versions"), versionDoc);
+      toast.success(`Versi Master "${versionName}" berhasil disimpan.`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "master_data_versions");
+    }
+  };
+
+  const activateVersion = async (versionId: string) => {
+    const version = masterVersions.find(v => v.id === versionId);
+    if (!version) return;
+
+    if (!confirm(`⚠️ PERINGATAN: Ini akan MENGGANTI seluruh data master saat ini dengan veri "${version.versionName}". Lanjutkan?`)) return;
+
+    try {
+      toast.loading(`Mengaktifkan versi ${version.versionName}...`, { id: 'activate-version' });
+      
+      // 1. Clear current master
+      const q = query(collection(db, "master_data"), limit(500));
+      let snap = await getDocs(q);
+      while (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        snap = await getDocs(q);
+      }
+
+      // 2. Upload version items
+      let batch = writeBatch(db);
+      let count = 0;
+      for (const item of version.items) {
+        // Remove ID to create new docs
+        const { id, ...itemData } = item;
+        const newRef = doc(collection(db, "master_data"));
+        batch.set(newRef, itemData);
+        count++;
+        if (count === 500) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) await batch.commit();
+
+      toast.success(`Versi "${version.versionName}" berhasil diaktifkan.`, { id: 'activate-version' });
+    } catch (error) {
+      console.error("Activate Version failed", error);
+      toast.error("Gagal mengaktifkan versi.", { id: 'activate-version' });
+    }
+  };
+
+  const deleteVersion = async (id: string) => {
+    if (!confirm("Hapus versi ini dari arsip?")) return;
+    try {
+      await deleteDoc(doc(db, "master_data_versions", id));
+      toast.success("Versi berhasil dihapus.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `master_data_versions/${id}`);
+    }
+  };
+
   const addMasterCategory = async (name: string) => {
     try {
       await addDoc(collection(db, "master_categories"), { name, createdAt: new Date().toISOString() });
@@ -746,7 +1030,7 @@ export function useMasterData(userRole?: string) {
     await nuclearWipe();
   };
 
-  return { masterData, loading, addMasterItem, updateMasterItem, deleteMasterItem, addMasterCategory, resetDatabase, clearMasterData, bulkAddMasterItems };
+  return { masterData, loading, addMasterItem, updateMasterItem, deleteMasterItem, saveVersion, masterVersions, activateVersion, deleteVersion, addMasterCategory, resetDatabase, clearMasterData, bulkAddMasterItems };
 }
 
 export function useMasterCategories() {
@@ -1028,6 +1312,40 @@ export function useMaterialRequests(userRole?: string) {
   };
 
   return { requests, loading, addRequest, updateRequestStatus, assignVendor };
+}
+
+export function useMaterialSuggestions() {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, "material_suggestions"), orderBy("name", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setSuggestions(snapshot.docs.map(doc => doc.data().name));
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, "material_suggestions");
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const addSuggestion = async (name: string) => {
+    if (!name) return;
+    try {
+      // Check if already exists in local state to avoid redundant writes
+      const exists = suggestions.some(s => s.toLowerCase() === name.toLowerCase());
+      if (exists) return;
+
+      await addDoc(collection(db, "material_suggestions"), {
+        name,
+        createdAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error adding suggestion:", error);
+    }
+  };
+
+  return { suggestions, loading, addSuggestion };
 }
 
 export function useCMSConfig() {

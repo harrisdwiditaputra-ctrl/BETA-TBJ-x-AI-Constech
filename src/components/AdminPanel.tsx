@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMasterData, useAuth, useUsers, useProjects, useWorkforce, useMaterialRequests, useProperties, useCMSConfig, useCampaigns, useSystemConfig, useGallery, useVendors, useAttendance, useFinance, useWorkerWages, useMasterCategories, usePMs } from "@/lib/hooks";
+import { useMasterData, useAuth, useUsers, useProjects, useWorkforce, useMaterialRequests, useProperties, useCMSConfig, useCampaigns, useSystemConfig, useGallery, useVendors, useAttendance, useFinance, useWorkerWages, useMasterCategories, usePMs, useMediaAssets, useSavedEstimates, saveImageToGudang, useMaterialSuggestions } from "@/lib/hooks";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -14,17 +14,59 @@ import {
   RefreshCw, TrendingUp, DollarSign, Users, Briefcase, Plus, ChevronDown, 
   ChevronRight, Download, Eye, EyeOff, Trash2, Image as ImageIcon, 
   LayoutDashboard, FileText, HardHat, Camera, BarChart3, Clock, Phone, User,
-  CheckCircle2, MapPin, Package, Brain, Zap, AlertCircle, Layers, History, Sparkles, Upload, X
+  CheckCircle2, MapPin, Package, Brain, Zap, AlertCircle, Layers, History, Sparkles, Upload, X, HardDrive, Menu
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs, limit, writeBatch, getDocsFromServer } from "firebase/firestore";
 import PMDashboard from "./PMDashboard";
+import MediaWarehouse from "./MediaWarehouse";
 import { cn, getDriveImageUrl, formatRupiah, calculateAdminPrice } from "@/lib/utils";
 import { toast } from "sonner";
 import { WorkItemMaster, UserProfile, Project, Workforce, MaterialRequest, Property, Campaign, SystemConfig, CMSConfig, Vendor, GalleryItem } from "@/types";
 import { generateRABPDF, generatePOPDF } from "@/lib/pdfUtils";
-import { WORK_ITEMS_MASTER } from "@/constants";
+import { ImageUpload } from "@/components/ImageUpload";
+import { WORK_ITEMS_MASTER, TBJ_LOGO } from "@/constants";
 import { nuclearWipe } from "@/lib/database";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+// Fix for default marker icon
+const markerIcon = "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png";
+const markerShadow = "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png";
+
+let DefaultIcon = L.icon({
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
+
+const MapPicker = ({ position, setPosition }: { position: [number, number], setPosition: (p: [number, number]) => void }) => {
+  const MapEvents = () => {
+    useMapEvents({
+      click(e) {
+        setPosition([e.latlng.lat, e.latlng.lng]);
+      },
+    });
+    return null;
+  };
+
+  return (
+    <div className="h-48 w-full border-2 border-black relative overflow-hidden rounded-xl">
+      <MapContainer center={position} zoom={13} scrollWheelZoom={false} className="h-full w-full">
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Marker position={position} />
+        <MapEvents />
+      </MapContainer>
+    </div>
+  );
+};
 
 export default function AdminPanel() {
   const { user } = useAuth();
@@ -38,13 +80,18 @@ export default function AdminPanel() {
     addMasterCategory, 
     resetDatabase, 
     clearMasterData,
-    bulkAddMasterItems
+    bulkAddMasterItems,
+    saveVersion,
+    masterVersions,
+    activateVersion,
+    deleteVersion
   } = useMasterData(user?.role);
   const { categories: masterCategories } = useMasterCategories();
   const { users, loading: usersLoading, updateUser } = useUsers(user?.role);
   const { projects, loading: projectsLoading, updateProject, deleteProject, fixProjectMilestones } = useProjects(undefined, user?.role);
   const { workforce, loading: workforceLoading, addWorkforce, updateWorkforce, deleteWorkforce } = useWorkforce(user?.role);
   const { requests, loading: requestsLoading, updateRequestStatus, assignVendor, addRequest } = useMaterialRequests(user?.role);
+  const { suggestions: materialSuggestions, addSuggestion } = useMaterialSuggestions();
   const { properties, loading: propertiesLoading, addProperty, updateProperty, deleteProperty } = useProperties();
   const { gallery, addGalleryItem, deleteGalleryItem } = useGallery();
   const { vendors, addVendor, deleteVendor, updateVendor } = useVendors();
@@ -55,8 +102,12 @@ export default function AdminPanel() {
   const { transactions, addTransaction } = useFinance();
   const { wages, updateWageStatus } = useWorkerWages();
   const { pms } = usePMs();
+  const { assets: systemAssets } = useMediaAssets('system');
+  const { estimates: savedEstimates, deleteEstimate } = useSavedEstimates();
+  const pdfLogo = systemAssets.find(a => a.name.toLowerCase().includes('pdf'))?.url || systemAssets[0]?.url || "";
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "clients" | "projects" | "workforce" | "cms" | "finance" | "marketing" | "management" | "materials" | "attendance" | "gallery" | "properties" | "vendors" | "payments">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "clients" | "projects" | "workforce" | "cms" | "finance" | "marketing" | "management" | "materials" | "attendance" | "gallery" | "properties" | "vendors" | "payments" | "media">("dashboard");
+  const [isNavOpen, setIsNavOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [clearProgress, setClearProgress] = useState(0);
 
@@ -114,7 +165,10 @@ export default function AdminPanel() {
 
   const handleEdit = (item: WorkItemMaster) => {
     setEditingId(item.id);
-    setEditForm(item);
+    setEditForm({
+      ...item,
+      technicalSpecs: item.technicalSpecs || ""
+    });
   };
 
   const handleSaveEdit = async () => {
@@ -141,13 +195,19 @@ export default function AdminPanel() {
   };
   const [newProduct, setNewProduct] = useState<Partial<WorkItemMaster>>({
     category: "",
+    code: "",
     name: "",
+    technicalSpecs: "",
     description: "",
     unit: "m2",
     price: 0,
     status: "visible"
   });
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [showSaveVersion, setShowSaveVersion] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [versionForm, setVersionForm] = useState({ name: "", notes: "" });
+  const [editingMasterSpecs, setEditingMasterSpecs] = useState<{id: string, name: string, specs: string} | null>(null);
   const [selectedProjectAI, setSelectedProjectAI] = useState<Project | null>(null);
   const [selectedProjectFinance, setSelectedProjectFinance] = useState<Project | null>(null);
   const [showRecordPayment, setShowRecordPayment] = useState(false);
@@ -168,17 +228,22 @@ export default function AdminPanel() {
     if (!project) return;
 
     try {
+      // Save suggestions for each item
+      bulkOrderItems.forEach(item => {
+        if (item.name) addSuggestion(item.name);
+      });
+
       // Create ONE request with multiple items
       await addRequest({
         projectId: project.id,
         projectName: project.name,
-        itemName: `${bulkOrderItems.length} Items (Bulk Order)`,
-        quantity: 1,
-        unit: "set",
+        itemName: `${bulkOrderItems.length} Items (Batch Order)`,
+        quantity: bulkOrderItems.length,
+        unit: "items",
         requesterId: user?.uid || "",
         requesterName: user?.displayName || "Admin",
         status: "pending",
-        note: "Bulk order created from Admin Panel",
+        note: `Batch order: ${bulkOrderItems.map(i => i.name).join(', ')}`,
         items: bulkOrderItems
       });
       
@@ -187,7 +252,7 @@ export default function AdminPanel() {
       setSelectedBulkProject("");
     } catch (error) {
       console.error("Error submitting bulk order", error);
-      toast.error("Failed to submit bulk order.");
+      toast.error("Gagal mengirim order massal.");
     }
   };
   const [paymentForm, setPaymentForm] = useState({
@@ -234,14 +299,38 @@ export default function AdminPanel() {
 
   const [newProperty, setNewProperty] = useState<Partial<Property>>({
     title: "",
-    type: "jual",
+    type: "lahan",
     price: 0,
     area: 0,
     description: "",
     status: "available",
     photos: [],
-    features: []
+    features: [],
+    coordinates: { lat: -6.2088, lng: 106.8456 }
   });
+
+  const [propMapPos, setPropMapPos] = useState<[number, number]>([-6.2088, 106.8456]);
+  const [isSearchingPropLoc, setIsSearchingPropLoc] = useState(false);
+
+  const searchPropLocation = async (query: string) => {
+    if (!query) return;
+    setIsSearchingPropLoc(true);
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        const newPos: [number, number] = [parseFloat(lat), parseFloat(lon)];
+        setPropMapPos(newPos);
+        setNewProperty(prev => ({ ...prev, coordinates: { lat: newPos[0], lng: newPos[1] } }));
+      }
+    } catch (error) {
+      console.error("Location search failed", error);
+      toast.error("Location not found");
+    } finally {
+      setIsSearchingPropLoc(false);
+    }
+  };
 
   const [newVendor, setNewVendor] = useState<Partial<Vendor>>({
     name: "",
@@ -267,9 +356,9 @@ export default function AdminPanel() {
     await assignVendor(requestId, vendorId, vendor.name);
     
     // Generate PDF and Share PO via WhatsApp
-    generatePOPDF(request, vendor);
+    generatePOPDF(request, vendor, pdfLogo);
 
-    const poMessage = `*OFFICIAL PURCHASE ORDER - TBJ CONSTECH*%0A%0A` +
+    const poMessage = `*OFFICIAL PURCHASE ORDER - TBJ HUB*%0A%0A` +
       `PO ID: PO-${requestId.substring(0, 8).toUpperCase()}%0A` +
       `Vendor: ${vendor.name}%0A` +
       `Project: ${request.projectName}%0A` +
@@ -337,12 +426,12 @@ export default function AdminPanel() {
 
   const handleExportMasterRAB = () => {
     const cats = masterCategories.length > 0 ? masterCategories : Array.from(new Set(masterData.map(i => i.category))).map(c => ({ id: c, name: c }));
-    generateRABPDF("MASTER RAB TBJ CONSTECH", cats, masterData.map(item => ({
+    generateRABPDF("MASTER RAB TBJ HUB", cats, masterData.map(item => ({
       ...item,
       quantity: 1,
       pricePerUnit: item.price,
       totalPrice: item.price
-    })));
+    })), pdfLogo);
     toast.success("Master RAB PDF exported successfully");
   };
 
@@ -446,13 +535,30 @@ export default function AdminPanel() {
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
       {/* Sidebar-like Navigation */}
-      <div className="flex flex-col md:flex-row gap-8 py-8">
-        <div className="w-full md:w-64 space-y-2">
-          <div className="p-6 bg-black text-white rounded-2xl mb-8">
-            <h2 className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-accent" /> TBJ ENGINE
-            </h2>
-            <p className="text-[10px] uppercase-soft text-white/50 mt-1">Autonomous ERP v2.0</p>
+      <div className="flex flex-col md:flex-row gap-8 py-8 px-4 md:px-0">
+        <div className="md:hidden flex justify-between items-center bg-white p-4 border-2 border-black rounded-2xl mb-4">
+           <div className="flex items-center gap-3">
+             <img src={pdfLogo} alt="Logo" className="h-10 w-auto" />
+             <div className="font-black text-sm uppercase tracking-tighter">TBJ HUB</div>
+           </div>
+           <Button variant="ghost" size="icon" onClick={() => setIsNavOpen(!isNavOpen)}>
+             <Menu className={cn("w-6 h-6", isNavOpen && "hidden")} />
+             <X className={cn("w-6 h-6", !isNavOpen && "hidden")} />
+           </Button>
+        </div>
+
+        <div className={cn(
+          "w-full md:w-64 space-y-2 transition-all duration-300 md:block",
+          !isNavOpen && "hidden"
+        )}>
+          <div className="hidden md:flex p-4 bg-white border-2 border-black rounded-3xl mb-8 flex-col items-center justify-center gap-2">
+            <img src={pdfLogo} alt="Logo" className="h-16 w-auto object-contain" referrerPolicy="no-referrer" />
+            <div className="text-center">
+              <h2 className="text-xl font-black uppercase tracking-tighter flex items-center justify-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-accent" /> TBJ HUB
+              </h2>
+              <p className="text-[10px] uppercase-soft text-neutral-500 font-bold">ConsTech OS v2.4</p>
+            </div>
           </div>
           
           {[
@@ -464,9 +570,10 @@ export default function AdminPanel() {
             { id: "attendance", label: "Attendance", icon: Clock },
             { id: "workforce", label: "Workforce", icon: HardHat },
             { id: "gallery", label: "Gallery", icon: ImageIcon },
-            { id: "properties", label: "Jual Beli Sewa", icon: Briefcase },
+            { id: "properties", label: "Property Hub", icon: MapPin },
             { id: "vendors", label: "Vendors", icon: Package },
             { id: "payments", label: "Payments", icon: DollarSign },
+            { id: "media", label: "Gudang Gambar", icon: HardDrive },
             { id: "cms", label: "CMS Content", icon: ImageIcon },
             { id: "finance", label: "Finance", icon: DollarSign },
             { id: "marketing", label: "Marketing", icon: TrendingUp },
@@ -474,7 +581,10 @@ export default function AdminPanel() {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                setIsNavOpen(false);
+              }}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
                 activeTab === tab.id ? "bg-black text-white shadow-lg" : "text-neutral-500 hover:bg-titanium/10"
@@ -511,11 +621,32 @@ export default function AdminPanel() {
                 {activeTab === "marketing" && "Marketing & Engagement"}
                 {activeTab === "vendors" && "Vendor Database"}
                 {activeTab === "payments" && "Payment & Assessment Management"}
+                {activeTab === "media" && "Gudang Gambar & Assets"}
                 {activeTab === "management" && "System Management"}
+                {activeTab === "properties" && "Property & Permit Hub"}
               </h1>
               <p className="uppercase-soft text-neutral-500">Welcome back, {user?.displayName}. System is running optimally.</p>
             </div>
             <div className="flex items-center gap-4">
+              {/* Saved Estimates Quick List */}
+              <div className="hidden xl:flex items-center gap-2 overflow-x-auto max-w-[400px] border-l border-black/5 pl-4 mr-4 custom-scrollbar">
+                {savedEstimates.slice(0, 3).map((est) => (
+                  <Button 
+                    key={est.id} 
+                    variant="ghost" 
+                    className="h-auto py-1 px-3 flex flex-col items-start border border-black/5 rounded-xl hover:bg-white hover:shadow-sm"
+                    onClick={() => navigate(`/rab?load=${est.id}`)}
+                  >
+                    <span className="text-[8px] font-black uppercase tracking-tighter truncate w-24">{est.projectName}</span>
+                    <span className="text-[7px] text-neutral-400 font-bold">{new Date(est.createdAt).toLocaleDateString()}</span>
+                  </Button>
+                ))}
+                {savedEstimates.length > 0 && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setActiveTab("projects")}>
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
               <div className="text-right hidden md:block">
                 <p className="text-[10px] font-black uppercase tracking-widest">{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 <p className="text-[10px] uppercase-soft text-accent">Server Status: Online</p>
@@ -781,8 +912,106 @@ export default function AdminPanel() {
                   <Button variant="outline" className="border-2 border-black h-10 px-6 rounded-xl font-black uppercase text-[10px]" onClick={() => navigate("/import")}>
                     <Upload className="w-4 h-4 mr-2" /> Bulk Import
                   </Button>
+                  <Button variant="outline" className="border-2 border-accent text-accent h-10 px-6 rounded-xl font-black uppercase text-[10px]" onClick={() => setShowSaveVersion(true)}>
+                    <Save className="w-4 h-4 mr-2" /> Save Master
+                  </Button>
+                  <Button variant="outline" className="border-2 border-black h-10 px-6 rounded-xl font-black uppercase text-[10px]" onClick={() => setShowVersionHistory(true)}>
+                    <History className="w-4 h-4 mr-2" /> Archive
+                  </Button>
                 </div>
               </div>
+
+              <Dialog open={showVersionHistory} onOpenChange={setShowVersionHistory}>
+                <DialogContent className="max-w-3xl rounded-3xl border-2 border-black max-h-[80vh] overflow-auto">
+                  <DialogHeader>
+                    <DialogTitle className="font-black uppercase tracking-tighter">Master Data History</DialogTitle>
+                    <DialogDescription>Daftar snapshot master data yang telah disimpan. Klik "Activate" untuk memulihkan versi tersebut.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    {masterVersions.length === 0 ? (
+                      <div className="py-12 text-center bg-neutral-50 rounded-2xl border-2 border-dashed border-neutral-200">
+                        <History className="w-8 h-8 mx-auto text-neutral-300 mb-2" />
+                        <p className="text-[10px] font-black uppercase text-neutral-400">Belum ada history tersimpan.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {masterVersions.map(v => (
+                          <div key={v.id} className="flex items-center justify-between p-4 border-2 border-black rounded-2xl hover:bg-neutral-50 transition-colors">
+                            <div className="space-y-1">
+                              <p className="font-black text-sm uppercase tracking-widest">{v.versionName}</p>
+                              <div className="flex items-center gap-4 text-[10px] text-neutral-500">
+                                <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(v.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                <span className="flex items-center gap-1"><Database className="w-3 h-3" /> {v.items.length} Items</span>
+                              </div>
+                              {v.notes && <p className="text-[10px] italic text-neutral-400 mt-1">"{v.notes}"</p>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                size="sm" 
+                                className="btn-sleek h-8 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white border-none"
+                                onClick={() => {
+                                  activateVersion(v.id);
+                                  setShowVersionHistory(false);
+                                }}
+                              >
+                                Activate
+                              </Button>
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-8 w-8 text-red-500 hover:bg-red-50"
+                                onClick={() => deleteVersion(v.id)}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={showSaveVersion} onOpenChange={setShowSaveVersion}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Simpan Versi Master Data</DialogTitle>
+                    <DialogDescription>Simpan snapshot seluruh data master saat ini untuk version control.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Nama Versi</label>
+                      <Input 
+                        placeholder="Contoh: SHBJ Jakarta 2024 v1" 
+                        value={versionForm.name}
+                        onChange={e => setVersionForm({...versionForm, name: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Catatan (Opsional)</label>
+                      <Textarea 
+                        placeholder="Deskripsi perubahan..." 
+                        value={versionForm.notes}
+                        onChange={e => setVersionForm({...versionForm, notes: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowSaveVersion(false)}>Batal</Button>
+                    <Button className="btn-orange" onClick={async () => {
+                      if (!versionForm.name) {
+                        toast.error("Nama versi wajib diisi");
+                        return;
+                      }
+                      // @ts-ignore - saveVersion exists in hook but lint might be stale
+                      await saveVersion(versionForm.name, versionForm.notes);
+                      setShowSaveVersion(false);
+                      setVersionForm({ name: "", notes: "" });
+                    }}>Simpan Versi</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               
               {isClearing && (
                 <div className="bg-red-50 border-2 border-red-600 p-6 rounded-2xl flex flex-col gap-4">
@@ -893,6 +1122,15 @@ export default function AdminPanel() {
                         onChange={e => setNewProduct({...newProduct, name: e.target.value})}
                       />
                     </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="uppercase-soft text-[10px]">Keterangan Spesifikasi (Merk, Tipe, Detail)</label>
+                      <Input 
+                        placeholder="e.g. Semen Tiga Roda, Besi 12mm Full, dst." 
+                        className="h-10 border-2 border-black/10 rounded-xl"
+                        value={newProduct.technicalSpecs}
+                        onChange={e => setNewProduct({...newProduct, technicalSpecs: e.target.value})}
+                      />
+                    </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Unit</label>
                       <Input 
@@ -980,17 +1218,52 @@ export default function AdminPanel() {
                                 </TableCell>
                                 <TableCell className="max-w-[180px] md:max-w-[250px]">
                                   {isEditing ? (
-                                    <Textarea 
-                                      className="text-[11px] font-black uppercase tracking-tight border-2 border-accent bg-white min-h-[80px] resize-none overflow-hidden" 
-                                      value={editForm.name || ""} 
-                                      onChange={e => setEditForm({...editForm, name: e.target.value})}
-                                    />
+                                    <div className="space-y-2">
+                                      <Textarea 
+                                        className="text-[11px] font-black uppercase tracking-tight border-2 border-accent bg-white min-h-[60px] resize-none overflow-hidden" 
+                                        value={editForm.name || ""} 
+                                        onChange={e => setEditForm({...editForm, name: e.target.value})}
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <Plus className="w-3 h-3 text-accent shrink-0" />
+                                        <Input 
+                                          className="h-7 text-[10px] font-medium border-accent/20 bg-white placeholder:italic" 
+                                          placeholder="Spesifikasi: Merk, Tipe, Material..."
+                                          value={editForm.technicalSpecs || ""}
+                                          onChange={e => setEditForm({...editForm, technicalSpecs: e.target.value})}
+                                        />
+                                      </div>
+                                    </div>
                                   ) : (
-                                    <div className="flex items-start gap-2 cursor-pointer group/name py-2" onClick={() => toggleRow(item.id)}>
-                                      <span className="font-black text-[10px] md:text-[11px] uppercase tracking-tighter group-hover/name:text-accent transition-colors block whitespace-normal break-words leading-tight">
-                                        {item.name}
-                                      </span>
-                                      {(item.description || item.soldCount > 0) && <ChevronDown className={cn("w-3 h-3 text-neutral-300 transition-transform mt-0.5 shrink-0", isExpanded && "rotate-180")} />}
+                                    <div className="flex flex-col items-start gap-1 py-1">
+                                      <div className="flex items-start gap-2 group/name cursor-pointer" onClick={() => toggleRow(item.id)}>
+                                        <span className="font-black text-[10px] md:text-[11px] uppercase tracking-tighter group-hover/name:text-accent transition-colors block whitespace-normal break-words leading-tight">
+                                          {item.name}
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                          {(item.description || item.soldCount > 0 || item.technicalSpecs) && (
+                                            <ChevronDown className={cn("w-3 h-3 text-neutral-300 transition-transform mt-0.5 shrink-0", isExpanded && "rotate-180")} />
+                                          )}
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-2">
+                                        <button 
+                                          className="text-neutral-300 hover:text-accent transition-colors"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingMasterSpecs({ id: item.id, name: item.name, specs: item.technicalSpecs || "" });
+                                          }}
+                                          title="Quick Edit Spesifikasi"
+                                        >
+                                          <Plus className="w-3 h-3" />
+                                        </button>
+                                        {item.technicalSpecs && (
+                                          <Badge variant="secondary" className="bg-accent/5 text-accent border-accent/10 text-[8px] px-1 py-0 h-4">
+                                            {item.technicalSpecs}
+                                          </Badge>
+                                        )}
+                                      </div>
                                     </div>
                                   )}
                                 </TableCell>
@@ -1090,10 +1363,16 @@ export default function AdminPanel() {
                                           <AlertCircle className="w-5 h-5 text-accent" />
                                         </div>
                                         <div className="space-y-1 min-w-0 flex-1">
-                                          <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-widest">Deskripsi Pekerjaan & AHSP Detail</h4>
-                                          <p className="text-xs font-bold leading-relaxed max-w-md text-neutral-600 break-words whitespace-normal">
-                                            {item.description || "Tidak ada deskripsi tambahan untuk item pekerjaan ini. AHSP ini mencakup tenaga kerja, material, dan peralatan standar."}
+                                          <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-widest">Deskripsi Pekerjaan & Spesifikasi</h4>
+                                          <p className="text-xs font-bold leading-relaxed max-w-md text-neutral-600 break-words whitespace-normal mb-2">
+                                            {item.description || "Tidak ada deskripsi tambahan untuk item pekerjaan ini."}
                                           </p>
+                                          {item.technicalSpecs && (
+                                            <div className="inline-flex items-center gap-2 bg-accent/5 border border-accent/10 px-3 py-1.5 rounded-lg shadow-sm">
+                                              <Plus className="w-3 h-3 text-accent" />
+                                              <span className="text-[10px] font-bold text-neutral-800 uppercase tracking-tight">{item.technicalSpecs}</span>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                       <div className="grid grid-cols-4 gap-8">
@@ -1307,6 +1586,31 @@ export default function AdminPanel() {
                             <option value="survey">Tier 2 (Silver)</option>
                             <option value="deal">Tier 3 (Gold)</option>
                           </select>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="uppercase-soft text-[10px]">Photo Profile / Background</label>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            className="w-full h-10 rounded-xl border-2 border-dashed border-neutral-200 gap-2 text-[10px] font-bold uppercase hover:bg-neutral-50"
+                            onClick={() => document.getElementById('client-photo-input')?.click()}
+                          >
+                            <Camera className="w-3.5 h-3.5" /> Select Photo
+                          </Button>
+                          <input 
+                            id="client-photo-input"
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const url = await saveImageToGudang(file, 'projects');
+                                setClientEditForm({ ...clientEditForm, photoURL: url });
+                              }
+                            }}
+                          />
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -1626,11 +1930,11 @@ export default function AdminPanel() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">Photo URL</label>
-                      <Input 
-                        placeholder="https://..." 
-                        value={newWorker.photoUrl}
-                        onChange={e => setNewWorker({...newWorker, photoUrl: e.target.value})}
+                      <label className="uppercase-soft text-[10px]">Foto Tenaga Kerja</label>
+                      <ImageUpload 
+                        path="workforce"
+                        label="Pilih Foto / Ambil Foto"
+                        onUploadComplete={(url) => setNewWorker({...newWorker, photoUrl: url})}
                       />
                     </div>
                   </div>
@@ -2179,23 +2483,31 @@ export default function AdminPanel() {
                             <h4 className="text-xs font-black uppercase tracking-widest">Order Items</h4>
                             <Button variant="outline" size="sm" className="h-8 text-[9px] font-black uppercase border-black/10" onClick={handleAddBulkRow}>Add Row</Button>
                           </div>
-                          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                             {bulkOrderItems.map((item, i) => (
-                              <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                                <Input 
-                                  placeholder="Item Name" 
-                                  className="col-span-6 h-10 text-xs" 
-                                  value={item.name}
-                                  onChange={e => {
-                                    const newItems = [...bulkOrderItems];
-                                    newItems[i].name = e.target.value;
-                                    setBulkOrderItems(newItems);
-                                  }}
-                                />
+                              <div key={i} className="grid grid-cols-12 gap-2 items-start bg-neutral-50/50 p-2 rounded-xl relative">
+                                <div className="col-span-6 space-y-1">
+                                  <Input 
+                                    placeholder="Nama Material..." 
+                                    list={`material-suggestions-${i}`}
+                                    className="h-10 text-xs font-bold border-2 border-black/5 rounded-lg focus-visible:ring-black" 
+                                    value={item.name}
+                                    onChange={e => {
+                                      const newItems = [...bulkOrderItems];
+                                      newItems[i].name = e.target.value;
+                                      setBulkOrderItems(newItems);
+                                    }}
+                                  />
+                                  <datalist id={`material-suggestions-${i}`}>
+                                    {materialSuggestions.map((s, idx) => (
+                                      <option key={idx} value={s} />
+                                    ))}
+                                  </datalist>
+                                </div>
                                 <Input 
                                   type="number" 
-                                  placeholder="Qty" 
-                                  className="col-span-3 h-10 text-xs" 
+                                  placeholder="Vol" 
+                                  className="col-span-2 h-10 text-xs font-bold border-2 border-black/5 rounded-lg" 
                                   value={item.quantity}
                                   onChange={e => {
                                     const newItems = [...bulkOrderItems];
@@ -2204,8 +2516,8 @@ export default function AdminPanel() {
                                   }}
                                 />
                                 <Input 
-                                  placeholder="Unit" 
-                                  className="col-span-2 h-10 text-xs" 
+                                  placeholder="Sat" 
+                                  className="col-span-2 h-10 text-xs font-bold border-2 border-black/5 rounded-lg" 
                                   value={item.unit}
                                   onChange={e => {
                                     const newItems = [...bulkOrderItems];
@@ -2213,14 +2525,16 @@ export default function AdminPanel() {
                                     setBulkOrderItems(newItems);
                                   }}
                                 />
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-8 w-8 text-red-500"
-                                  onClick={() => setBulkOrderItems(bulkOrderItems.filter((_, idx) => idx !== i))}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                <div className="col-span-2 flex justify-end">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-10 w-10 text-red-500 hover:bg-red-50 rounded-xl"
+                                    onClick={() => setBulkOrderItems(bulkOrderItems.filter((_, idx) => idx !== i))}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -2287,7 +2601,7 @@ export default function AdminPanel() {
                                   <Button variant="outline" size="sm" className="h-8 text-[9px] font-black uppercase border-black/10" onClick={() => {
                                     const vendor = vendors.find(v => v.id === r.vendorId);
                                     if (vendor) {
-                                      generatePOPDF(r, vendor);
+                                      generatePOPDF(r, vendor, pdfLogo);
                                       const itemSummary = r.items && r.items.length > 0 
                                         ? r.items.map((it: any) => `${it.name} (${it.quantity} ${it.unit})`).join(', ')
                                         : `${r.itemName} (${r.quantity} ${r.unit})`;
@@ -2438,12 +2752,18 @@ export default function AdminPanel() {
             </div>
           )}
 
+          {activeTab === "media" && (
+            <div className="animate-in fade-in duration-500">
+              <MediaWarehouse />
+            </div>
+          )}
+
           {activeTab === "properties" && (
             <div className="space-y-8">
               <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-black uppercase tracking-tighter">Jual Beli Sewa</h2>
+                <h2 className="text-2xl font-black uppercase tracking-tighter">Property & Strategic Hub</h2>
                 <Button className="btn-sleek h-10 px-6 rounded-xl" onClick={() => setShowAddProperty(true)}>
-                  <Plus className="w-4 h-4 mr-2" /> List New Property
+                  <Plus className="w-4 h-4 mr-2" /> List New Asset
                 </Button>
               </div>
 
@@ -2452,31 +2772,91 @@ export default function AdminPanel() {
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Title</label>
-                      <Input value={newProperty.title} onChange={e => setNewProperty({...newProperty, title: e.target.value})} />
+                      <Input value={newProperty.title} onChange={e => setNewProperty({...newProperty, title: e.target.value})} placeholder="e.g. Lahan Strategis BSD" />
                     </div>
                     <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">Type</label>
+                      <label className="uppercase-soft text-[10px]">Type / Category</label>
                       <select className="w-full h-10 rounded-md border border-black/10 px-3 text-sm" value={newProperty.type} onChange={e => setNewProperty({...newProperty, type: e.target.value as any})}>
-                        <option value="jual">JUAL</option>
-                        <option value="beli">BELI</option>
-                        <option value="sewa">SEWA</option>
+                        <option value="lahan">LAHAN STRATEGIS</option>
+                        <option value="kerjasama">KERJASAMA ASET</option>
+                        <option value="revitalisasi">REVITALISASI</option>
+                        <option value="sewa">SEWA & PERMIT</option>
+                        <option value="bangun">TITIP BANGUN</option>
                       </select>
                     </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Price (Rp)</label>
                       <Input type="number" value={newProperty.price} onChange={e => setNewProperty({...newProperty, price: Number(e.target.value)})} />
                     </div>
+                    
+                    <div className="space-y-4 md:col-span-2">
+                      <div className="space-y-2">
+                        <label className="uppercase-soft text-[10px]">Search Location & Set Coordinates</label>
+                        <div className="flex gap-2">
+                          <Input 
+                            placeholder="Type address to search..." 
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                searchPropLocation(e.currentTarget.value);
+                              }
+                            }}
+                          />
+                          <Button 
+                            variant="secondary" 
+                            className="h-10 px-4 border-2 border-black shrink-0"
+                            onClick={(e) => {
+                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                              searchPropLocation(input.value);
+                            }}
+                            disabled={isSearchingPropLoc}
+                          >
+                            {isSearchingPropLoc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <MapPicker 
+                        position={propMapPos} 
+                        setPosition={(p) => {
+                          setPropMapPos(p);
+                          setNewProperty(prev => ({ ...prev, coordinates: { lat: p[0], lng: p[1] } }));
+                        }} 
+                      />
+                      <div className="flex gap-4 text-[10px] font-mono text-neutral-400">
+                        <span>LAT: {propMapPos[0].toFixed(6)}</span>
+                        <span>LNG: {propMapPos[1].toFixed(6)}</span>
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">Location</label>
-                      <Input value={newProperty.location} onChange={e => setNewProperty({...newProperty, location: e.target.value})} />
+                      <label className="uppercase-soft text-[10px]">Location Description</label>
+                      <Input value={newProperty.location} onChange={e => setNewProperty({...newProperty, location: e.target.value})} placeholder="Area name, city..." />
                     </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Area (m2)</label>
                       <Input type="number" value={newProperty.area} onChange={e => setNewProperty({...newProperty, area: Number(e.target.value)})} />
                     </div>
-                    <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">Photo URL</label>
-                      <Input placeholder="Comma separated URLs" onChange={e => setNewProperty({...newProperty, photos: e.target.value.split(",")})} />
+                    <div className="space-y-4">
+                      <label className="uppercase-soft text-[10px]">Pilih Foto Properti</label>
+                      <ImageUpload 
+                        path="properties"
+                        label="Add Property Photo"
+                        onUploadComplete={(url) => setNewProperty(prev => ({ ...prev, photos: [...(prev.photos || []), url] }))}
+                      />
+                      {newProperty.photos && newProperty.photos.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {newProperty.photos.map((p, idx) => (
+                            <div key={idx} className="relative group">
+                              <img src={p} alt="Prop" className="w-12 h-12 rounded-lg object-cover border-2 border-black" />
+                              <button 
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => setNewProperty(prev => ({ ...prev, photos: prev.photos?.filter((_, i) => i !== idx) }))}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2 md:col-span-3">
                       <label className="uppercase-soft text-[10px]">Description</label>
@@ -2488,7 +2868,8 @@ export default function AdminPanel() {
                     <Button className="btn-sleek px-8" onClick={async () => {
                       await addProperty(newProperty as any);
                       setShowAddProperty(false);
-                      setNewProperty({ title: "", type: "jual", price: 0, area: 0, description: "", status: "available", photos: [], features: [] });
+                      setNewProperty({ title: "", type: "lahan", price: 0, area: 0, description: "", status: "available", photos: [], features: [], coordinates: { lat: -6.2088, lng: 106.8456 } });
+                      setPropMapPos([-6.2088, 106.8456]);
                     }}>Save Listing</Button>
                   </div>
                 </Card>
@@ -2499,7 +2880,9 @@ export default function AdminPanel() {
                   <Card key={p.id} className="border-2 border-black rounded-3xl overflow-hidden group">
                     <div className="h-48 relative">
                       <img src={getDriveImageUrl(p.photos[0]) || "https://picsum.photos/seed/prop/400/300"} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      <Badge className="absolute top-4 left-4 bg-black text-white uppercase-soft">{p.type}</Badge>
+                      <Badge className="absolute top-4 left-4 bg-black text-white uppercase-soft">
+                        {p.type === 'lahan' ? 'Lahan Strategis' : p.type === 'kerjasama' ? 'Strategic Partnership' : p.type === 'revitalisasi' ? 'Revitalisasi' : p.type === 'bangun' ? 'Titip Bangun' : p.type === 'sewa' ? 'Sewa & Permit' : p.type}
+                      </Badge>
                       <Button variant="destructive" size="icon" className="absolute top-4 right-4 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteProperty(p.id)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -2807,6 +3190,37 @@ export default function AdminPanel() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
                         <div>
+                          <p className="font-black text-sm uppercase tracking-widest">Global Markup (%)</p>
+                          <p className="text-[10px] text-neutral-400">Profit margin applied to all calculations</p>
+                        </div>
+                        <div className="w-24">
+                           <Input 
+                             type="number" 
+                             defaultValue={systemConfig?.globalMarkup} 
+                             onBlur={(e) => updateSystem({ globalMarkup: Number(e.target.value) })}
+                             className="text-right font-black"
+                           />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 border-2 border-black rounded-xl bg-accent/5">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-accent/10 rounded-lg">
+                            <Sparkles className="w-5 h-5 text-accent" />
+                          </div>
+                          <div>
+                            <p className="font-black text-sm uppercase tracking-widest">AI Hub Monitoring</p>
+                            <p className="text-[10px] text-neutral-400">Total analysis tokens used system-wide</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xl font-black">{users.reduce((sum, u) => sum + (u.aiUsageCount || 0), 0)}</p>
+                          <p className="text-[8px] uppercase font-bold text-neutral-400">Total Interactions</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
+                        <div>
                           <p className="font-black text-sm uppercase tracking-widest">Auto-Notification (WA)</p>
                           <p className="text-[10px] text-neutral-400">Send automatic updates to clients</p>
                         </div>
@@ -2923,6 +3337,49 @@ export default function AdminPanel() {
           </Card>
         </div>
       )}
+
+      {/* Quick Edit Specs Master Dialog */}
+      <Dialog open={!!editingMasterSpecs} onOpenChange={(open) => !open && setEditingMasterSpecs(null)}>
+        <DialogContent className="max-w-md rounded-3xl border-2 border-black">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tighter">Edit Spesifikasi Teknis</DialogTitle>
+            <DialogDescription className="text-[10px] font-bold uppercase text-neutral-500">
+              Master: {editingMasterSpecs?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                <Plus className="w-3 h-3 text-accent" /> Keterangan Spesifikasi
+              </label>
+              <Textarea 
+                placeholder="Contoh: Merk Indocement, Tipe Tiga Roda, Material PC..." 
+                className="min-h-[120px] border-2 border-black rounded-2xl p-4 text-xs font-medium focus:ring-accent bg-white"
+                value={editingMasterSpecs?.specs || ""}
+                onChange={(e) => setEditingMasterSpecs(prev => prev ? { ...prev, specs: e.target.value } : null)}
+              />
+              <p className="text-[9px] text-neutral-400 italic">
+                *Spesifikasi ini akan tersimpan permanen di database MASTER.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setEditingMasterSpecs(null)} className="rounded-xl uppercase font-black text-[10px]">Batal</Button>
+            <Button 
+              className="btn-orange px-8 rounded-xl uppercase font-black text-[10px]"
+              onClick={async () => {
+                if (editingMasterSpecs) {
+                  await updateMasterItem(editingMasterSpecs.id, { technicalSpecs: editingMasterSpecs.specs });
+                  setEditingMasterSpecs(null);
+                  toast.success("Spesifikasi Master berhasil diperbarui");
+                }
+              }}
+            >
+              Simpan Spesifikasi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
