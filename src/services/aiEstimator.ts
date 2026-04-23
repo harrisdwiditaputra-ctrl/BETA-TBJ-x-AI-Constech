@@ -1,67 +1,80 @@
-import { GoogleGenAI, Type as GenType } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { WORK_ITEMS_MASTER } from "../constants";
 import { AIEstimateResponse } from "../types";
 import { calculateAdminPrice, calculateClientPrice } from "../lib/utils";
 
 export async function getAIEstimation(userProblem: string, category: string, masterData?: any[], userRole: string = 'user', globalMarkup: number = 20): Promise<AIEstimateResponse> {
   try {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const apiKey = (process.env as any).GEMINI_API_KEY || "";
     if (!apiKey) {
-      console.error("VITE_GEMINI_API_KEY is missing! Using backend fallback or throwing error.");
-      throw new Error("API Key Gemini tidak ditemukan (VITE_GEMINI_API_KEY). Silakan periksa konfigurasi environment.");
+      console.error("GEMINI_API_KEY is missing!");
+      throw new Error("API Key Gemini tidak ditemukan (GEMINI_API_KEY). Silakan periksa konfigurasi environment.");
     }
 
-    const genAI = new GoogleGenAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const ai = new GoogleGenAI({ apiKey });
 
+    const markupFactor = 1 + (globalMarkup / 100);
     const masterDataString = (masterData || []).map((item: any) => {
-      return `- [${item.code || 'N/A'}] ${item.name} (${item.unit}): Rp ${item.price?.toLocaleString('id-ID')}`;
-    }).join('\n');
+      const adminPrice = item.price * markupFactor;
+      return `- [${item.code || 'X000'}] ${item.name} (${item.unit}): Rp ${adminPrice.toLocaleString('id-ID')}`;
+    }).slice(0, 161).join('\n');
 
     const promptText = `
       Anda adalah "TBJ Constech OS", Chief Estimator AI untuk platform TBJ Constech.
-      User Role: ${userRole}
-      Kategori Proyek: ${category}
-      Problem: "${userProblem}"
+      Role Pengguna: ${userRole}
+      Kategori: ${category}
+      Masalah/Kebutuhan: "${userProblem}"
 
-      DATA MASTER (Markup ${globalMarkup}%):
+      DATA REFERENSI (Sudah Markup ${globalMarkup}%):
       ${masterDataString}
 
-      Tugas: Berikan analisa teknis dan estimasi RAB dalam format JSON.
-      Response must be ONLY JSON.
+      INSTRUKSI:
+      1. Berikan analisa teknis mendalam tentang solusi masalah di atas.
+      2. Buat estimasi RAB item-per-item berdasarkan DATA REFERENSI. 
+      3. Jika item tidak ada di data referensi, gunakan asumsi harga pasar yang wajar.
+      4. Hitung totalEstimatedCost sebagai jumlah dari semua totalPrice item.
+      5. Kembalikan response HANYA dalam format JSON sesuai schema.
+
+      SCHEMA JSON:
+      {
+        "analysis": "string",
+        "items": [
+          { "name": "string", "quantity": number, "unit": "string", "pricePerUnit": number, "totalPrice": number, "reasoning": "string" }
+        ],
+        "totalEstimatedCost": number
+      }
     `;
 
-    const result = await model.generateContent({
-      contents: [{ parts: [{ text: promptText }] }],
-      generationConfig: {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: promptText,
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: GenType.OBJECT,
+          type: Type.OBJECT,
           properties: {
-            analysis: { type: GenType.STRING },
+            analysis: { type: Type.STRING },
             items: {
-              type: GenType.ARRAY,
+              type: Type.ARRAY,
               items: {
-                type: GenType.OBJECT,
+                type: Type.OBJECT,
                 properties: {
-                  name: { type: GenType.STRING },
-                  quantity: { type: GenType.NUMBER },
-                  unit: { type: GenType.STRING },
-                  pricePerUnit: { type: GenType.NUMBER },
-                  totalPrice: { type: GenType.NUMBER },
-                  reasoning: { type: GenType.STRING }
-                },
-                required: ["name", "quantity", "unit", "pricePerUnit", "totalPrice", "reasoning"]
+                  name: { type: Type.STRING },
+                  quantity: { type: Type.NUMBER },
+                  unit: { type: Type.STRING },
+                  pricePerUnit: { type: Type.NUMBER },
+                  totalPrice: { type: Type.NUMBER },
+                  reasoning: { type: Type.STRING }
+                }
               }
             },
-            totalEstimatedCost: { type: GenType.NUMBER }
-          },
-          required: ["analysis", "items", "totalEstimatedCost"]
+            totalEstimatedCost: { type: Type.NUMBER }
+          }
         }
       }
     });
 
-    const text = result.response.text();
+    const text = response.text || "{}";
     return JSON.parse(text);
   } catch (error: any) {
     console.error("AI Estimation Service Error:", error);

@@ -88,9 +88,11 @@ const MapPicker = ({ position, setPosition }: { position: [number, number], setP
 
 const Dashboard = ({ user }: { user: any }) => {
   const { projects, loading } = useProjects(user?.uid);
+  const { config: sysConfig } = useSystemConfig();
   const navigate = useNavigate();
 
-  const totalBudget = projects.reduce((sum, p) => sum + p.totalBudget, 0);
+  const totalRawBudget = projects.reduce((sum, p) => sum + p.totalBudget, 0);
+  const totalBudget = totalRawBudget;
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>;
 
@@ -135,7 +137,12 @@ const Dashboard = ({ user }: { user: any }) => {
               </CardHeader>
               <CardContent>
                 <div className="flex justify-between items-center">
-                  <Badge variant="secondary">Rp {project.totalBudget.toLocaleString('id-ID')}</Badge>
+                  <Badge variant="secondary">
+                    Rp {(user?.role === "admin" || user?.role === "pm" 
+                      ? calculateAdminPrice(project.totalBudget, sysConfig?.globalMarkup) 
+                      : calculateClientPrice(project.totalBudget, sysConfig?.globalMarkup)
+                    ).toLocaleString('id-ID')}
+                  </Badge>
                   <span className="text-xs text-neutral-400">{new Date(project.createdAt).toLocaleDateString('id-ID')}</span>
                 </div>
               </CardContent>

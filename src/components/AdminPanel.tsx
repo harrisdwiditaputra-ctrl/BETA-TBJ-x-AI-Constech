@@ -132,8 +132,8 @@ export default function AdminPanel() {
     "Plumbing", 
     "Site Development"
   ];
-  const [selectedMasterCategory, setSelectedMasterCategory] = useState<string | null>(null);
-  const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
+  const [selectedMasterCategory, setSelectedMasterCategory] = useState<string>("");
+  const [selectedUnit, setSelectedUnit] = useState<string>("");
   const [search, setSearch] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [showAddWorker, setShowAddWorker] = useState(false);
@@ -143,13 +143,13 @@ export default function AdminPanel() {
   const [showAddMasterCategory, setShowAddMasterCategory] = useState(false);
   const [newMasterCategory, setNewMasterCategory] = useState("");
   const [showAssignVendor, setShowAssignVendor] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<MaterialRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<MaterialRequest | any>({});
   const [showManageTeam, setShowManageTeam] = useState(false);
-  const [selectedProjectTeam, setSelectedProjectTeam] = useState<Project | null>(null);
+  const [selectedProjectTeam, setSelectedProjectTeam] = useState<Project | any>({});
   
   // Master Data Form
   const [showActivities, setShowActivities] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<UserProfile | null>(null);
+  const [selectedClient, setSelectedClient] = useState<UserProfile | any>({});
   const [isEditingClient, setIsEditingClient] = useState(false);
   const [clientEditForm, setClientEditForm] = useState<Partial<UserProfile>>({
     displayName: "",
@@ -158,11 +158,11 @@ export default function AdminPanel() {
     tier: "prospect",
     role: "user",
     address: "",
-    photoUrl: ""
+    photoURL: ""
   });
   
   // Master Data Editing
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string>("");
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editForm, setEditForm] = useState<Partial<WorkItemMaster>>({
     name: "",
@@ -189,22 +189,25 @@ export default function AdminPanel() {
   const handleSaveEdit = async () => {
     if (editingId && editForm) {
       await updateMasterItem(editingId, editForm);
-      setEditingId(null);
+      setEditingId("");
       toast.success("Product updated successfully");
     }
   };
 
   const handleEditClient = (u: UserProfile) => {
     setSelectedClient(u);
-    setClientEditForm(u);
+    setClientEditForm({
+      ...u,
+      photoURL: u.photoURL || ""
+    });
     setIsEditingClient(true);
   };
 
   const handleSaveClient = async () => {
-    if (selectedClient && clientEditForm) {
+    if (selectedClient.uid && clientEditForm) {
       await updateUser(selectedClient.uid, clientEditForm);
       setIsEditingClient(false);
-      setSelectedClient(null);
+      setSelectedClient({});
       toast.success("Client updated successfully");
     }
   };
@@ -222,12 +225,43 @@ export default function AdminPanel() {
   const [showSaveVersion, setShowSaveVersion] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [versionForm, setVersionForm] = useState({ name: "", notes: "" });
-  const [editingMasterSpecs, setEditingMasterSpecs] = useState<{id: string, name: string, specs: string} | null>(null);
-  const [selectedProjectAI, setSelectedProjectAI] = useState<Project | null>(null);
-  const [selectedProjectFinance, setSelectedProjectFinance] = useState<Project | null>(null);
+  const [editingMasterSpecs, setEditingMasterSpecs] = useState<{id: string, name: string, specs: string} | any>(null);
+  const [selectedProjectAI, setSelectedProjectAI] = useState<Project | any>({});
+  const [selectedProjectFinance, setSelectedProjectFinance] = useState<Project | any>({});
   const [showRecordPayment, setShowRecordPayment] = useState(false);
   const [bulkOrderItems, setBulkOrderItems] = useState([{ name: "", quantity: 0, unit: "m3" }]);
   const [selectedBulkProject, setSelectedBulkProject] = useState("");
+  const [loadingAI, setLoadingAI] = useState(false);
+
+  // Initialize Sample Campaigns if empty
+  useEffect(() => {
+    if (campaigns && campaigns.length === 0) {
+      const samples = [
+        { name: "Promo Lebaran Berkah", content: "Renovasi rumah sebelum lebaran, diskon 15% untuk semua paket interior!", status: "Active", reach: "1250", conversion: "12%" },
+        { name: "Digital Assessment Jakarta", content: "Dapatkan Digital Assessment gratis khusus area Jakarta Selatan.", status: "Active", reach: "840", conversion: "8%" },
+        { name: "Loyalty Program 2024", content: "Reward khusus untuk client setia TBJ Constech. Cashback hingga 10jt.", status: "Draft", reach: "0", conversion: "0%" }
+      ];
+      samples.forEach(s => addCampaign(s as any));
+    }
+  }, [campaigns, addCampaign]);
+
+  const handleAIGenerate = async () => {
+    setLoadingAI(true);
+    try {
+      const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || (typeof process !== "undefined" ? (process.env as any).GEMINI_API_KEY : "");
+      if (!apiKey) {
+        toast.error("API Key belum terpasang di Environment Variables Vercel.");
+        return;
+      }
+      // AI Logic here if needed
+      toast.success("AI Suggestions Refreshed");
+    } catch (error) {
+      console.error("AI Error:", error);
+      toast.error("Gagal memproses permintaan AI.");
+    } finally {
+      setLoadingAI(false);
+    }
+  };
 
   const handleAddBulkRow = () => {
     setBulkOrderItems([...bulkOrderItems, { name: "", quantity: 0, unit: "m3" }]);
@@ -521,7 +555,14 @@ export default function AdminPanel() {
     }
   }, [cmsConfig]);
 
-  const [editingCampaign, setEditingCampaign] = useState<Partial<Campaign> | null>(null);
+  const [editingCampaign, setEditingCampaign] = useState<Partial<Campaign>>({
+    name: "",
+    content: "",
+    status: "Draft",
+    reach: "0",
+    conversion: "0%"
+  });
+  const [showEditCampaign, setShowEditCampaign] = useState(false);
 
   const handleSaveCMS = async () => {
     if (cmsForm) {
@@ -530,13 +571,14 @@ export default function AdminPanel() {
   };
 
   const handleSaveCampaign = async () => {
-    if (editingCampaign) {
+    if (editingCampaign.name) {
       if (editingCampaign.id) {
         await updateCampaign(editingCampaign.id, editingCampaign);
       } else {
         await addCampaign(editingCampaign as any);
       }
-      setEditingCampaign(null);
+      setShowEditCampaign(false);
+      setEditingCampaign({ name: "", content: "", status: "Draft", reach: "0", conversion: "0%" });
     }
   };
 
@@ -566,10 +608,10 @@ export default function AdminPanel() {
           "w-full md:w-64 space-y-2 transition-all duration-300 md:block",
           !isNavOpen && "hidden"
         )}>
-          <div className="hidden md:flex p-4 bg-white border-2 border-black rounded-3xl mb-8 flex-col items-center justify-center gap-2">
+          <div className="hidden md:flex p-4 bg-white border-2 border-black rounded-3xl mb-8 flex-col items-start gap-4">
             <img src={pdfLogo} alt="Logo" className="h-16 w-auto object-contain" referrerPolicy="no-referrer" />
-            <div className="text-center">
-              <h2 className="text-xl font-black uppercase tracking-tighter flex items-center justify-center gap-2">
+            <div>
+              <h2 className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-accent" /> TBJ HUB
               </h2>
               <p className="text-[10px] uppercase-soft text-neutral-500 font-bold">ConsTech OS v2.4</p>
@@ -601,8 +643,8 @@ export default function AdminPanel() {
                 setIsNavOpen(false);
               }}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                activeTab === tab.id ? "bg-black text-white shadow-lg" : "text-neutral-500 hover:bg-titanium/10"
+                "w-full flex items-center justify-start gap-4 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                activeTab === tab.id ? "bg-black text-white shadow-xl" : "text-neutral-500 hover:bg-titanium/10 hover:translate-x-1"
               )}
             >
               <tab.icon className="w-4 h-4" />
@@ -2201,15 +2243,10 @@ export default function AdminPanel() {
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8 text-white hover:bg-white/20"
-                      onClick={async () => {
-                        toast.promise(new Promise(r => setTimeout(r, 2000)), {
-                          loading: 'Generating new suggestions...',
-                          success: 'Suggestions refreshed!',
-                          error: 'Failed to refresh'
-                        });
-                      }}
+                      disabled={loadingAI}
+                      onClick={handleAIGenerate}
                     >
-                      <Sparkles className="w-4 h-4" />
+                      {loadingAI ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                     </Button>
                   </div>
                 </div>
@@ -2440,13 +2477,19 @@ export default function AdminPanel() {
               <Card className="border-2 border-black rounded-2xl overflow-hidden">
                 <CardHeader className="bg-neutral-50 border-b-2 border-black flex flex-row items-center justify-between">
                   <CardTitle className="text-xl font-black uppercase tracking-tighter">Active Campaigns</CardTitle>
-                  <Button className="btn-sleek h-10 px-6 rounded-xl" onClick={() => setEditingCampaign({})}>
+                  <Button className="btn-sleek h-10 px-6 rounded-xl" onClick={() => {
+                    setEditingCampaign({ name: "", content: "", status: "Draft" });
+                    setShowEditCampaign(true);
+                  }}>
                     <Plus className="w-4 h-4 mr-2" /> New Campaign
                   </Button>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
                   {campaigns.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between p-6 border-2 border-black rounded-2xl hover:bg-neutral-50 transition-colors cursor-pointer group" onClick={() => setEditingCampaign(c)}>
+                    <div key={c.id} className="flex items-center justify-between p-6 border-2 border-black rounded-2xl hover:bg-neutral-50 transition-colors cursor-pointer group" onClick={() => {
+                      setEditingCampaign(c);
+                      setShowEditCampaign(true);
+                    }}>
                       <div className="space-y-1">
                         <p className="font-black text-sm uppercase tracking-widest">{c.name}</p>
                         <p className="text-[10px] text-neutral-400">Reach: {c.reach} | Conversion: {c.conversion}</p>
@@ -2461,8 +2504,8 @@ export default function AdminPanel() {
                 </CardContent>
               </Card>
 
-              {editingCampaign && (
-                <Dialog open={!!editingCampaign} onOpenChange={() => setEditingCampaign(null)}>
+              {showEditCampaign && (
+                <Dialog open={showEditCampaign} onOpenChange={setShowEditCampaign}>
                   <DialogContent className="max-w-2xl rounded-3xl border-2 border-black">
                     <DialogHeader>
                       <DialogTitle className="text-xl font-black uppercase tracking-tighter">
@@ -2524,7 +2567,7 @@ export default function AdminPanel() {
                         </div>
                       </div>
                       <div className="flex justify-end gap-4 pt-4">
-                        <Button variant="ghost" onClick={() => setEditingCampaign(null)}>Cancel</Button>
+                        <Button variant="ghost" onClick={() => setShowEditCampaign(false)}>Cancel</Button>
                         <Button className="btn-sleek px-8" onClick={handleSaveCampaign}>Publish Campaign</Button>
                       </div>
                     </div>

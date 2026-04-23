@@ -300,7 +300,9 @@ export default function RabPage({ user }: { user: any }) {
                   <div className="flex justify-between items-end">
                     <div className="space-y-1">
                       <p className="text-[9px] font-black uppercase text-neutral-400 tracking-widest">Total Estimasi</p>
-                      <p className="text-xl font-black tracking-tighter">Rp {est.totalBudget.toLocaleString('id-ID')}</p>
+                      <p className="text-xl font-black tracking-tighter">
+                        Rp {est.totalBudget.toLocaleString('id-ID')}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-[9px] font-black uppercase text-neutral-400 tracking-widest">Item Pekerjaan</p>
@@ -461,7 +463,7 @@ export default function RabPage({ user }: { user: any }) {
                               <p className="font-black text-sm">
                                 {formatRupiah(canEdit ? calculateAdminPrice(item.price, systemConfig?.globalMarkup) : calculateClientPrice(item.price, systemConfig?.globalMarkup))}
                               </p>
-                              <p className="text-[8px] text-neutral-400 uppercase font-bold">Final Price</p>
+                              <p className="text-[8px] text-neutral-400 uppercase font-black">Estimasi Harga Final</p>
                             </div>
                           </div>
                         ))}
@@ -481,7 +483,7 @@ export default function RabPage({ user }: { user: any }) {
                   <TableHead className="text-[9px] font-black uppercase text-neutral-400">Description</TableHead>
                   <TableHead className="w-[100px] text-center text-[9px] font-black uppercase text-neutral-400">Volume</TableHead>
                   <TableHead className="w-[80px] text-center text-[9px] font-black uppercase text-neutral-400">Unit</TableHead>
-                  <TableHead className="w-[150px] text-right text-[9px] font-black uppercase text-neutral-400">Price</TableHead>
+                  <TableHead className="w-[150px] text-right text-[9px] font-black uppercase text-neutral-400">Estimasi Anggaran</TableHead>
                   <TableHead className="w-[150px] text-right text-[9px] font-black uppercase text-neutral-400 px-6">Total</TableHead>
                   {canEdit && <TableHead className="w-[50px]"></TableHead>}
                 </TableRow>

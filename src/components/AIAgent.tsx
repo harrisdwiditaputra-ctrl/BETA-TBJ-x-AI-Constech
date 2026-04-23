@@ -27,7 +27,7 @@ export default function AIAgent() {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scrollToTop = () => {
@@ -59,7 +59,7 @@ export default function AIAgent() {
     }
   };
 
-  const handleSend = async () => {
+  const handleGenerate = async () => {
     if (!input.trim() && !selectedImage) return;
 
     // Guardrail: Removed WA/Tier restrictions as per user request to let everyone use AI AGENT
@@ -68,27 +68,26 @@ export default function AIAgent() {
     const userMessage: Message = { 
       role: "user", 
       content: input,
-      image: selectedImage || undefined
+      image: selectedImage || ""
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInput("");
-    setSelectedImage(null);
+    setSelectedImage("");
     setIsLoading(true);
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+      const apiKey = (process.env as any).GEMINI_API_KEY || "";
       if (!apiKey) {
-        console.error("VITE_GEMINI_API_KEY is missing! Please check your environment variables.");
-        toast.error("Gagal: API Key Gemini tidak ditemukan. Hubungi Admin.");
+        console.error("An API Key must be set when running in a browser (GEMINI_API_KEY).");
+        toast.error("An API Key must be set when running in a browser / API Key Gemini tidak ditemukan (GEMINI_API_KEY). Silakan periksa konfigurasi environment.");
         setIsLoading(false);
         return;
       }
 
-      const ai = new GoogleGenAI(apiKey);
-      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const ai = new GoogleGenAI({ apiKey });
 
-      const masterDataSample = masterData.slice(0, 50).map(item => `- ${item.name}: Rp ${item.price.toLocaleString('id-ID')} (${item.unit})`).join('\n');
+      const masterDataSample = masterData.slice(0, 100).map(item => `- ${item.name}: Rp ${item.price.toLocaleString('id-ID')} (${item.unit})`).join('\n');
 
       const promptText = `Anda adalah "TBJ Constech OS", Chief Estimator AI eksklusif untuk platform TBJ Constech. 
       Tugas Anda adalah memberikan saran teknis, estimasi kasar, dan solusi desain yang sangat profesional.
@@ -120,11 +119,12 @@ export default function AIAgent() {
         });
       }
 
-      const result = await model.generateContent({
-        contents: [{ parts: contents }]
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: { parts: contents }
       });
 
-      const responseText = result.text || "Maaf, saya tidak bisa memberikan jawaban saat ini.";
+      const responseText = response.text || "Maaf, saya tidak bisa memberikan jawaban saat ini.";
       setMessages(prev => [...prev, { role: "assistant", content: responseText }]);
       
       // Update quota in Firestore
@@ -237,7 +237,7 @@ export default function AIAgent() {
             <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-black shadow-md group">
               <img src={selectedImage} className="w-full h-full object-cover" />
               <button 
-                onClick={() => setSelectedImage(null)}
+                onClick={() => setSelectedImage("")}
                 className="absolute top-1 right-1 bg-black text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <X className="w-3 h-3" />
@@ -251,7 +251,7 @@ export default function AIAgent() {
                 className="h-14 pl-4 pr-12 rounded-2xl border-2 border-black shadow-sm focus:ring-accent"
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleSend()}
+                onKeyDown={e => e.key === "Enter" && handleGenerate()}
               />
               <label className="absolute right-3 top-3.5 cursor-pointer hover:text-accent transition-colors">
                 <ImageIcon className="w-6 h-6" />
@@ -260,7 +260,7 @@ export default function AIAgent() {
             </div>
             <Button 
               className="h-14 w-14 rounded-2xl bg-[#FF6B00] hover:bg-[#E65F00] transition-all border-2 border-black shadow-lg text-white"
-              onClick={handleSend}
+              onClick={handleGenerate}
               disabled={isLoading || (!input.trim() && !selectedImage)}
             >
               <Send className="w-6 h-6" />
