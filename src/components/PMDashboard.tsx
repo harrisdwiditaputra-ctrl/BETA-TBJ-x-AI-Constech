@@ -27,7 +27,7 @@ export default function PMDashboard() {
   const { projects, loading: projectsLoading, updateProject } = useProjects(undefined, user?.role);
   const { users } = useUsers(user?.role);
   const { attendance, checkIn, checkOut } = useAttendance(user?.role);
-  const { requests, addRequest, updateRequestStatus } = useMaterialRequests(user?.role);
+  const { requests, addRequest, updateRequestStatus, deleteRequest } = useMaterialRequests(user?.role);
   const { workforce } = useWorkforce(user?.role);
 
   const [activeTab, setActiveTab] = useState<"overview" | "projects" | "materials" | "attendance" | "cctv" | "timeline" | "safety" | "rab" | "pm-ai">("overview");
@@ -498,7 +498,17 @@ export default function PMDashboard() {
                     </TableCell>
                     <TableCell className="text-[10px] text-neutral-400">{new Date(r.updatedAt).toLocaleString()}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase">View Log</Button>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase">View Log</Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-neutral-300 hover:text-red-500" 
+                          onClick={() => { if(confirm("Hapus request ini?")) deleteRequest(r.id); }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

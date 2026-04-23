@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { handleFirestoreError, OperationType } from "@/lib/firebase";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Calendar, Tag, DollarSign, Quote, ChevronLeft, ChevronRight, Play, Clock } from "lucide-react";
+import { Loader2, Calendar, Tag, DollarSign, Quote, ChevronLeft, ChevronRight, Play, Clock, Image as ImageIcon } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { getDriveImageUrl } from "@/lib/utils";
 import { useMediaAssets } from "@/lib/hooks";
@@ -28,82 +28,48 @@ export default function Gallery() {
   const { assets: marketingAssets } = useMediaAssets('marketing');
 
   useEffect(() => {
-    const q = query(collection(db, "gallery"), orderBy("date", "desc"));
+    const q = query(collection(db, "gallery"), where("published", "==", true), orderBy("date", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
-        // Mock data if empty
-        setItems([
-          {
-            id: "1",
-            title: "Renovasi Total Rumah Minimalis",
-            images: [
-              "https://picsum.photos/seed/before1/800/600",
-              "https://picsum.photos/seed/after1/800/600",
-              "https://picsum.photos/seed/detail1/800/600",
-              "https://picsum.photos/seed/detail2/800/600"
-            ],
-            date: "2024-03-15",
-            value: 450000000,
-            description: "Transformasi rumah tua menjadi hunian modern minimalis dengan optimalisasi ruang cahaya, penggantian lantai granit, dan instalasi smart lighting.",
-            testimonial: "Hasilnya sangat memuaskan, tim TBJ sangat profesional dalam pengerjaan dan AI estimasinya sangat membantu perencanaan budget kami.",
-            clientName: "Bpk. Budi"
-          },
-          {
-            id: "2",
-            title: "Interior Kitchen Set Scandi",
-            images: [
-              "https://picsum.photos/seed/before2/800/600",
-              "https://picsum.photos/seed/after2/800/600",
-              "https://picsum.photos/seed/detail3/800/600"
-            ],
-            date: "2024-02-10",
-            value: 85000000,
-            description: "Pembuatan kitchen set custom dengan tema Scandinavian menggunakan material HPL premium, top table solid surface, dan aksesoris kabinet modern.",
-            testimonial: "Dapur jadi rapi dan cantik. Pengerjaan cepat dan detail. Sangat merekomendasikan layanan custom furniture TBJ.",
-            clientName: "Ibu Siska"
-          },
-          {
-            id: "3",
-            title: "Bangun Baru Rumah Tropis Modern",
-            images: [
-              "https://picsum.photos/seed/before3/800/600",
-              "https://picsum.photos/seed/after3/800/600",
-              "https://picsum.photos/seed/detail4/800/600"
-            ],
-            date: "2024-01-20",
-            value: 1250000000,
-            description: "Pembangunan rumah tinggal 2 lantai dari nol dengan konsep tropis modern, sirkulasi udara alami yang maksimal, dan struktur tahan gempa.",
-            testimonial: "Membangun rumah jadi tidak stres karena progress dilaporkan setiap hari melalui dashboard. Transparansi biayanya luar biasa.",
-            clientName: "Bpk. Andre"
-          }
-        ]);
+        // Fallback or empty state
+        setItems([]);
       } else {
         setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as GalleryItem[]);
       }
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "gallery");
+      // Fallback if index not ready
+      const simpleQ = query(collection(db, "gallery"), orderBy("date", "desc"));
+      onSnapshot(simpleQ, (snap) => {
+        setItems(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter((i: any) => i.published !== false) as GalleryItem[]);
+        setLoading(false);
+      });
     });
     return () => unsubscribe();
   }, []);
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>;
 
-  // Maintenance Mode Toggle
-  const isMaintenance = true; 
-
-  if (isMaintenance) {
+  // Maintenance mode is now handled by the items' published status
+  if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-40 space-y-8 animate-in fade-in zoom-in">
         <div className="w-32 h-32 bg-accent/10 text-accent rounded-full flex items-center justify-center animate-pulse shadow-2xl shadow-accent/10 border-4 border-accent/20">
-          <Clock className="w-16 h-16" />
+          <ImageIcon className="w-16 h-16" />
         </div>
         <div className="text-center space-y-4 max-w-xl">
-          <h2 className="text-4xl font-black uppercase tracking-tighter text-black">Project Gallery <br/> <span className="text-accent underline decoration-4 underline-offset-8">Under Maintenance</span></h2>
+          <h2 className="text-4xl font-black uppercase tracking-tighter text-black">Project Gallery <br/> <span className="text-accent underline decoration-4 underline-offset-8">Coming Soon</span></h2>
           <p className="uppercase-soft text-neutral-500 leading-relaxed px-8">
-            Fitur Galeri & Portfolio sedang dalam tahap sinkronisasi data proyek terbaru TBJ Constech. 
-            Layanan ini akan aktif sepenuhnya segera setelah fase pembaruan sistem selesai.
+            Kami sedang mengkurasi portofolio terbaik untuk Anda. 
+            Ikuti perjalanan konstruksi kami yang transparan dan berkualitas tinggi segera di halaman ini.
           </p>
+          <Button 
+            variant="outline" 
+            className="mt-6 border-2 border-black rounded-xl h-12 px-8 font-black uppercase tracking-widest text-[10px]"
+            onClick={() => window.open('https://instagram.com/tukang.bangunan.jakarta', '_blank')}
+          >
+            Lihat Update di Instagram
+          </Button>
         </div>
       </div>
     );

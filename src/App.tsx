@@ -587,9 +587,11 @@ const ProjectDetail = () => {
       {(user?.role === "admin" || user?.role === "pm") && (
         <div className="flex gap-4">
           <Dialog>
-            <DialogTrigger render={<Button variant="outline" className="gap-2" />}>
-              <Plus className="w-4 h-4" /> Tambah Kategori
-            </DialogTrigger>
+            <DialogTrigger render={
+              <Button variant="outline" className="gap-2">
+                <Plus className="w-4 h-4" /> Tambah Kategori
+              </Button>
+            } />
             <DialogContent>
               <DialogHeader><DialogTitle>Tambah Kategori Baru</DialogTitle></DialogHeader>
               <div className="py-4 space-y-4">
@@ -605,9 +607,11 @@ const ProjectDetail = () => {
           </Dialog>
 
           <Dialog>
-            <DialogTrigger render={<Button className="gap-2" />}>
-              <Plus className="w-4 h-4" /> Tambah Item
-            </DialogTrigger>
+            <DialogTrigger render={
+              <Button className="gap-2">
+                <Plus className="w-4 h-4" /> Tambah Item
+              </Button>
+            } />
             <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>Tambah Item Anggaran</DialogTitle></DialogHeader>
               <div className="py-4 space-y-4">
@@ -1067,7 +1071,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
         }
       } catch (error) {
         console.error("AI Estimation failed", error);
-        toast.error("Gagal melakukan analisa AI. Silakan coba lagi.");
+        toast.error(error instanceof Error ? error.message : "Gagal melakukan analisa AI. Silakan coba lagi.");
       } finally {
         setIsAnalyzing(false);
       }
@@ -1780,7 +1784,10 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                                   setAiEstimation(result);
                                   setStep(4);
                                 } catch (error) {
-                                  console.error(error);
+                                  console.error("AI Estimation Error:", error);
+                                  toast.error("Gagal Melakukan Analisa AI", {
+                                    description: "Sistem sedang padat atau terdapat kendala teknis. Silakan coba lagi atau hubungi tim teknis kami jika masalah berlanjut."
+                                  });
                                 } finally {
                                   setIsAnalyzing(false);
                                 }
@@ -2009,8 +2016,21 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                     </div>
                   </div>
                   <div className="pt-12 flex flex-col gap-4">
-                    <Button className="w-full btn-orange py-10 text-xl" onClick={handleNext}>
-                      Verify Data <ChevronRight className="ml-2 w-6 h-6" />
+                    <Button 
+                      className="w-full btn-orange py-10 text-xl" 
+                      onClick={handleNext}
+                      disabled={isAnalyzing}
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          Verify Data <ChevronRight className="ml-2 w-6 h-6" />
+                        </>
+                      )}
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -2400,33 +2420,95 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
           )}
 
           {step === 10 && (
-            <div className="flex flex-col items-center justify-center py-40 space-y-10 animate-in fade-in zoom-in-95 duration-500">
-              <div className="relative">
-                <div className="absolute inset-0 bg-accent/20 blur-3xl rounded-full scale-150 animate-pulse" />
-                <div className="relative w-32 h-32 bg-titanium text-accent rounded-full flex items-center justify-center border-4 border-accent/30 shadow-[0_0_50px_rgba(255,107,0,0.2)]">
-                  <Home className="w-16 h-16" />
+            <div className="space-y-12 animate-in fade-in duration-500">
+              <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b-2 border-black pb-8">
+                <div className="space-y-2">
+                  <Badge variant="outline" className="border-accent text-accent uppercase font-black tracking-[0.2em] px-4 py-1">Phase: Market Insight</Badge>
+                  <h2 className="text-5xl font-black uppercase tracking-tighter text-black">TBJ Property Hub</h2>
+                  <p className="uppercase-soft text-neutral-500 max-w-xl">
+                    Investasi Properti Strategis, Titip Bangun, dan Solusi Legalitas IMB/PBG dalam satu platform.
+                  </p>
+                </div>
+                <div className="flex gap-2 p-1 bg-neutral-100 rounded-full">
+                  {(['all', 'lahan', 'jual', 'kerjasama'] as const).map((cat) => (
+                    <Button 
+                      key={cat}
+                      variant="ghost" 
+                      size="sm" 
+                      className={cn(
+                        "rounded-full text-[8px] uppercase font-black px-4 h-8",
+                        (propFilter === cat || (cat === 'all' && !propFilter)) ? "bg-black text-white" : "text-neutral-400"
+                      )}
+                      onClick={() => setPropFilter(cat === 'all' ? null : cat as any)}
+                    >
+                      {cat}
+                    </Button>
+                  ))}
                 </div>
               </div>
-              <div className="text-center space-y-6 max-w-2xl px-6">
-                <div className="space-y-2">
-                  <Badge variant="outline" className="border-accent text-accent uppercase font-black tracking-[0.2em] px-4 py-1">Phase: Integration</Badge>
-                  <h2 className="text-5xl font-black uppercase tracking-tighter text-black leading-tight">
-                    TBJ Property Hub <br/> 
-                    <span className="text-accent underline decoration-8 underline-offset-[12px]">Under Maintenance</span>
-                  </h2>
+
+              {properties.filter(p => (p.published !== false) && (!propFilter || p.type === propFilter)).length > 0 ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {properties
+                    .filter(p => (p.published !== false) && (!propFilter || p.type === propFilter))
+                    .map(p => (
+                    <Card key={p.id} className="border-2 border-black rounded-3xl overflow-hidden group hover:shadow-[0_20px_50px_rgba(255,107,0,0.1)] transition-all duration-500">
+                      <div className="h-48 relative overflow-hidden">
+                        <img 
+                          src={getDriveImageUrl(p.photos[0]) || "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=800"} 
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                          referrerPolicy="no-referrer" 
+                        />
+                        <Badge className="absolute top-4 left-4 bg-black text-white px-3 py-1 rounded-md uppercase-soft text-[8px]">
+                          {p.type === 'kerjasama' ? 'Synergy Lab' : p.type === 'bangun' ? 'Titip Bangun' : p.type === 'jual' ? 'Jual & Sewa' : p.type === 'legal' ? 'Legal & Perizinan' : p.type}
+                        </Badge>
+                      </div>
+                      <CardContent className="p-6 space-y-4">
+                        <div className="flex justify-between items-start gap-4">
+                          <h3 className="text-lg font-black uppercase tracking-tighter leading-tight border-b-2 border-transparent hover:border-accent transition-all cursor-pointer">{p.title}</h3>
+                        </div>
+                        <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-neutral-400">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" /> {p.location || "Jakarta"}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Layers className="w-3 h-3" /> {p.area} m2
+                          </div>
+                        </div>
+                        <div className="pt-4 border-t border-neutral-100 flex justify-between items-center">
+                          <p className="text-xl font-black text-accent">Rp {p.price.toLocaleString('id-ID')}</p>
+                          <Button variant="outline" size="sm" className="rounded-xl border-black text-[10px] font-black uppercase px-4 h-9" onClick={() => window.open(`https://wa.me/6281213496672?text=Halo Admin TBJ, saya tertarik dengan unit *${p.title}* yang ada di Property Hub. Mohon info lebih lanjut.`, '_blank')}>
+                            Inquiry
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-                <p className="uppercase-soft text-neutral-500 leading-relaxed text-sm md:text-base">
-                  Layanan Jual, Sewa, Titip Bangun, dan Konsultasi Legalitas sedang dalam proses migrasi database ke sistem Synergy Lab yang baru. 
-                  Fitur ini akan segera aktif dalam beberapa hari ke depan.
-                </p>
-                <div className="pt-10 flex flex-col sm:flex-row justify-center gap-4">
-                  <Button className="btn-accent h-14 px-10 uppercase font-black tracking-widest text-xs" onClick={() => setStep(1)}>
-                    &larr; Kembali ke Layanan
-                  </Button>
-                  <Button variant="ghost" className="h-14 px-10 uppercase font-black tracking-widest text-xs text-neutral-400 hover:text-black" onClick={() => window.open('https://wa.me/6281213496672', '_blank')}>
-                    Hubungi Admin
+              ) : (
+                <div className="text-center py-20 space-y-6 bg-neutral-50 rounded-[40px] border-4 border-black border-dashed">
+                  <div className="w-24 h-24 bg-accent/10 text-accent rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                    <Home className="w-12 h-12" />
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-3xl font-black uppercase tracking-tighter text-black">Listing Sedang Diperbarui</h3>
+                    <p className="uppercase-soft text-neutral-500 max-w-md mx-auto leading-relaxed">
+                      Katalog properti strategis sedang dalam fase sinkronisasi. Kami sedang memverifikasi unit baru untuk menjamin keamanan investasi Anda.
+                    </p>
+                  </div>
+                  <Button 
+                    className="btn-accent h-14 px-10 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl"
+                    onClick={() => window.open('https://wa.me/6281213496672', '_blank')}
+                  >
+                    Konsultasi Unit Offline
                   </Button>
                 </div>
+              )}
+
+              <div className="pt-10 flex justify-center">
+                <Button variant="ghost" className="h-14 px-10 uppercase font-black tracking-widest text-xs text-neutral-400 hover:text-black" onClick={() => setStep(1)}>
+                  &larr; Kembali ke Layanan Utama
+                </Button>
               </div>
             </div>
           )}

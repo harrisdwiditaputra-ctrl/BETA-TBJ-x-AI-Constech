@@ -113,10 +113,10 @@ const MediaWarehouse = () => {
           
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger render={
-              <Button className="h-11 px-6 rounded-2xl bg-black text-white hover:bg-neutral-800 transition-all font-black uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(100,100,100,1)] active:translate-y-1 active:shadow-none shrink-0" />
-            }>
-              <Plus className="w-4 h-4 mr-2" /> <span className="hidden md:inline">Upload Aset</span>
-            </DialogTrigger>
+              <Button className="h-11 px-6 rounded-2xl bg-black text-white hover:bg-neutral-800 transition-all font-black uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(100,100,100,1)] active:translate-y-1 active:shadow-none shrink-0">
+                <Plus className="w-4 h-4 mr-2" /> <span className="hidden md:inline">Upload Aset</span>
+              </Button>
+            } />
             <DialogContent className="max-w-md rounded-3xl border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <DialogHeader>
                 <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Tambah Aset Media</DialogTitle>

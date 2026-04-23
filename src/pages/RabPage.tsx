@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMasterData, useAuth, useMediaAssets, useSavedEstimates } from "@/lib/hooks";
+import { useMasterData, useAuth, useMediaAssets, useSavedEstimates, useSystemConfig } from "@/lib/hooks";
 import { WorkItemMaster, UserTier } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Search, Plus, Minus, Trash2, Download, Share2, Instagram, Phone, Mail, Building2, Save, FileText, ChevronRight, Calculator, MoreHorizontal, Eraser, Edit3, Loader2, History as HistoryIcon } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { cn, formatRupiah, calculateAdminPrice, calculateClientPrice } from "@/lib/utils";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
@@ -30,6 +30,7 @@ interface RabItem extends WorkItemMaster {
 export default function RabPage({ user }: { user: any }) {
   const navigate = useNavigate();
   const { masterData } = useMasterData(user?.role);
+  const { config: systemConfig } = useSystemConfig();
   const { assets: systemAssets } = useMediaAssets('system');
   const { estimates, saveEstimate, deleteEstimate, loading: estimatesLoading } = useSavedEstimates(user?.uid);
   const headerLogo = systemAssets.find(a => a.name.toLowerCase().includes('header'))?.url || systemAssets[0]?.url || TBJ_LOGO;
@@ -91,10 +92,14 @@ export default function RabPage({ user }: { user: any }) {
   }, [searchQuery, masterData]);
 
   const addItemToRab = (master: WorkItemMaster) => {
+    const markup = systemConfig?.globalMarkup || 20;
+    const price = canEdit ? calculateAdminPrice(master.price, markup) : calculateClientPrice(master.price, markup);
+    
     const newItem: RabItem = {
       ...master,
+      price,
       volume: 1,
-      total: master.price,
+      total: price,
       code: master.code || master.id,
       notes: "",
       technicalSpecs: master.technicalSpecs || ""
@@ -193,8 +198,8 @@ export default function RabPage({ user }: { user: any }) {
       <div className="flex flex-col md:flex-row justify-between items-end gap-8 pb-12 border-b border-neutral-100">
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 flex items-center justify-center rounded-xl overflow-hidden">
-              <img src={headerLogo} alt="TBJ Logo" className="w-full h-full object-contain" />
+            <div className="w-12 h-12 flex items-center justify-center rounded-xl overflow-hidden border-2 border-black bg-white">
+              <img src={headerLogo} alt="TBJ Logo" className="w-full h-full object-cover" />
             </div>
             <div className="h-8 w-[1px] bg-neutral-200" />
             <Badge variant="outline" className="border-neutral-200 text-neutral-400 uppercase-soft text-[9px] h-6">Master RAB Engine v2.0</Badge>
@@ -453,8 +458,10 @@ export default function RabPage({ user }: { user: any }) {
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="font-black text-sm">Rp {item.price.toLocaleString('id-ID')}</p>
-                              <p className="text-[8px] text-neutral-400 uppercase font-bold">Unit Price</p>
+                              <p className="font-black text-sm">
+                                {formatRupiah(canEdit ? calculateAdminPrice(item.price, systemConfig?.globalMarkup) : calculateClientPrice(item.price, systemConfig?.globalMarkup))}
+                              </p>
+                              <p className="text-[8px] text-neutral-400 uppercase font-bold">Final Price</p>
                             </div>
                           </div>
                         ))}

@@ -16,14 +16,12 @@ export function formatRupiah(amount: number) {
 
 export function calculateAdminPrice(basePrice: number, globalMarkup: number = 20) {
   const markupFactor = 1 + (globalMarkup / 100);
-  const markedUp = basePrice * markupFactor;
-  return Math.ceil(markedUp / 1000) * 1000;
+  return basePrice * markupFactor;
 }
 
 export function calculateClientPrice(basePrice: number, globalMarkup: number = 20) {
   const markupFactor = 1 + (globalMarkup / 100);
-  const markedUp = basePrice * markupFactor * 1.1; // Baseline Markup + 10% Profit
-  return Math.ceil(markedUp / 1000) * 1000;
+  return basePrice * markupFactor * 1.1; // Baseline Markup + 10% Profit
 }
 
 export function getDriveImageUrl(url: string) {

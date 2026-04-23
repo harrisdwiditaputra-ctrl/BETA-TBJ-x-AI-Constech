@@ -77,8 +77,16 @@ export default function AIAgent() {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-      const modelName = userMessage.image ? "gemini-1.5-flash" : "gemini-1.5-flash"; // Standard models for better compatibility
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+      if (!apiKey) {
+        console.error("VITE_GEMINI_API_KEY is missing! Please check your environment variables.");
+        toast.error("Gagal: API Key Gemini tidak ditemukan. Hubungi Admin.");
+        setIsLoading(false);
+        return;
+      }
+
+      const ai = new GoogleGenAI(apiKey);
+      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const masterDataSample = masterData.slice(0, 50).map(item => `- ${item.name}: Rp ${item.price.toLocaleString('id-ID')} (${item.unit})`).join('\n');
 
@@ -112,8 +120,7 @@ export default function AIAgent() {
         });
       }
 
-      const result = await ai.models.generateContent({
-        model: modelName,
+      const result = await model.generateContent({
         contents: [{ parts: contents }]
       });
 
@@ -134,7 +141,7 @@ export default function AIAgent() {
       }
     } catch (error) {
       console.error("AI Agent Error:", error);
-      toast.error("Maaf, terjadi kesalahan saat menghubungi AI Agent.");
+      toast.error(error instanceof Error ? error.message : "Maaf, terjadi kesalahan saat menghubungi AI Agent.");
     } finally {
       setIsLoading(false);
     }

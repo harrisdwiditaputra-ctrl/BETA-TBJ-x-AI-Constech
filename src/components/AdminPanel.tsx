@@ -20,7 +20,7 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs, limit, writeBatch, getDocsFromServer } from "firebase/firestore";
 import PMDashboard from "./PMDashboard";
 import MediaWarehouse from "./MediaWarehouse";
-import { cn, getDriveImageUrl, formatRupiah, calculateAdminPrice } from "@/lib/utils";
+import { cn, getDriveImageUrl, formatRupiah, calculateAdminPrice, calculateClientPrice } from "@/lib/utils";
 import { toast } from "sonner";
 import { WorkItemMaster, UserProfile, Project, Workforce, MaterialRequest, Property, Campaign, SystemConfig, CMSConfig, Vendor, GalleryItem } from "@/types";
 import { generateRABPDF, generatePOPDF, generateInvoicePDF } from "@/lib/pdfUtils";
@@ -90,10 +90,10 @@ export default function AdminPanel() {
   const { users, loading: usersLoading, updateUser } = useUsers(user?.role);
   const { projects, loading: projectsLoading, updateProject, deleteProject, fixProjectMilestones } = useProjects(undefined, user?.role);
   const { workforce, loading: workforceLoading, addWorkforce, updateWorkforce, deleteWorkforce } = useWorkforce(user?.role);
-  const { requests, loading: requestsLoading, updateRequestStatus, assignVendor, addRequest } = useMaterialRequests(user?.role);
+  const { requests, loading: requestsLoading, updateRequestStatus, assignVendor, addRequest, deleteRequest } = useMaterialRequests(user?.role);
   const { suggestions: materialSuggestions, addSuggestion } = useMaterialSuggestions();
   const { properties, loading: propertiesLoading, addProperty, updateProperty, deleteProperty } = useProperties();
-  const { gallery, addGalleryItem, deleteGalleryItem } = useGallery();
+  const { gallery, addGalleryItem, deleteGalleryItem, updateGalleryItem } = useGallery();
   const { vendors, addVendor, deleteVendor, updateVendor } = useVendors();
   const { attendance, loading: attendanceLoading } = useAttendance(user?.role);
   const { config: cmsConfig, updateConfig: updateCMS } = useCMSConfig();
@@ -151,12 +151,28 @@ export default function AdminPanel() {
   const [showActivities, setShowActivities] = useState(false);
   const [selectedClient, setSelectedClient] = useState<UserProfile | null>(null);
   const [isEditingClient, setIsEditingClient] = useState(false);
-  const [clientEditForm, setClientEditForm] = useState<Partial<UserProfile>>({});
+  const [clientEditForm, setClientEditForm] = useState<Partial<UserProfile>>({
+    displayName: "",
+    email: "",
+    whatsapp: "",
+    tier: "prospect",
+    role: "user",
+    address: "",
+    photoUrl: ""
+  });
   
   // Master Data Editing
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
-  const [editForm, setEditForm] = useState<Partial<WorkItemMaster>>({});
+  const [editForm, setEditForm] = useState<Partial<WorkItemMaster>>({
+    name: "",
+    category: "",
+    unit: "",
+    price: 0,
+    technicalSpecs: "",
+    description: "",
+    code: ""
+  });
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]);
@@ -848,6 +864,32 @@ export default function AdminPanel() {
 
           {activeTab === "products" && (
             <div className="space-y-6">
+              <div className="bg-white border-2 border-black rounded-3xl p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-accent/10 rounded-2xl">
+                    <TrendingUp className="w-6 h-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black uppercase tracking-tighter">System Global Markup</h3>
+                    <p className="text-[10px] text-neutral-400 font-bold uppercase">This markup applies to all RAB and Product calculations in real-time.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 bg-neutral-50 p-4 rounded-2xl border border-black/5 w-full md:w-auto">
+                  <div className="text-right">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Profit Margin</p>
+                    <p className="text-sm font-black">PERCENTAGE (%)</p>
+                  </div>
+                  <div className="w-24">
+                     <Input 
+                       type="number" 
+                       defaultValue={systemConfig?.globalMarkup} 
+                       onBlur={(e) => updateSystem({ globalMarkup: Number(e.target.value) })}
+                       className="text-center font-black h-12 border-2 border-black rounded-xl text-lg bg-white"
+                     />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex items-center gap-4">
                   {selectedMasterCategory && (
@@ -1147,6 +1189,14 @@ export default function AdminPanel() {
                         value={newProduct.price || 0}
                         onChange={e => setNewProduct({...newProduct, price: Math.max(0, Number(e.target.value))})}
                       />
+                      {newProduct.price > 0 && (
+                        <div className="flex justify-between items-center px-1">
+                          <span className="text-[9px] text-neutral-400 font-bold uppercase">Base Price</span>
+                          <span className="text-[10px] font-black text-accent uppercase">
+                            Admin Price: {formatRupiah(calculateAdminPrice(newProduct.price, systemConfig?.globalMarkup))}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="md:col-span-2 space-y-2">
                       <label className="uppercase-soft text-[10px]">Description</label>
@@ -1458,66 +1508,86 @@ export default function AdminPanel() {
                                   >
                                     <Phone className="w-3 h-3" />
                                   </a>
-                                )}
+                                ) || <span className="text-[8px] text-red-500 uppercase font-black">Unverified WA</span>}
                               </div>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Dialog>
-                            <DialogTrigger render={
-                              <Badge className={cn(
-                                "uppercase-soft text-[9px] rounded-md cursor-pointer hover:opacity-80 transition-opacity",
-                                u.tier === 'deal' ? "bg-accent text-white" : 
-                                u.tier === 'survey' ? "bg-blue-500 text-white" : "bg-neutral-200 text-neutral-600"
-                              )}>
-                                {u.tier === 'deal' ? "Tier 3 (Gold)" : u.tier === 'survey' ? "Tier 2 (Silver)" : "Tier 1 (Lead)"}
-                              </Badge>
-                            } />
-                            <DialogContent className="max-w-2xl rounded-3xl border-2 border-black">
-                              <DialogHeader>
-                                <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Client Dossier: {u.displayName}</DialogTitle>
-                              </DialogHeader>
-                              <div className="grid md:grid-cols-2 gap-6 py-6">
-                                <div className="space-y-4">
-                                  <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
-                                    <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Identity Details</p>
-                                    <div className="space-y-2">
-                                      <p className="text-xs font-bold">Email: <span className="font-normal">{u.email}</span></p>
-                                      <p className="text-xs font-bold">Location: <span className="font-normal">{u.location || "Not set"}</span></p>
-                                      <p className="text-xs font-bold">WhatsApp: <span className="font-normal">{u.whatsapp || "Not set"}</span></p>
+                          <div className="flex flex-col gap-1">
+                            <Dialog>
+                              <DialogTrigger nativeButton={false} render={
+                                <Badge className={cn(
+                                  "uppercase-soft text-[9px] rounded-md cursor-pointer hover:opacity-80 transition-opacity",
+                                  u.tier === 'deal' ? "bg-accent text-white" : 
+                                  u.tier === 'survey' ? "bg-blue-500 text-white" : "bg-neutral-200 text-neutral-600"
+                                )}>
+                                  {u.tier === 'deal' ? "Tier 3 (Gold)" : u.tier === 'survey' ? "Tier 2 (Silver)" : "Tier 1 (Lead)"}
+                                </Badge>
+                              } />
+                              <DialogContent className="max-w-2xl rounded-3xl border-2 border-black">
+                                <DialogHeader>
+                                  <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Client Dossier: {u.displayName}</DialogTitle>
+                                </DialogHeader>
+                                <div className="grid md:grid-cols-2 gap-6 py-6">
+                                  <div className="space-y-4">
+                                    <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
+                                      <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Identity Details</p>
+                                      <div className="space-y-2">
+                                        <p className="text-xs font-bold">Email: <span className="font-normal">{u.email}</span></p>
+                                        <p className="text-xs font-bold">Location: <span className="font-normal">{u.location || "Not set"}</span></p>
+                                        <p className="text-xs font-bold">WhatsApp: <span className="font-normal">{u.whatsapp || "Not set"}</span></p>
+                                      </div>
+                                    </div>
+                                    <div className="p-4 bg-accent/5 rounded-2xl border border-accent/20">
+                                      <p className="text-[10px] font-black uppercase text-accent mb-2">AI Usage Analytics</p>
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-[9px] font-black uppercase">Analisa Digunakan:</span>
+                                        <span className="font-mono font-bold text-sm">{u.aiUsageCount || 0} Kali</span>
+                                      </div>
+                                      <Progress value={Math.min(((u.aiUsageCount || 0) / (u.waVerified ? 5 : 1)) * 100, 100)} className="h-1 bg-accent/20 mt-2" />
+                                      {u.tier === 'deal' || u.lifetimeAccess ? (
+                                        <Badge className="bg-green-500 text-white text-[7px] uppercase mt-2 border-none">UNLIMITED AI ACCESS</Badge>
+                                      ) : (
+                                        <p className="text-[8px] mt-1 text-neutral-400 uppercase font-black">
+                                          Limit: {u.waVerified ? "5 Analisa (Verified)" : "1 Analisa (Free)"}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
-                                  <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
-                                    <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Contract Status</p>
-                                    <Badge className="bg-green-100 text-green-700 border-none uppercase-soft">Active Contract</Badge>
-                                    <p className="text-[10px] mt-2">Last Updated: {new Date().toLocaleDateString()}</p>
-                                  </div>
-                                </div>
-                                <div className="space-y-4">
-                                  <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
-                                    <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Project & RAB</p>
-                                    <div className="space-y-2">
-                                      <Button variant="outline" className="w-full h-8 text-[10px] uppercase font-black rounded-lg justify-between">
-                                        View Active RAB <ChevronRight className="w-3 h-3" />
-                                      </Button>
-                                      <Button variant="outline" className="w-full h-8 text-[10px] uppercase font-black rounded-lg justify-between">
-                                        Project Timeline <ChevronRight className="w-3 h-3" />
-                                      </Button>
-                                      <Button className="w-full h-10 text-[10px] uppercase font-black rounded-lg bg-accent text-white hover:bg-black transition-all" onClick={() => navigate(`/profile/${u.uid}`)}>
-                                        <LayoutDashboard className="w-4 h-4 mr-2" /> View Client Dashboard
-                                      </Button>
+                                  <div className="space-y-4">
+                                    <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
+                                      <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Project & RAB</p>
+                                      <div className="space-y-2">
+                                        <Button variant="outline" className="w-full h-8 text-[10px] uppercase font-black rounded-lg justify-between" onClick={() => navigate(`/projects`)}>
+                                          View Active RAB <ChevronRight className="w-3 h-3" />
+                                        </Button>
+                                        <Button className="w-full h-10 text-[10px] uppercase font-black rounded-lg bg-accent text-white hover:bg-black transition-all" onClick={() => navigate(`/profile/${u.uid}`)}>
+                                          <LayoutDashboard className="w-4 h-4 mr-2" /> View Client Dashboard
+                                        </Button>
+                                      </div>
+                                    </div>
+                                    <div className="p-4 bg-black text-white rounded-2xl">
+                                      <p className="text-[10px] font-black uppercase text-white/40 mb-2">Account Type</p>
+                                      <p className="text-xl font-black tracking-tighter uppercase">{u.waVerified ? "Verified WA" : "Unverified"}</p>
+                                      <p className="text-[9px] uppercase-soft text-white/60">Verification Status</p>
                                     </div>
                                   </div>
-                                  <div className="p-4 bg-black text-white rounded-2xl">
-                                    <p className="text-[10px] font-black uppercase text-white/40 mb-2">Financial Summary</p>
-                                    <p className="text-xl font-black tracking-tighter">Rp 450.000.000</p>
-                                    <p className="text-[9px] uppercase-soft text-white/60">Total Budget Approved</p>
-                                  </div>
                                 </div>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
+                              </DialogContent>
+                            </Dialog>
+                            <div className="flex items-center gap-2 mt-1">
+                              {u.tier === 'deal' || u.lifetimeAccess ? (
+                                <Badge variant="outline" className="text-[7px] border-green-500 text-green-500 uppercase font-black px-1.5 h-4">Unlimited AI</Badge>
+                              ) : (
+                                <div className="flex gap-1">
+                                  {Array.from({ length: u.waVerified ? 5 : 1 }).map((_, i) => (
+                                    <div key={i} className={cn("w-1 h-1 rounded-full", (u.aiUsageCount || 0) > i ? "bg-accent" : "bg-neutral-200")} />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={cn(
@@ -1798,10 +1868,10 @@ export default function AdminPanel() {
                           <p className="text-xl font-black text-blue-700">ON TRACK</p>
                           <p className="text-[8px] text-blue-600/60 mt-1">Deviasi: -0.2% (Normal)</p>
                         </div>
-                        <div className="p-3 bg-orange-50 rounded-xl border-2 border-orange-200">
-                          <p className="uppercase-soft text-orange-600 text-[8px]">Worker Progress</p>
-                          <p className="text-xl font-black text-orange-700">OPTIMAL</p>
-                          <p className="text-[8px] text-orange-600/60 mt-1">Bobot harian: 1.2%</p>
+                        <div className="p-3 bg-accent/5 rounded-xl border-2 border-accent/20">
+                          <p className="uppercase-soft text-accent text-[8px]">Worker Progress</p>
+                          <p className="text-xl font-black text-accent">OPTIMAL</p>
+                          <p className="text-[8px] text-accent/60 mt-1">Bobot harian: 1.2%</p>
                         </div>
                       </div>
 
@@ -1964,7 +2034,7 @@ export default function AdminPanel() {
                         <div className="p-6 grid md:grid-cols-3 gap-6">
                           {workers.map(worker => (
                             <Dialog key={worker.id}>
-                              <DialogTrigger render={
+                              <DialogTrigger nativeButton={false} render={
                                 <Card className="border-2 border-black/10 rounded-xl overflow-hidden hover:border-accent transition-all cursor-pointer group">
                                   <div className="h-40 bg-neutral-100 relative">
                                     {worker.photoUrl ? (
@@ -2470,11 +2540,11 @@ export default function AdminPanel() {
                 <h2 className="text-2xl font-black uppercase tracking-tighter">Material Procurement Hub</h2>
                 <div className="flex gap-2">
                   <Dialog>
-                    <DialogTrigger>
+                    <DialogTrigger render={
                       <Button className="btn-orange h-10 px-6 rounded-xl">
                         <Plus className="w-4 h-4 mr-2" /> Bulk Order Material
                       </Button>
-                    </DialogTrigger>
+                    } />
                     <DialogContent className="max-w-2xl rounded-3xl border-2 border-black">
                       <DialogHeader>
                         <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Bulk Material Order</DialogTitle>
@@ -2633,9 +2703,9 @@ export default function AdminPanel() {
                                 </div>
                               )}
                               {r.status === 'ordered' && (
-                                <Button size="sm" className="bg-orange-500 hover:bg-orange-600 h-8 text-[9px] font-black uppercase" onClick={() => updateRequestStatus(r.id, 'delivered')}>Delivered</Button>
+                                <Button size="sm" className="bg-accent hover:bg-accent/90 h-8 text-[9px] font-black uppercase text-white" onClick={() => updateRequestStatus(r.id, 'delivered')}>Delivered</Button>
                               )}
-                              <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-400 hover:text-red-500" onClick={() => { if(confirm("Hapus request ini?")) deleteRequest(r.id); }}><Trash2 className="w-4 h-4" /></Button>
                             </div>
                           </TableCell>
                       </TableRow>
@@ -2767,9 +2837,19 @@ export default function AdminPanel() {
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="p-4">
-                      <p className="font-black text-[10px] uppercase tracking-widest">{item.title}</p>
-                      <Badge className="mt-2 bg-neutral-100 text-neutral-600 border-none text-[8px]">{item.category}</Badge>
+                    <div className="p-4 flex flex-col gap-2">
+                       <div className="flex justify-between items-center">
+                         <p className="font-black text-[10px] uppercase tracking-widest">{item.title}</p>
+                         <Button 
+                           variant="ghost" 
+                           size="sm" 
+                           onClick={() => updateGalleryItem(item.id, { published: !item.published })}
+                           className={cn("h-6 px-2 text-[8px] font-black uppercase rounded-md", item.published ? "bg-green-100 text-green-600" : "bg-neutral-100 text-neutral-400")}
+                         >
+                           {item.published ? "Published" : "Draft"}
+                         </Button>
+                       </div>
+                       <Badge className="bg-neutral-100 text-neutral-600 border-none text-[8px] w-fit">{item.category}</Badge>
                     </div>
                   </Card>
                 ))}
@@ -2912,7 +2992,17 @@ export default function AdminPanel() {
                       </Button>
                     </div>
                     <CardContent className="p-6 space-y-4">
-                      <h3 className="font-black text-lg uppercase tracking-tighter">{p.title}</h3>
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-black text-lg uppercase tracking-tighter flex-grow">{p.title}</h3>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => updateProperty(p.id, { published: !p.published })}
+                          className={cn("h-6 px-2 text-[8px] font-black uppercase rounded-md shrink-0", p.published ? "bg-green-100 text-green-600" : "bg-neutral-100 text-neutral-400")}
+                        >
+                          {p.published ? "Published" : "Draft"}
+                        </Button>
+                      </div>
                       <div className="flex justify-between items-center text-xs font-bold uppercase text-neutral-500">
                         <span>{p.location}</span>
                         <span>{p.area} m2</span>
@@ -3015,7 +3105,7 @@ export default function AdminPanel() {
                 </Card>
                 <Card className="border-2 border-black rounded-2xl p-6 bg-white">
                   <h3 className="text-lg font-black uppercase tracking-tighter mb-2">Pending Approvals</h3>
-                  <p className="text-4xl font-black text-orange-500">{projects.filter(p => p.status === 'active').length}</p>
+                  <p className="text-4xl font-black text-accent">{projects.filter(p => p.status === 'active').length}</p>
                   <p className="text-[10px] uppercase font-bold text-neutral-400 mt-2">Milestones awaiting client approval</p>
                 </Card>
                 <Card className="border-2 border-space-grey/20 rounded-2xl p-6 bg-space-grey text-white">
@@ -3069,10 +3159,9 @@ export default function AdminPanel() {
                                 size="sm" 
                                 className="btn-orange h-8 text-[9px] font-black uppercase"
                                 onClick={async () => {
-                                  // Fetch items for the project
-                                  const itemsRef = collection(db, "budget_items");
-                                  const q = query(itemsRef, where("projectId", "==", selectedProjectFinance.id));
-                                  const snap = await getDocs(q);
+                                  // Fetch items for the project subcollection
+                                  const itemsRef = collection(db, "projects", selectedProjectFinance.id, "items");
+                                  const snap = await getDocs(itemsRef);
                                   const projectItems = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
                                   
                                   const client = users.find(u => u.uid === selectedProjectFinance.clientId);
@@ -3088,14 +3177,14 @@ export default function AdminPanel() {
                                       desc: it.name,
                                       qty: it.quantity,
                                       unit: it.unit,
-                                      price: it.pricePerUnit,
-                                      total: it.totalPrice
+                                      price: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(it.pricePerUnit, systemConfig?.globalMarkup) : calculateClientPrice(it.pricePerUnit, systemConfig?.globalMarkup),
+                                      total: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(it.totalPrice, systemConfig?.globalMarkup) : calculateClientPrice(it.totalPrice, systemConfig?.globalMarkup)
                                     })),
-                                    total: selectedProjectFinance.totalBudget,
+                                    total: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(selectedProjectFinance.totalBudget, systemConfig?.globalMarkup) : calculateClientPrice(selectedProjectFinance.totalBudget, systemConfig?.globalMarkup),
                                     bankInfo: {
                                       bank: "Bank BRI",
-                                      accNo: "1234-5678-9012-34-5",
-                                      accName: "TBJ CONSTECH"
+                                      accNo: "4792-0103-1488-535",
+                                      accName: "an TBJ CONTRACTOR"
                                     }
                                   });
                                   toast.success("Invoice Generated Succesfully");
@@ -3106,9 +3195,11 @@ export default function AdminPanel() {
                               <Button 
                                 size="sm" 
                                 variant="outline"
-                                className="border-2 border-black h-8 text-[9px] font-black uppercase"
+                                className="btn-orange h-8 text-[9px] font-black uppercase shadow-none"
                                 onClick={() => {
-                                  const message = `*OFFICIAL INVOICE - TBJ CONSTECH*%0A%0AProyek: ${selectedProjectFinance.name}%0ATotal Tagihan: Rp ${selectedProjectFinance.totalBudget.toLocaleString('id-ID')}%0A%0AMohon segera melakukan pembayaran ke Bank BRI: 1234-5678-9012-34-5 (a/n TBJ CONSTECH).%0A%0A_Dibuat via TBJ Constech OS_`;
+                                  const markup = systemConfig?.globalMarkup || 20;
+                                  const finalBudget = user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(selectedProjectFinance.totalBudget, markup) : calculateClientPrice(selectedProjectFinance.totalBudget, markup);
+                                  const message = `*OFFICIAL INVOICE - TBJ CONSTECH*%0A%0AProyek: ${selectedProjectFinance.name}%0ATotal Tagihan: Rp ${finalBudget.toLocaleString('id-ID')}%0A%0AMohon segera melakukan pembayaran ke Bank BRI: 4792-0103-1488-535 (a/n TBJ CONTRACTOR).%0A%0A_Dibuat via TBJ Constech OS_`;
                                   const client = users.find(u => u.uid === selectedProjectFinance.clientId);
                                   window.open(`https://wa.me/${client?.whatsapp || '081213496672'}?text=${encodeURIComponent(message)}`, "_blank");
                                 }}
@@ -3265,21 +3356,6 @@ export default function AdminPanel() {
                   </CardHeader>
                   <CardContent className="p-8 space-y-6">
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
-                        <div>
-                          <p className="font-black text-sm uppercase tracking-widest">Global Markup (%)</p>
-                          <p className="text-[10px] text-neutral-400">Profit margin applied to all calculations</p>
-                        </div>
-                        <div className="w-24">
-                           <Input 
-                             type="number" 
-                             defaultValue={systemConfig?.globalMarkup} 
-                             onBlur={(e) => updateSystem({ globalMarkup: Number(e.target.value) })}
-                             className="text-right font-black"
-                           />
-                        </div>
-                      </div>
-
                       <div className="flex items-center justify-between p-4 border-2 border-black rounded-xl bg-accent/5">
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-accent/10 rounded-lg">

@@ -30,7 +30,7 @@ export const generateRABPDF = async (
   const doc = new jsPDF();
   const logoUrl = customLogoUrl || TBJ_LOGO;
   const base64Logo = await imageUrlToBase64(logoUrl);
-  const orange = [255, 107, 0];
+  const orange = [255, 107, 0]; // Cosmic Orange
   const rabNo = projectIdentity?.rabNumber || `RAB-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
   // Helper for footer and page numbers
@@ -44,7 +44,7 @@ export const generateRABPDF = async (
     
     // Brand Footer
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 107, 0);
+    doc.setTextColor(orange[0], orange[1], orange[2]);
     doc.text('TUKANG BANGUNAN JAKARTA (TBJ CONSTECH)', 10, pageHeight - 20);
     
     doc.setFont('helvetica', 'normal');
@@ -210,7 +210,7 @@ export const generatePOPDF = async (request: any, vendor: any, customLogoUrl?: s
     doc.setTextColor(100);
     doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 107, 0);
+    doc.setTextColor(orange[0], orange[1], orange[2]);
     doc.text('TUKANG BANGUNAN JAKARTA (TBJ CONSTECH)', 10, pageHeight - 20);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
@@ -219,21 +219,21 @@ export const generatePOPDF = async (request: any, vendor: any, customLogoUrl?: s
   };
 
   try {
-    doc.addImage(base64Logo, 'PNG', 10, 8, 18, 18);
+    doc.addImage(base64Logo, 'PNG', 10, 8, 16, 16);
   } catch (e) {
-    doc.rect(10, 8, 18, 18, 'S');
-    doc.setFontSize(8);
-    doc.text('LOGO', 15, 18);
+    doc.rect(10, 8, 16, 16, 'S');
+    doc.setFontSize(7);
+    doc.text('LOGO', 14, 16);
   }
-  doc.setFontSize(18);
+  doc.setFontSize(16); // Reduced from 18 to prevent overlap
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(orange[0], orange[1], orange[2]);
-  doc.text('TBJ CONSTECH', 32, 18); 
-  doc.setFontSize(9);
+  doc.text('TBJ CONSTECH', 28, 17); 
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0);
-  doc.text('Virtual Construction & Material Supply System', 32, 23);
-  doc.text('QA/QC Verified | Jakarta | 081213496672', 32, 27);
+  doc.text('Virtual Construction & Material Supply System', 28, 22);
+  doc.text('QA/QC Verified | 081213496672', 28, 26);
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
@@ -359,7 +359,7 @@ export const generateInvoicePDF = async (
     doc.setTextColor(100);
     doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 107, 0);
+    doc.setTextColor(orange[0], orange[1], orange[2]);
     doc.text('TUKANG BANGUNAN JAKARTA (TBJ CONSTECH)', 10, pageHeight - 20);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
@@ -479,60 +479,119 @@ export const generateAIPDF = async (projectName: string, estimation: AIEstimateR
   const doc = new jsPDF();
   const logoUrl = customLogoUrl || TBJ_LOGO;
   const base64Logo = await imageUrlToBase64(logoUrl);
+  const orange = [255, 107, 0];
+
+  // Brand Footer Helper
+  const addFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
+    const pageHeight = doc.internal.pageSize.height;
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(orange[0], orange[1], orange[2]);
+    doc.text('TUKANG BANGUNAN JAKARTA (TBJ CONSTECH)', 10, pageHeight - 20);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: TBJ Constech', 10, pageHeight - 15);
+    doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
+  };
 
   // Header
   try {
-    doc.addImage(base64Logo, 'PNG', 10, 10, 30, 30);
+    doc.addImage(base64Logo, 'PNG', 10, 8, 18, 18);
   } catch (e) {
-    console.error('Failed to add logo to PDF:', e);
-    doc.rect(10, 10, 30, 30, 'S');
+    doc.rect(10, 8, 18, 18, 'S');
     doc.setFontSize(8);
-    doc.text('LOGO', 18, 27);
+    doc.text('LOGO', 15, 18);
   }
-  doc.setFontSize(22);
+  doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('TBJ HUB', 50, 25);
-  doc.setFontSize(10);
+  doc.setTextColor(orange[0], orange[1], orange[2]);
+  doc.text('TBJ CONSTECH', 32, 18);
+  
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text('AI ESTIMATION SUMMARY', 150, 25);
+  doc.setTextColor(0);
+  doc.text('AI Strategic Estimation & Technical Insight', 32, 23);
+  doc.text('Jakarta | Verified AI Prediction v2.4', 32, 27);
 
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0);
+  doc.text('AI ESTIMATION RESULT', 200, 25, { align: 'right' });
+  doc.setFontSize(9);
+  doc.setTextColor(150);
+  doc.text(`TGL: ${new Date().toLocaleDateString('id-ID')}`, 200, 31, { align: 'right' });
+
+  // Orange Line
+  doc.setDrawColor(orange[0], orange[1], orange[2]);
+  doc.setLineWidth(1);
   doc.line(10, 45, 200, 45);
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Project: ${projectName}`, 10, 55);
+  doc.setTextColor(0);
+  doc.text(`PROYEK: ${projectName.toUpperCase()}`, 10, 55);
+
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Date: ${new Date().toLocaleDateString()}`, 10, 62);
-
   doc.setFont('helvetica', 'bold');
-  doc.text('AI ANALYSIS:', 10, 72);
-  doc.setFont('helvetica', 'normal');
-  const splitAnalysis = doc.splitTextToSize(estimation.analysis, 180);
-  doc.text(splitAnalysis, 10, 79);
+  doc.text('AI STRATEGIC SUMMARY:', 10, 68);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(80);
+  const splitAnalysis = doc.splitTextToSize(`"${estimation.analysis}"`, 180);
+  doc.text(splitAnalysis, 10, 75);
 
-  const startY = 79 + (splitAnalysis.length * 5) + 10;
+  const startY = 75 + (splitAnalysis.length * 6) + 5;
 
-  const tableData = estimation.items.map(item => [
-    item.name,
+  const tableData = estimation.items.map((item, idx) => [
+    idx + 1,
+    item.name.toUpperCase(),
     item.quantity,
     item.unit,
-    `Rp ${item.pricePerUnit.toLocaleString()}`,
-    `Rp ${item.totalPrice.toLocaleString()}`
+    `Rp ${item.pricePerUnit.toLocaleString('id-ID')}`,
+    `Rp ${item.totalPrice.toLocaleString('id-ID')}`
   ]);
 
   autoTable(doc, {
     startY: startY,
-    head: [['Item Description', 'Qty', 'Unit', 'Price', 'Total']],
+    head: [['NO', 'ITEM DESCRIPTION', 'QTY', 'UNIT', 'PRICE/UNIT', 'TOTAL PRICE']],
     body: tableData,
     theme: 'grid',
-    headStyles: { fillColor: [0, 0, 0] }
+    headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], halign: 'center', fontSize: 9 },
+    bodyStyles: { fontSize: 8 },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 10 },
+      1: { cellWidth: 70 },
+      2: { halign: 'center', cellWidth: 15 },
+      3: { halign: 'center', cellWidth: 15 },
+      4: { halign: 'right', cellWidth: 35 },
+      5: { halign: 'right', cellWidth: 35 }
+    }
   });
 
-  const finalY = (doc as any).lastAutoTable.finalY;
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`TOTAL ESTIMATED COST: Rp ${estimation.totalEstimatedCost.toLocaleString()}`, 10, finalY + 15);
+  const finalY = (doc as any).lastAutoTable.finalY + 15;
+  
+  if (finalY > 260) {
+    doc.addPage();
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ESTIMASI TOTAL:', 130, 20);
+    doc.setTextColor(orange[0], orange[1], orange[2]);
+    doc.text(`Rp ${estimation.totalEstimatedCost.toLocaleString('id-ID')}`, 200, 20, { align: 'right' });
+  } else {
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ESTIMASI TOTAL:', 130, finalY);
+    doc.setTextColor(orange[0], orange[1], orange[2]);
+    doc.text(`Rp ${estimation.totalEstimatedCost.toLocaleString('id-ID')}`, 200, finalY, { align: 'right' });
+  }
+
+  // Footer with Page Numbers
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    addFooter(doc, i, totalPages);
+  }
 
   doc.save(`AI-Estimation-${projectName.replace(/\s+/g, '-')}.pdf`);
 };

@@ -509,7 +509,10 @@ export function useProperties() {
 
   const addProperty = async (data: Omit<Property, "id">) => {
     try {
-      await addDoc(collection(db, "properties"), data);
+      await addDoc(collection(db, "properties"), {
+        ...data,
+        published: true // Default to published for now
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, "properties");
     }
@@ -554,6 +557,7 @@ export function useGallery() {
     try {
       await addDoc(collection(db, "gallery"), {
         ...data,
+        published: true, // Default to true
         createdAt: new Date().toISOString()
       });
       toast.success("Gallery item added");
@@ -571,7 +575,16 @@ export function useGallery() {
     }
   };
 
-  return { gallery, loading, addGalleryItem, deleteGalleryItem };
+  const updateGalleryItem = async (id: string, data: Partial<GalleryItem>) => {
+    try {
+      await updateDoc(doc(db, "gallery", id), data);
+      toast.success("Gallery item updated");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `gallery/${id}`);
+    }
+  };
+
+  return { gallery, loading, addGalleryItem, deleteGalleryItem, updateGalleryItem };
 }
 
 export function useMediaAssets(category?: MediaCategory, projectId?: string) {
@@ -1268,9 +1281,10 @@ export function useMaterialRequests(userRole?: string) {
       const now = new Date().toISOString();
       await addDoc(collection(db, "material_requests"), {
         ...data,
+        note: data.note || "",
         createdAt: now,
         updatedAt: now,
-        log: [{ time: now, action: "Request created", note: data.note }]
+        log: [{ time: now, action: "Request created", note: data.note || "Initial request" }]
       });
       toast.success("Material request sent");
     } catch (error) {
@@ -1288,11 +1302,20 @@ export function useMaterialRequests(userRole?: string) {
       await updateDoc(docRef, {
         status,
         updatedAt: now,
-        log: [...currentLog, { time: now, action: `Status changed to ${status}`, note }]
+        log: [...currentLog, { time: now, action: `Status changed to ${status}`, note: note || "" }]
       });
       toast.success(`Request ${status}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `material_requests/${id}`);
+    }
+  };
+
+  const deleteRequest = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "material_requests", id));
+      toast.success("Request deleted successfully");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `material_requests/${id}`);
     }
   };
 
@@ -1316,7 +1339,7 @@ export function useMaterialRequests(userRole?: string) {
     }
   };
 
-  return { requests, loading, addRequest, updateRequestStatus, assignVendor };
+  return { requests, loading, addRequest, updateRequestStatus, deleteRequest, assignVendor };
 }
 
 export function useMaterialSuggestions() {

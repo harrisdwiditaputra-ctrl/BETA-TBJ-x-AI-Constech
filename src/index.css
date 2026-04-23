@@ -19,9 +19,9 @@
 
     --color-background: #F9F9F8; 
     --color-foreground: #2D2D2D; 
-    --color-primary: #FF6B00; /* Cosmic Orange as Primary */
+    --color-primary: #ff6B00; /* Cosmic Orange as Primary */
     --color-primary-foreground: #FFFFFF;
-    --color-accent: #FF6B00; /* Cosmic Orange */
+    --color-accent: #ff6B00; /* Cosmic Orange */
     --color-titanium: #3C3C3C; /* Titanium Grey */
     --color-space-grey: #4A4A4A; /* Space Grey */
     --color-dark-grey: #1A1A1A; /* Dark Grey */
@@ -35,20 +35,20 @@
     --card-foreground: #2D2D2D;
     --popover: #FFFFFF;
     --popover-foreground: #2D2D2D;
-    --primary: #FF6B00;
+    --primary: #ff6B00;
     --primary-foreground: #FFFFFF;
     --secondary: #F1F1F0;
     --secondary-foreground: #2D2D2D;
     --muted: #F1F1F0;
     --muted-foreground: #717171;
-    --accent: #FF6B00;
+    --accent: #ff6B00;
     --accent-foreground: #FFFFFF;
     --space-grey: #4A4A4A;
     --dark-grey: #1A1A1A;
     --destructive: #A65D5D;
     --border: rgba(26, 26, 26, 0.1);
     --input: rgba(26, 26, 26, 0.05);
-    --ring: #FF6B00;
+    --ring: #ff6B00;
     --radius: 4px;
 }
 
@@ -84,7 +84,7 @@
   }
 
   .btn-orange {
-    @apply bg-accent text-white hover:bg-[#E65F00] transition-colors border-none rounded-xl font-black uppercase tracking-tighter;
+    @apply bg-accent text-white hover:bg-[#e66000] transition-colors border-none rounded-xl font-black uppercase tracking-tighter;
   }
 
   .box-thin {

@@ -103,6 +103,7 @@ export interface Property {
   features: string[];
   status: "available" | "sold" | "rented" | "requested";
   category?: string; // e.g. Rumah, Ruko, Tanah
+  published?: boolean;
 }
 
 export interface Workforce {
@@ -264,6 +265,7 @@ export interface GalleryItem {
   imageUrl: string;
   category: string;
   createdAt: string;
+  published?: boolean;
 }
 
 export type MediaCategory = 'system' | 'finance' | 'marketing' | 'projects';

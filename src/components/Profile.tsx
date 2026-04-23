@@ -233,14 +233,14 @@ export default function Profile() {
                         ].map(report => (
                           <div key={report.id} className="min-w-[140px] space-y-2">
                             <Dialog>
-                              <DialogTrigger>
+                              <DialogTrigger nativeButton={false} render={
                                 <div className="aspect-square rounded-xl border-2 border-black/5 overflow-hidden relative group cursor-pointer shadow-sm">
                                   <img src={`https://picsum.photos/seed/${report.img}/200/200`} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                     <span className="text-[8px] text-white font-black uppercase">{report.date}</span>
                                   </div>
                                 </div>
-                              </DialogTrigger>
+                              } />
                               <DialogContent className="max-w-3xl border-2 border-black rounded-3xl p-0 overflow-hidden">
                                 <img src={`https://picsum.photos/seed/${report.img}/800/800`} className="w-full aspect-video object-cover" />
                                 <div className="p-6 bg-white">
@@ -313,7 +313,7 @@ export default function Profile() {
                           {t.status === 'pending' && (
                             <div className="pt-2">
                               <Dialog>
-                                <DialogTrigger render={
+                                <DialogTrigger nativeButton={false} render={
                                   <div className="w-full btn-orange h-10 text-[10px] gap-2 flex items-center justify-center cursor-pointer rounded-md">
                                     <ShieldCheck className="w-4 h-4" /> Setujui Pencairan Dana
                                   </div>
@@ -362,11 +362,11 @@ export default function Profile() {
                       <AlertCircle className="w-5 h-5 text-accent" /> Catatan & Request Tambahan
                     </h3>
                     <Dialog>
-                      <DialogTrigger>
+                      <DialogTrigger nativeButton={false} render={
                         <div className="rounded-xl uppercase-soft h-8 text-[9px] gap-2 border-2 border-black px-3 flex items-center justify-center cursor-pointer hover:bg-neutral-50 transition-colors">
                           <Plus className="w-3 h-3" /> New Request
                         </div>
-                      </DialogTrigger>
+                      } />
                       <DialogContent className="max-w-md border-2 border-black rounded-3xl">
                         <DialogHeader>
                           <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Tambah Request Baru</DialogTitle>
@@ -450,14 +450,14 @@ export default function Profile() {
 
                         <div className="flex items-center justify-between pt-1">
                           <Dialog>
-                            <DialogTrigger>
+                            <DialogTrigger nativeButton={false} render={
                               <div className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity">
                                 <div className="w-8 h-8 rounded-md border border-black/10 overflow-hidden">
                                   <img src={`https://picsum.photos/seed/${req.photo}/100/100`} className="w-full h-full object-cover" />
                                 </div>
                                 <span className="text-[9px] font-bold uppercase text-neutral-400">Lihat Foto</span>
                               </div>
-                            </DialogTrigger>
+                            } />
                             <DialogContent className="max-w-2xl border-2 border-black rounded-3xl p-0 overflow-hidden">
                               <img src={`https://picsum.photos/seed/${req.photo}/800/800`} className="w-full aspect-square object-cover" />
                             </DialogContent>

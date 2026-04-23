@@ -57,11 +57,11 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
           <div className="flex justify-between h-20">
             <div className="flex items-center">
               <Link to="/" className="flex-shrink-0 flex items-center gap-3 group">
-                <div className="w-12 h-12 flex items-center justify-center transition-transform group-hover:rotate-6 rounded-xl overflow-hidden">
+                <div className="w-12 h-12 flex items-center justify-center transition-transform group-hover:rotate-6 rounded-xl overflow-hidden border-2 border-accent bg-white shadow-[4px_4px_0px_0px_rgba(255,107,0,0.2)]">
                   <img 
                     src={headerLogo} 
                     alt="TBJ Logo" 
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
                 </div>
@@ -165,11 +165,11 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex flex-col items-center md:items-start gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center rounded-lg overflow-hidden">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl overflow-hidden border border-black bg-white">
                 <img 
                   src={footerLogo} 
                   alt="TBJ Logo" 
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
               </div>

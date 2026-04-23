@@ -1,6 +1,6 @@
 import { WorkItemMaster } from "./types";
 
-export const TBJ_LOGO = "https://dummyimage.com/600x200/ff6b00/ffffff.png&text=TBJ+CONSTECH"; // Background orange with font tbj constech
+export const TBJ_LOGO = "https://dummyimage.com/400x400/ff6b00/ffffff.png&text=TBJ+CONSTECH"; // Square logo with Cosmic Orange
 export const QRIS_IMAGE = "https://picsum.photos/seed/qris/400/400"; // Placeholder QRIS
 
 export const WORK_ITEMS_MASTER: WorkItemMaster[] = [
