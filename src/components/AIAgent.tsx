@@ -30,23 +30,25 @@ export default function AIAgent() {
   const [selectedImage, setSelectedImage] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    scrollToBottom();
+  }, []);
+
   const scrollToTop = () => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = 0;
+      scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }
   };
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+    scrollToBottom();
+  }, [messages, isLoading]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -87,21 +89,28 @@ export default function AIAgent() {
 
       const ai = new GoogleGenAI({ apiKey });
 
-      const masterDataSample = masterData.slice(0, 100).map(item => `- ${item.name}: Rp ${item.price.toLocaleString('id-ID')} (${item.unit})`).join('\n');
+      const markupFactor = 1.2; // 20% Markup
+      const masterDataSample = masterData.slice(0, 100).map(item => {
+        const markedUpPrice = item.price * markupFactor;
+        return `- ${item.name}: Rp ${markedUpPrice.toLocaleString('id-ID')} (${item.unit})`;
+      }).join('\n');
 
       const promptText = `Anda adalah "TBJ Constech OS", Chief Estimator AI eksklusif untuk platform TBJ Constech. 
       Tugas Anda adalah memberikan saran teknis, estimasi kasar, dan solusi desain yang sangat profesional.
       
-      DATA REFERENSI ITEM (Harga di bawah adalah harga dasar, Anda WAJIB menaikkan 20% sebelum menjawab):
+      DATA REFERENSI ITEM (Sudah termasuk Markup 20%):
       ${masterDataSample}
 
       LOGIKA LAYANAN:
       1. Gunakan istilah "Digital Assessment" sebagai pengganti "Survey".
-      2. Biaya Digital Assessment adalah Rp 399.000 (Murni & Mutlak).
-      3. Jangan pernah membocorkan harga modal (base price).
-      4. Markup Global 20% sudah diaplikasikan pada harga yang Anda berikan.
-      5. Anda berbicara sebagai sistem operasi yang cerdas dan solutif.
-      6. Verifikasi WhatsApp (waVerified) sangat penting untuk akses fitur premium.
+      2. Biaya Digital Assessment (Survey) adalah Rp 399.000. JANGAN PERNAH memberikan angka lain.
+      3. Pembayaran via Transfer Bank BRI: 4792-0103-1488-535 an TBJ CONTRACTOR atau via QRIS resmi TBJ.
+      4. Jangan pernah membocorkan harga modal (base price) atau markup percentage.
+      5. Jangan tampilkan harga satuan (price per unit) untuk tiap item dalam jawaban Anda.
+      6. Berikan saja Nama Item, Analisis/Reasoning, Volume/QTY, dan di bagian akhir berikan "Total Estimasi Biaya" (Grand Total).
+      7. Anda berbicara sebagai sistem operasi "TBJ Constech OS" yang cerdas, solutif, dan tegas.
+      8. Verifikasi WhatsApp (waVerified) sangat penting untuk akses fitur premium.
+      9. Jika user bertanya tentang Landscape, Event, atau Booth Konstruksi, layani dengan Analisis AI dan sarankan Luas Area m2.
       
       ROLE USER: ${user?.role || 'Guest'}
       TIER USER: ${user?.tier || 'prospect'}

@@ -18,6 +18,8 @@ export interface Project {
   location?: string;
   locationCoords?: { lat: number; lng: number }; // Added for multi-site tracking
   area?: number;
+  type?: string;
+  category?: string;
   dailyReports?: DailyReport[];
   requests?: ProjectRequest[];
   cctvUrls?: { id: string; name: string; url: string }[];
@@ -225,6 +227,13 @@ export interface CMSConfig {
   heroSubtitle: string;
   promoText: string;
   promoActive: boolean;
+  // Dynamic Payment & Transfer Instructions
+  paymentBankName?: string;
+  paymentAccountNumber?: string;
+  paymentAccountHolder?: string;
+  paymentQrisInstructions?: string;
+  surveyPaymentTerms?: string;
+  surveyBenefits?: string[];
 }
 
 export interface Campaign {
@@ -236,6 +245,7 @@ export interface Campaign {
   content: string;
   locations: string[];
   createdAt: string;
+  scheduledDeleteDate?: string;
 }
 
 export interface SystemConfig {

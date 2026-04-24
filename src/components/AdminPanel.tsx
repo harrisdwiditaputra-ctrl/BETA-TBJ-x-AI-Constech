@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -89,6 +90,11 @@ export default function AdminPanel() {
   const { categories: masterCategories } = useMasterCategories();
   const { users, loading: usersLoading, updateUser } = useUsers(user?.role);
   const { projects, loading: projectsLoading, updateProject, deleteProject, fixProjectMilestones } = useProjects(undefined, user?.role);
+  const [projectSearch, setProjectSearch] = useState("");
+  const [projectCategory, setProjectCategory] = useState("all");
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [campaignSearch, setCampaignSearch] = useState("");
+  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
   const { workforce, loading: workforceLoading, addWorkforce, updateWorkforce, deleteWorkforce } = useWorkforce(user?.role);
   const { requests, loading: requestsLoading, updateRequestStatus, assignVendor, addRequest, deleteRequest } = useMaterialRequests(user?.role);
   const { suggestions: materialSuggestions, addSuggestion } = useMaterialSuggestions();
@@ -1761,19 +1767,50 @@ export default function AdminPanel() {
 
           {activeTab === "projects" && (
             <div className="space-y-8">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-black uppercase tracking-tighter">Project Portfolio</h2>
-                <div className="flex gap-2">
-                  <Badge className="bg-green-100 text-green-700 border-none uppercase-soft">Active: {projects.filter(p => p.status === 'active').length}</Badge>
-                  <Badge className="bg-blue-100 text-blue-700 border-none uppercase-soft">Survey: {projects.filter(p => p.status === 'survey').length}</Badge>
-                  <Button className="btn-sleek h-10 px-6 rounded-xl ml-4" onClick={() => navigate("/pm")}>
-                    <LayoutDashboard className="w-4 h-4 mr-2" /> Global PM Dashboard
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 border-2 border-black rounded-3xl">
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-black uppercase tracking-tighter">Project Portfolio</h2>
+                  <div className="flex gap-2">
+                    <Badge className="bg-green-100 text-green-700 border-none uppercase-soft">Active: {projects.filter(p => p.status === 'active').length}</Badge>
+                    <Badge className="bg-blue-100 text-blue-700 border-none uppercase-soft">Survey: {projects.filter(p => p.status === 'survey').length}</Badge>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+                  <select 
+                    className="h-10 px-4 border-2 border-black/10 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none bg-neutral-50 w-full md:w-40"
+                    value={projectCategory}
+                    onChange={e => setProjectCategory(e.target.value)}
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="Renovasi">Renovasi</option>
+                    <option value="Interior">Interior</option>
+                    <option value="Arsitektur">Arsitektur</option>
+                    <option value="Landskap">Landskap</option>
+                    <option value="Maintenance">Maintenance</option>
+                  </select>
+                  <div className="relative w-full md:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                    <Input 
+                      placeholder="Search projects..." 
+                      className="pl-10 h-10 rounded-xl border-2 border-black/10 text-xs font-bold"
+                      value={projectSearch}
+                      onChange={e => setProjectSearch(e.target.value)}
+                    />
+                  </div>
+                  <Button className="btn-sleek h-10 px-6 rounded-xl w-full md:w-auto" onClick={() => navigate("/pm")}>
+                    <LayoutDashboard className="w-4 h-4 mr-2" /> Global Dashboard
                   </Button>
                 </div>
               </div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {projects.map(p => (
+                {projects.filter(p => {
+                  const matchesSearch = p.name.toLowerCase().includes(projectSearch.toLowerCase()) || 
+                                        p.location.toLowerCase().includes(projectSearch.toLowerCase());
+                  const matchesCategory = projectCategory === "all" || p.category === projectCategory || p.type === projectCategory;
+                  return matchesSearch && matchesCategory;
+                }).map(p => (
                   <Card key={p.id} className="border-2 border-black rounded-3xl overflow-hidden shadow-sm group hover:border-accent transition-all">
                     <div className="h-48 bg-neutral-100 relative">
                       <img src={getDriveImageUrl(p.imageUrl) || `https://picsum.photos/seed/${p.id}/400/300`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -1884,7 +1921,7 @@ export default function AdminPanel() {
 
               {selectedProjectAI && (
                 <Dialog open={!!selectedProjectAI} onOpenChange={() => setSelectedProjectAI(null)}>
-                  <DialogContent className="max-w-3xl rounded-3xl border-2 border-black p-0 overflow-hidden">
+                  <DialogContent className="max-w-3xl rounded-3xl border-2 border-black p-0 overflow-hidden bg-white shadow-2xl">
                     <div className="bg-black text-white p-8 relative">
                       <div className="absolute top-0 right-0 p-8 opacity-10">
                         <Brain className="w-32 h-32" />
@@ -1900,20 +1937,20 @@ export default function AdminPanel() {
                     </div>
                     <div className="p-6 space-y-6">
                       <div className="grid md:grid-cols-3 gap-4">
-                        <div className="p-3 bg-green-50 rounded-xl border-2 border-green-200">
-                          <p className="uppercase-soft text-green-600 text-[8px]">Financial Health</p>
-                          <p className="text-xl font-black text-green-700">EXCELLENT</p>
-                          <p className="text-[8px] text-green-600/60 mt-1">Margin aman di 18.4%</p>
+                        <div className="p-3 bg-green-100 rounded-xl border-2 border-green-300">
+                          <p className="uppercase-soft text-green-700 text-[8px]">Financial Health</p>
+                          <p className="text-xl font-black text-green-800">EXCELLENT</p>
+                          <p className="text-[8px] text-green-700 mt-1">Margin aman di 18.4%</p>
                         </div>
-                        <div className="p-3 bg-blue-50 rounded-xl border-2 border-blue-200">
-                          <p className="uppercase-soft text-blue-600 text-[8px]">Progress Health</p>
-                          <p className="text-xl font-black text-blue-700">ON TRACK</p>
-                          <p className="text-[8px] text-blue-600/60 mt-1">Deviasi: -0.2% (Normal)</p>
+                        <div className="p-3 bg-blue-100 rounded-xl border-2 border-blue-300">
+                          <p className="uppercase-soft text-blue-700 text-[8px]">Progress Health</p>
+                          <p className="text-xl font-black text-blue-800">ON TRACK</p>
+                          <p className="text-[8px] text-blue-700 mt-1">Deviasi: -0.2% (Normal)</p>
                         </div>
-                        <div className="p-3 bg-accent/5 rounded-xl border-2 border-accent/20">
+                        <div className="p-3 bg-accent/20 rounded-xl border-2 border-accent/40">
                           <p className="uppercase-soft text-accent text-[8px]">Worker Progress</p>
                           <p className="text-xl font-black text-accent">OPTIMAL</p>
-                          <p className="text-[8px] text-accent/60 mt-1">Bobot harian: 1.2%</p>
+                          <p className="text-[8px] text-accent mt-1">Bobot harian: 1.2%</p>
                         </div>
                       </div>
 
@@ -2225,6 +2262,121 @@ export default function AdminPanel() {
                 </CardContent>
               </Card>
 
+              <Card className="border-2 border-black rounded-2xl overflow-hidden">
+                <CardHeader className="bg-neutral-50 border-b-2 border-black">
+                  <CardTitle className="text-xl font-black uppercase tracking-tighter">AI Rate Card & Payment Instructions (Step 4-5)</CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-8">
+                  <div className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-accent">Bank Transfer Details</h4>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black uppercase text-neutral-400">Bank Name</label>
+                            <Input 
+                              value={cmsForm?.paymentBankName || ""} 
+                              onChange={e => setCmsForm({ ...cmsForm, paymentBankName: e.target.value })} 
+                              placeholder="e.g. BRI"
+                              className="h-9 border-2 border-black/10 rounded-xl font-black text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black uppercase text-neutral-400">Account Holder</label>
+                            <Input 
+                              value={cmsForm?.paymentAccountHolder || ""} 
+                              onChange={e => setCmsForm({ ...cmsForm, paymentAccountHolder: e.target.value })} 
+                              placeholder="e.g. TBJ CONTRACTOR"
+                              className="h-9 border-2 border-black/10 rounded-xl font-black text-xs uppercase"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-black uppercase text-neutral-400">Account Number</label>
+                          <Input 
+                            value={cmsForm?.paymentAccountNumber || ""} 
+                            onChange={e => setCmsForm({ ...cmsForm, paymentAccountNumber: e.target.value })} 
+                            placeholder="Digits only"
+                            className="h-9 border-2 border-black/10 rounded-xl font-black text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">QRIS & Assessment Info</h4>
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-black uppercase text-neutral-400">QRIS Subtitle / Instructions</label>
+                          <Input 
+                            value={cmsForm?.paymentQrisInstructions || ""} 
+                            onChange={e => setCmsForm({ ...cmsForm, paymentQrisInstructions: e.target.value })} 
+                            placeholder="e.g. Scan & Pay via All E-Wallet"
+                            className="h-9 border-2 border-black/10 rounded-xl font-black text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-black uppercase text-neutral-400">Payment Terms Footer</label>
+                          <Input 
+                            value={cmsForm?.surveyPaymentTerms || ""} 
+                            onChange={e => setCmsForm({ ...cmsForm, surveyPaymentTerms: e.target.value })} 
+                            placeholder="e.g. *Biaya ini akan kami kembalikan..."
+                            className="h-9 border-2 border-black/10 rounded-xl italic text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t-2 border-black/5">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-black">Digital Assessment Key Benefits</h4>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-8 text-[9px] font-black uppercase border-black/20"
+                        onClick={() => {
+                          const benefits = cmsForm?.surveyBenefits || [];
+                          setCmsForm({ ...cmsForm, surveyBenefits: [...benefits, "New Benefit"] });
+                        }}
+                      >
+                        <Plus className="w-3 h-3 mr-1" /> Add Benefit
+                      </Button>
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      {(cmsForm?.surveyBenefits || []).map((benefit, i) => (
+                        <div key={i} className="flex items-center gap-2 bg-neutral-50 p-2 rounded-xl border border-black/5">
+                          <Input 
+                            value={benefit} 
+                            onChange={e => {
+                              const newBenefits = [...(cmsForm?.surveyBenefits || [])];
+                              newBenefits[i] = e.target.value;
+                              setCmsForm({ ...cmsForm, surveyBenefits: newBenefits });
+                            }}
+                            className="h-8 border-none bg-transparent text-[10px] font-bold uppercase p-1 focus-visible:ring-0"
+                          />
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6 text-red-500 hover:bg-red-50"
+                            onClick={() => {
+                              const newBenefits = (cmsForm?.surveyBenefits || []).filter((_, idx) => idx !== i);
+                              setCmsForm({ ...cmsForm, surveyBenefits: newBenefits });
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end border-t-2 border-black pt-6 mt-4">
+                    <Button className="btn-sleek px-12 h-12 rounded-xl" onClick={handleSaveCMS}>Save Content Updates</Button>
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card className="border-2 border-black rounded-2xl p-6 bg-accent text-white relative overflow-hidden">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-black uppercase tracking-tighter">Daily AI Content Suggestions</h3>
@@ -2475,29 +2627,109 @@ export default function AdminPanel() {
               </div>
 
               <Card className="border-2 border-black rounded-2xl overflow-hidden">
-                <CardHeader className="bg-neutral-50 border-b-2 border-black flex flex-row items-center justify-between">
-                  <CardTitle className="text-xl font-black uppercase tracking-tighter">Active Campaigns</CardTitle>
-                  <Button className="btn-sleek h-10 px-6 rounded-xl" onClick={() => {
-                    setEditingCampaign({ name: "", content: "", status: "Draft" });
-                    setShowEditCampaign(true);
-                  }}>
-                    <Plus className="w-4 h-4 mr-2" /> New Campaign
-                  </Button>
-                </CardHeader>
-                <CardContent className="p-8 space-y-6">
-                  {campaigns.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between p-6 border-2 border-black rounded-2xl hover:bg-neutral-50 transition-colors cursor-pointer group" onClick={() => {
-                      setEditingCampaign(c);
+                <CardHeader className="bg-neutral-50 border-b-2 border-black flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <CardTitle className="text-xl font-black uppercase tracking-tighter">Marketing Campaigns</CardTitle>
+                    {selectedCampaigns.length > 0 && (
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        className="h-8 px-4 rounded-full text-[8px] uppercase font-black"
+                        onClick={async () => {
+                          if (confirm(`Hapus ${selectedCampaigns.length} campaign terpilih?`)) {
+                            for (const id of selectedCampaigns) await deleteCampaign(id);
+                            setSelectedCampaigns([]);
+                            toast.success("Bulk delete complete.");
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3 mr-2" /> Bulk Delete ({selectedCampaigns.length})
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+                    <div className="relative w-full md:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                      <Input 
+                        placeholder="Search campaigns..." 
+                        className="pl-10 h-10 rounded-xl border-2 border-black/10 text-xs font-bold bg-white"
+                        value={campaignSearch}
+                        onChange={e => setCampaignSearch(e.target.value)}
+                      />
+                    </div>
+                    <Button className="btn-sleek h-10 px-6 rounded-xl w-full md:w-auto" onClick={() => {
+                      setEditingCampaign({ name: "", content: "", status: "Draft", reach: "0", conversion: "0%" });
                       setShowEditCampaign(true);
                     }}>
-                      <div className="space-y-1">
-                        <p className="font-black text-sm uppercase tracking-widest">{c.name}</p>
-                        <p className="text-[10px] text-neutral-400">Reach: {c.reach} | Conversion: {c.conversion}</p>
-                        <p className="text-[10px] italic text-neutral-500 line-clamp-1">{c.content}</p>
+                      <Plus className="w-4 h-4 mr-2" /> New Campaign
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6 max-h-[600px] overflow-y-auto custom-scrollbar">
+                  {campaigns.filter(c => 
+                    c.name.toLowerCase().includes(campaignSearch.toLowerCase()) || 
+                    c.content.toLowerCase().includes(campaignSearch.toLowerCase())
+                  ).map((c) => (
+                    <div 
+                      key={c.id} 
+                      className={cn(
+                        "flex items-center justify-between p-6 border-2 border-black rounded-2xl hover:bg-neutral-50 transition-colors cursor-pointer group",
+                        selectedCampaigns.includes(c.id) ? "border-accent bg-accent/5" : "border-black"
+                      )}
+                    >
+                      <div className="flex items-center gap-4 flex-grow">
+                        <Checkbox 
+                          checked={selectedCampaigns.includes(c.id)}
+                          onCheckedChange={() => {
+                            setSelectedCampaigns(prev => 
+                              prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id]
+                            );
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="space-y-1" onClick={() => {
+                          setEditingCampaign(c);
+                          setShowEditCampaign(true);
+                        }}>
+                          <p className="font-black text-sm uppercase tracking-widest">{c.name}</p>
+                          <div className="flex items-center gap-3">
+                            <p className="text-[10px] text-neutral-400">Reach: {c.reach} | Conv: {c.conversion}</p>
+                            {c.scheduledDeleteDate && (
+                              <Badge className="bg-red-50 text-red-500 text-[8px] border-none uppercase font-black">
+                                <Clock className="w-2 h-2 mr-1" /> Scheduled: {new Date(c.scheduledDeleteDate).toLocaleDateString()}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] italic text-neutral-500 line-clamp-1">{c.content}</p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-4">
                         <Badge className={cn("uppercase-soft", c.status === "Active" ? "bg-green-500 text-white" : "bg-neutral-200")}>{c.status}</Badge>
-                        <ChevronRight className="w-4 h-4 text-neutral-300 group-hover:text-black transition-colors" />
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-neutral-300 hover:text-black"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCampaign(c);
+                              setShowEditCampaign(true);
+                            }}
+                          >
+                            <Settings className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-neutral-300 hover:text-red-500"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if(confirm("Hapus campaign ini?")) deleteCampaign(c.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -2566,6 +2798,25 @@ export default function AdminPanel() {
                           ))}
                         </div>
                       </div>
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="uppercase-soft text-[10px]">Reach Count Estimate</label>
+                          <Input 
+                            value={editingCampaign.reach || ""} 
+                            onChange={e => setEditingCampaign({...editingCampaign, reach: e.target.value})}
+                            placeholder="e.g. 1.2k" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="uppercase-soft text-[10px] text-red-500">Scheduled Auto-Delete (Optional)</label>
+                          <Input 
+                            type="date" 
+                            value={editingCampaign.scheduledDeleteDate || ""} 
+                            onChange={e => setEditingCampaign({...editingCampaign, scheduledDeleteDate: e.target.value})} 
+                            className="border-red-100"
+                          />
+                        </div>
+                      </div>
                       <div className="flex justify-end gap-4 pt-4">
                         <Button variant="ghost" onClick={() => setShowEditCampaign(false)}>Cancel</Button>
                         <Button className="btn-sleek px-8" onClick={handleSaveCampaign}>Publish Campaign</Button>
@@ -2579,13 +2830,26 @@ export default function AdminPanel() {
 
           {activeTab === "materials" && (
             <div className="space-y-8">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-black uppercase tracking-tighter">Material Procurement Hub</h2>
-                <div className="flex gap-2">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 border-2 border-black rounded-3xl">
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-black uppercase tracking-tighter">Material Procurement Hub</h2>
+                  <p className="text-[10px] uppercase font-bold text-neutral-400">Total Requests: {requests.length}</p>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                  <div className="relative w-full md:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                    <Input 
+                      placeholder="Search requests..." 
+                      className="pl-10 h-10 rounded-xl border-2 border-black/10 text-xs font-bold"
+                      value={materialSearch}
+                      onChange={e => setMaterialSearch(e.target.value)}
+                    />
+                  </div>
                   <Dialog>
                     <DialogTrigger render={
                       <Button className="btn-orange h-10 px-6 rounded-xl">
-                        <Plus className="w-4 h-4 mr-2" /> Bulk Order Material
+                        <Plus className="w-4 h-4 mr-2" /> Bulk Order
                       </Button>
                     } />
                     <DialogContent className="max-w-2xl rounded-3xl border-2 border-black">
@@ -2688,7 +2952,11 @@ export default function AdminPanel() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {requests.map((r) => (
+                    {requests.filter(req => 
+                      req.itemName.toLowerCase().includes(materialSearch.toLowerCase()) || 
+                      req.projectName.toLowerCase().includes(materialSearch.toLowerCase()) ||
+                      (req.note && req.note.toLowerCase().includes(materialSearch.toLowerCase()))
+                    ).map((r) => (
                       <TableRow key={r.id}>
                         <TableCell>
                           <div className="space-y-1">
@@ -3225,9 +3493,9 @@ export default function AdminPanel() {
                                     })),
                                     total: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(selectedProjectFinance.totalBudget, systemConfig?.globalMarkup) : calculateClientPrice(selectedProjectFinance.totalBudget, systemConfig?.globalMarkup),
                                     bankInfo: {
-                                      bank: "Bank BRI",
-                                      accNo: "4792-0103-1488-535",
-                                      accName: "an TBJ CONTRACTOR"
+                                      bank: `Bank ${cmsConfig?.paymentBankName || "BRI"}`,
+                                      accNo: cmsConfig?.paymentAccountNumber || "4792-0103-1488-535",
+                                      accName: `an ${cmsConfig?.paymentAccountHolder || "TBJ CONTRACTOR"}`
                                     }
                                   });
                                   toast.success("Invoice Generated Succesfully");
@@ -3242,7 +3510,7 @@ export default function AdminPanel() {
                                 onClick={() => {
                                   const markup = systemConfig?.globalMarkup || 20;
                                   const finalBudget = user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(selectedProjectFinance.totalBudget, markup) : calculateClientPrice(selectedProjectFinance.totalBudget, markup);
-                                  const message = `*OFFICIAL INVOICE - TBJ CONSTECH*%0A%0AProyek: ${selectedProjectFinance.name}%0ATotal Tagihan: Rp ${finalBudget.toLocaleString('id-ID')}%0A%0AMohon segera melakukan pembayaran ke Bank BRI: 4792-0103-1488-535 (a/n TBJ CONTRACTOR).%0A%0A_Dibuat via TBJ Constech OS_`;
+                                  const message = `*OFFICIAL INVOICE - TBJ CONSTECH*%0A%0AProyek: ${selectedProjectFinance.name}%0ATotal Tagihan: Rp ${finalBudget.toLocaleString('id-ID')}%0A%0AMohon segera melakukan pembayaran ke Bank ${cmsConfig?.paymentBankName || "BRI"}: ${cmsConfig?.paymentAccountNumber || "4792-0103-1488-535"} (a/n ${cmsConfig?.paymentAccountHolder || "TBJ CONTRACTOR"}).%0A%0A_Dibuat via TBJ Constech OS_`;
                                   const client = users.find(u => u.uid === selectedProjectFinance.clientId);
                                   window.open(`https://wa.me/${client?.whatsapp || '081213496672'}?text=${encodeURIComponent(message)}`, "_blank");
                                 }}

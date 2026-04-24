@@ -1395,7 +1395,17 @@ export function useCMSConfig() {
           heroTitle: "Membangun Masa Depan Konstruksi Indonesia",
           heroSubtitle: "Platform All-in-One untuk Renovasi, Interior, dan Bangun Baru dengan Teknologi AI.",
           promoText: "Promo Ramadan: Diskon 15% untuk Jasa Desain Interior!",
-          promoActive: true
+          promoActive: true,
+          paymentBankName: "BRI",
+          paymentAccountNumber: "4792-0103-1488-535",
+          paymentAccountHolder: "TBJ CONTRACTOR",
+          paymentQrisInstructions: "Scan & Pay via All E-Wallet / Mobile Banking",
+          surveyPaymentTerms: "*Biaya ini akan kami kembalikan (potong dana) saat proyek Anda dieksekusi.",
+          surveyBenefits: [
+            "Validasi Teknis & Pengukuran Presisi",
+            "Pemeriksaan Struktur & Kelistrikan",
+            "Prioritas Jadwal Pelaksanaan"
+          ]
         });
       }
       setLoading(false);

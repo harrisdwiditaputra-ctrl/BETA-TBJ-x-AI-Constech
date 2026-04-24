@@ -50,6 +50,8 @@ export default function RabPage({ user }: { user: any }) {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [archiveSearch, setArchiveSearch] = useState("");
+  const [archiveType, setArchiveType] = useState<string>("all");
   const [isAddingItem, setIsAddingItem] = useState(false);
   
   // Project Info State
@@ -76,7 +78,7 @@ export default function RabPage({ user }: { user: any }) {
   const canEdit = user?.role === 'admin' || user?.role === 'pm';
 
   const shareToWhatsApp = () => {
-    const message = `Halo, berikut adalah draf RAB Proyek ${projectInfo.projectName} dari TBJ Constech. Total Estimasi: Rp ${grandTotal.toLocaleString('id-ID')}. Silakan cek detailnya di platform kami.`;
+    const message = `Halo, berikut adalah draf RAB Proyek ${projectInfo.projectName} dari TBJ Constech. Total Estimasi: Rp ${(grandTotal || 0).toLocaleString('id-ID')}. Silakan cek detailnya di platform kami.`;
     window.open(`https://wa.me/${projectInfo.contact}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -177,7 +179,7 @@ export default function RabPage({ user }: { user: any }) {
       clientName: est.clientName || user?.displayName || "",
       projectName: est.projectName || "",
       address: est.address || "",
-      date: est.date || new Date().toLocaleDateString('id-ID'),
+      date: est.date || new Date().toISOString(),
       contact: est.contact || user?.whatsapp || "",
     });
     setRabItems(est.items || []);
@@ -253,36 +255,65 @@ export default function RabPage({ user }: { user: any }) {
 
       {activeTab === "archive" ? (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-          <div className="flex justify-between items-center mb-8 bg-neutral-50 p-8 rounded-[32px] border border-black/5">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-8 bg-neutral-50 p-8 rounded-[32px] border border-black/5">
             <div className="space-y-1">
               <h2 className="text-3xl font-black uppercase tracking-tighter">Arsip Estimasi</h2>
               <p className="uppercase-soft text-[10px] text-neutral-400">Kelola dan tinjau kembali draf project Anda</p>
             </div>
-            <Button 
-              className="btn-orange h-14 px-10 rounded-full text-[11px] uppercase font-black tracking-[0.2em] shadow-xl shadow-accent/20 hover:scale-105 transition-transform"
-              onClick={() => {
-                setRabItems([]);
-                setProjectInfo({
-                  clientName: user?.displayName || "",
-                  projectName: "Proyek Konstruksi & Interior TBJ",
-                  address: "Lokasi Proyek",
-                  date: new Date().toLocaleDateString('id-ID'),
-                  contact: user?.whatsapp || "",
-                });
-                setActiveTab("editor");
-                toast.success("Mulai membuat RAB baru.");
-              }}
-            >
-              <Plus className="w-5 h-5 mr-3" /> Buat RAB Baru
-            </Button>
+            
+            <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+              <select
+                className="h-12 px-4 rounded-full border-black/10 text-[10px] font-black uppercase tracking-widest outline-none bg-white min-w-[140px]"
+                value={archiveType}
+                onChange={e => setArchiveType(e.target.value)}
+              >
+                <option value="all">All Categories</option>
+                <option value="Renovasi">Renovasi</option>
+                <option value="Interior">Interior</option>
+                <option value="Arsitektur">Arsitektur</option>
+                <option value="Landskap">Landskap</option>
+                <option value="Maintenance">Maintenance</option>
+              </select>
+              <div className="relative w-full md:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                <Input 
+                  placeholder="Search estimates..." 
+                  className="pl-10 h-12 rounded-full border-black/10 bg-white"
+                  value={archiveSearch}
+                  onChange={e => setArchiveSearch(e.target.value)}
+                />
+              </div>
+              <Button 
+                className="btn-orange h-14 px-10 rounded-full text-[11px] uppercase font-black tracking-[0.2em] shadow-xl shadow-accent/20 hover:scale-105 transition-transform w-full md:w-auto"
+                onClick={() => {
+                  setRabItems([]);
+                  setProjectInfo({
+                    clientName: user?.displayName || "",
+                    projectName: "Proyek Konstruksi & Interior TBJ",
+                    address: "Lokasi Proyek",
+                    date: new Date().toLocaleDateString('id-ID'),
+                    contact: user?.whatsapp || "",
+                  });
+                  setActiveTab("editor");
+                  toast.success("Mulai membuat RAB baru.");
+                }}
+              >
+                <Plus className="w-5 h-5 mr-3" /> Buat RAB Baru
+              </Button>
+            </div>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {estimates.map((est) => (
+            {estimates.filter(est => {
+              const matchesSearch = (est.projectName || "").toLowerCase().includes(archiveSearch.toLowerCase()) ||
+                                    (est.clientName || "").toLowerCase().includes(archiveSearch.toLowerCase());
+              const matchesType = archiveType === "all" || est.type === archiveType;
+              return matchesSearch && matchesType;
+            }).map((est) => (
               <Card key={est.id} className="border border-neutral-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all group">
                 <CardHeader className="bg-neutral-50 border-b border-neutral-100 py-6">
                   <div className="flex justify-between items-start">
                     <Badge variant="outline" className="text-[8px] uppercase font-black border-neutral-200">
-                      {new Date(est.createdAt).toLocaleDateString()}
+                      {(est.createdAt ? new Date(est.createdAt).toLocaleDateString('id-ID') : '-')}
                     </Badge>
                     <Button 
                       variant="ghost" 
@@ -301,7 +332,7 @@ export default function RabPage({ user }: { user: any }) {
                     <div className="space-y-1">
                       <p className="text-[9px] font-black uppercase text-neutral-400 tracking-widest">Total Estimasi</p>
                       <p className="text-xl font-black tracking-tighter">
-                        Rp {est.totalBudget.toLocaleString('id-ID')}
+                        Rp {(est.totalBudget || 0).toLocaleString('id-ID')}
                       </p>
                     </div>
                     <div className="text-right">
@@ -309,12 +340,27 @@ export default function RabPage({ user }: { user: any }) {
                       <p className="text-sm font-bold">{est.items?.length || 0} Item</p>
                     </div>
                   </div>
-                  <Button 
-                    className="w-full btn-sleek rounded-2xl h-12 uppercase font-black text-[10px] gap-2"
-                    onClick={() => handleLoadEstimate(est)}
-                  >
-                    <Plus className="w-4 h-4" /> Buka & Edit
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-grow btn-sleek rounded-2xl h-12 uppercase font-black text-[10px] gap-2"
+                      onClick={() => handleLoadEstimate(est)}
+                    >
+                      <Plus className="w-4 h-4" /> Buka & Edit
+                    </Button>
+                    <Button 
+                      variant="ghost"
+                      className="w-12 h-12 rounded-2xl border border-red-50 text-red-400 hover:bg-red-50 hover:text-red-600"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if(confirm("Hapus arsip estimasi ini?")) {
+                          deleteEstimate(est.id);
+                          toast.success("Estimasi dihapus.");
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -380,7 +426,7 @@ export default function RabPage({ user }: { user: any }) {
           <div className="p-6 bg-neutral-50 rounded-2xl space-y-4">
             <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Financial Summary</p>
             <div className="space-y-1">
-              <p className="text-3xl font-black tracking-tighter">Rp {grandTotal.toLocaleString('id-ID')}</p>
+              <p className="text-3xl font-black tracking-tighter">Rp {(grandTotal || 0).toLocaleString('id-ID')}</p>
               <p className="text-[10px] font-bold text-neutral-400 uppercase">Total Estimated Budget</p>
             </div>
           </div>
@@ -533,10 +579,10 @@ export default function RabPage({ user }: { user: any }) {
                             </TableCell>
                             <TableCell className="text-center font-bold text-[10px] uppercase text-neutral-400">{item.unit}</TableCell>
                             <TableCell className="text-right font-bold text-[10px] text-neutral-600">
-                              Rp {item.price.toLocaleString('id-ID')}
+                              Rp {(item.price || 0).toLocaleString('id-ID')}
                             </TableCell>
                             <TableCell className="text-right font-black text-xs tracking-tighter px-6">
-                              Rp {item.total.toLocaleString('id-ID')}
+                              Rp {(item.total || 0).toLocaleString('id-ID')}
                             </TableCell>
                             {canEdit && (
                               <TableCell>
