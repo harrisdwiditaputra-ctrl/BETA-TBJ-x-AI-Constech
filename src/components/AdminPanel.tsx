@@ -25,7 +25,7 @@ import {
   Loader2, Search, Save, UserPlus, Database, Settings, ShieldCheck, 
   RefreshCw, TrendingUp, DollarSign, Users, Briefcase, Plus, ChevronDown, ChevronUp, ChevronLeft, 
   ChevronRight, Download, Eye, EyeOff, Trash2, Image as ImageIcon, 
-  LayoutDashboard, FileText, HardHat, Camera, BarChart3, Clock, Phone, User,
+  LayoutDashboard, FileText, HardHat, Camera, BarChart3, Clock, Phone, User, Mail, Box,
   CheckCircle2, MapPin, Package, Brain, Zap, AlertCircle, Layers, History, Sparkles, Upload, X, HardDrive, Menu, ExternalLink, Calendar,
   ArrowDownLeft, ArrowUpRight, Lock, Gavel, CreditCard, Truck, BarChart, FileEdit, Link2, BarChart2
 } from "lucide-react";
@@ -250,6 +250,18 @@ export default function AdminPanel() {
   // Pagination State
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [clientsPerPage, setClientsPerPage] = useState(10);
+  const [currentClientPage, setCurrentClientPage] = useState(1);
+  const [vendorsPerPage, setVendorsPerPage] = useState(10);
+  const [currentVendorPage, setCurrentVendorPage] = useState(1);
+
+  // Workforce Filter State
+  const [workerSearch, setWorkerSearch] = useState("");
+  const [selectedWorkerRole, setSelectedWorkerRole] = useState("all");
+  const [selectedWorkerSkill, setSelectedWorkerSkill] = useState("all");
+  const [workerAvailability, setWorkerAvailability] = useState("all");
+  const [currentWorkerPage, setCurrentWorkerPage] = useState(1);
+  const [workersPerPage, setWorkersPerPage] = useState(10);
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]);
@@ -569,6 +581,71 @@ export default function AdminPanel() {
     toast.success("Listing published successfully");
   };
 
+  const filteredClients = useMemo(() => {
+    return users.filter(u => {
+      const matchesSearch = 
+        (u.displayName || "").toLowerCase().includes(clientSearch.toLowerCase()) || 
+        (u.email || "").toLowerCase().includes(clientSearch.toLowerCase()) ||
+        (u.whatsapp || "").toLowerCase().includes(clientSearch.toLowerCase());
+      const matchesTier = projectCategory === "all" || u.tier === projectCategory;
+      return matchesSearch && matchesTier;
+    });
+  }, [users, clientSearch, projectCategory]);
+
+  const paginatedClients = useMemo(() => {
+    const startIndex = (currentClientPage - 1) * clientsPerPage;
+    return filteredClients.slice(startIndex, startIndex + clientsPerPage);
+  }, [filteredClients, currentClientPage, clientsPerPage]);
+
+  const totalClientPages = Math.ceil(filteredClients.length / clientsPerPage);
+
+  const filteredWorkforce = useMemo(() => {
+    return workforce.filter(w => {
+      const s = workerSearch.toLowerCase();
+      const matchesSearch = 
+        (w.name || "").toLowerCase().includes(s) || 
+        (w.role || "").toLowerCase().includes(s) || 
+        (w.skill || "").toLowerCase().includes(s);
+      const matchesRole = selectedWorkerRole === "all" || w.role === selectedWorkerRole;
+      const matchesSkill = selectedWorkerSkill === "all" || w.skill === selectedWorkerSkill;
+      const matchesAvailability = workerAvailability === "all" || w.availability === workerAvailability;
+      return matchesSearch && matchesRole && matchesSkill && matchesAvailability;
+    });
+  }, [workforce, workerSearch, selectedWorkerRole, selectedWorkerSkill, workerAvailability]);
+
+  const paginatedWorkforce = useMemo(() => {
+    const startIndex = (currentWorkerPage - 1) * workersPerPage;
+    return filteredWorkforce.slice(startIndex, startIndex + workersPerPage);
+  }, [filteredWorkforce, currentWorkerPage, workersPerPage]);
+
+  const totalWorkerPages = Math.ceil(filteredWorkforce.length / workersPerPage);
+
+  const workerSkills = useMemo(() => {
+    const skills = new Set(workforce.map(w => w.skill).filter(Boolean));
+    return Array.from(skills).sort();
+  }, [workforce]);
+
+  useEffect(() => {
+    setCurrentWorkerPage(1);
+  }, [workerSearch, selectedWorkerRole, selectedWorkerSkill, workerAvailability]);
+
+  const [vendorSearch, setVendorSearch] = useState("");
+  const filteredVendors = useMemo(() => {
+    return vendors.filter(v => {
+      const s = vendorSearch.toLowerCase();
+      return (v.name || "").toLowerCase().includes(s) || 
+             (v.category || "").toLowerCase().includes(s) ||
+             (v.contactName || "").toLowerCase().includes(s);
+    });
+  }, [vendors, vendorSearch]);
+
+  const paginatedVendors = useMemo(() => {
+    const startIndex = (currentVendorPage - 1) * vendorsPerPage;
+    return filteredVendors.slice(startIndex, startIndex + vendorsPerPage);
+  }, [filteredVendors, currentVendorPage, vendorsPerPage]);
+
+  const totalVendorPages = Math.ceil(filteredVendors.length / vendorsPerPage);
+
   // Grouping Master Data
   const groupedMaster = useMemo(() => {
     const groups: Record<string, WorkItemMaster[]> = {};
@@ -606,6 +683,14 @@ export default function AdminPanel() {
   useEffect(() => {
     setCurrentPage(1);
   }, [search, selectedMasterCategory, selectedUnit]);
+
+  useEffect(() => {
+    setCurrentClientPage(1);
+  }, [clientSearch, projectCategory]);
+
+  useEffect(() => {
+    setCurrentVendorPage(1);
+  }, [vendorSearch]);
 
   // Paginated Master Data
   const paginatedMaster = useMemo(() => {
@@ -676,7 +761,10 @@ export default function AdminPanel() {
     skill: "",
     ktp: "",
     whatsapp: "",
-    status: "active"
+    status: "active",
+    availability: "available",
+    startDate: new Date().toISOString(),
+    absences: []
   });
 
   const handleAddWorker = async () => {
@@ -684,9 +772,23 @@ export default function AdminPanel() {
       toast.error("Name and KTP are required");
       return;
     }
-    await addWorkforce(newWorker as any);
+    await addWorkforce({
+      ...newWorker,
+      id: `W${Date.now()}`, // Fallback if addWorkforce doesn't generate one
+      createdAt: new Date().toISOString()
+    } as any);
     setShowAddWorker(false);
-    setNewWorker({ name: "", role: "tukang", skill: "", ktp: "", whatsapp: "", status: "active" });
+    setNewWorker({ 
+      name: "", 
+      role: "tukang", 
+      skill: "", 
+      ktp: "", 
+      whatsapp: "", 
+      status: "active",
+      availability: "available",
+      startDate: new Date().toISOString(),
+      absences: []
+    });
   };
 
   const [cmsForm, setCmsForm] = useState<Partial<CMSConfig>>({
@@ -1746,20 +1848,20 @@ export default function AdminPanel() {
         )}
 
           {activeTab === "clients" && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                  <div className="relative w-full md:w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                  <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
                     <Input 
-                      placeholder="Search clients by name or email..." 
-                      className="pl-10 h-10 border-2 border-black rounded-xl"
+                      placeholder="Search clients..." 
+                      className="pl-9 h-9 border-neutral-200 rounded-xl text-xs bg-white/50 focus:bg-white transition-all shadow-sm"
                       value={clientSearch}
                       onChange={e => setClientSearch(e.target.value)}
                     />
                   </div>
                   <select 
-                    className="h-10 border-2 border-black rounded-xl px-4 text-[10px] font-black uppercase"
+                    className="h-9 w-full sm:w-auto border border-neutral-200 rounded-xl px-4 text-[10px] font-black uppercase tracking-tight bg-white shadow-sm outline-none focus:ring-1 focus:ring-accent/20"
                     value={projectCategory}
                     onChange={e => setProjectCategory(e.target.value)}
                   >
@@ -1769,266 +1871,369 @@ export default function AdminPanel() {
                     <option value="deal">TIER 3 (GOLD)</option>
                   </select>
                 </div>
-                <Button variant="outline" className="border-2 border-black h-10 px-6 rounded-xl" onClick={exportClients}>
-                  <Download className="w-4 h-4 mr-2" /> Export to Excel
+                <Button variant="outline" className="border-neutral-200 h-9 px-5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-50 transition-all shadow-sm group w-full md:w-auto" onClick={exportClients}>
+                  <Download className="w-3.5 h-3.5 mr-2 text-neutral-400 group-hover:text-accent transition-colors" /> Export Data
                 </Button>
               </div>
 
-              <Card className="border-2 border-black rounded-2xl overflow-hidden shadow-sm">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-neutral-50">
-                      <TableHead className="uppercase-soft">Client Info</TableHead>
-                      <TableHead className="uppercase-soft">Tier Status</TableHead>
-                      <TableHead className="uppercase-soft">Payment</TableHead>
-                      <TableHead className="uppercase-soft">Location</TableHead>
-                      <TableHead className="uppercase-soft">Joined Date</TableHead>
-                      <TableHead className="uppercase-soft text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.filter(u => {
-                      const matchesSearch = 
-                        (u.displayName || "").toLowerCase().includes(clientSearch.toLowerCase()) || 
-                        (u.email || "").toLowerCase().includes(clientSearch.toLowerCase()) ||
-                        (u.whatsapp || "").toLowerCase().includes(clientSearch.toLowerCase());
-                      const matchesTier = projectCategory === "all" || u.tier === projectCategory;
-                      return matchesSearch && matchesTier;
-                    }).map((u) => (
-                      <TableRow key={u.uid}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-neutral-200 flex items-center justify-center text-[10px] font-black">
-                              {u.displayName?.[0]}
-                            </div>
-                            <div className="space-y-1">
-                              <p className="font-black text-xs uppercase tracking-widest">{u.displayName}</p>
-                              <div className="flex items-center gap-2">
-                                <p className="text-[10px] text-neutral-400">{u.email}</p>
-                                {u.whatsapp && (
-                                  <a 
-                                    href={`https://wa.me/${u.whatsapp.replace(/\D/g, '')}`} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-green-500 hover:text-green-600"
-                                  >
-                                    <Phone className="w-3 h-3" />
-                                  </a>
-                                ) || <span className="text-[8px] text-red-500 uppercase font-black">Unverified WA</span>}
-                              </div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            <Dialog>
-                              <DialogTrigger nativeButton={false} render={
-                                <Badge className={cn(
-                                  "uppercase-soft text-[9px] rounded-md cursor-pointer hover:opacity-80 transition-opacity",
-                                  u.tier === 'deal' ? "bg-accent text-white" : 
-                                  u.tier === 'survey' ? "bg-blue-500 text-white" : "bg-neutral-200 text-neutral-600"
-                                )}>
-                                  {u.tier === 'deal' ? "Tier 3 (Gold)" : u.tier === 'survey' ? "Tier 2 (Silver)" : "Tier 1 (Lead)"}
-                                </Badge>
-                              } />
-                              <DialogContent className="sm:max-w-2xl">
-                                <DialogHeader>
-                                  <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Client Dossier: {u.displayName}</DialogTitle>
-                                </DialogHeader>
-                                <div className="grid md:grid-cols-2 gap-6 py-6">
-                                  <div className="space-y-4">
-                                    <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
-                                      <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Identity Details</p>
-                                      <div className="space-y-2">
-                                        <p className="text-xs font-bold">Email: <span className="font-normal">{u.email}</span></p>
-                                        <p className="text-xs font-bold">Location: <span className="font-normal">{u.location || "Not set"}</span></p>
-                                        <p className="text-xs font-bold">WhatsApp: <span className="font-normal">{u.whatsapp || "Not set"}</span></p>
-                                      </div>
-                                    </div>
-                                    <div className="p-4 bg-accent/5 rounded-2xl border border-accent/20">
-                                      <p className="text-[10px] font-black uppercase text-accent mb-2">AI Usage Analytics</p>
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-[9px] font-black uppercase">Analisa Digunakan:</span>
-                                        <span className="font-mono font-bold text-sm">{u.aiUsageCount || 0} Kali</span>
-                                      </div>
-                                      <Progress value={Math.min(((u.aiUsageCount || 0) / (u.waVerified ? 5 : 1)) * 100, 100)} className="h-1 bg-accent/20 mt-2" />
-                                      {u.tier === 'deal' || u.lifetimeAccess ? (
-                                        <Badge className="bg-green-500 text-white text-[7px] uppercase mt-2 border-none">UNLIMITED AI ACCESS</Badge>
-                                      ) : (
-                                        <p className="text-[8px] mt-1 text-neutral-400 uppercase font-black">
-                                          Limit: {u.waVerified ? "5 Analisa (Verified)" : "1 Analisa (Free)"}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="space-y-4">
-                                    <div className="p-4 bg-neutral-50 rounded-2xl border border-black/5">
-                                      <p className="text-[10px] font-black uppercase text-neutral-400 mb-2">Project & RAB</p>
-                                      <div className="space-y-2">
-                                        <Button variant="outline" className="w-full h-8 text-[10px] uppercase font-black rounded-lg justify-between" onClick={() => navigate(`/projects`)}>
-                                          View Active RAB <ChevronRight className="w-3 h-3" />
-                                        </Button>
-                                        <Button className="w-full h-10 text-[10px] uppercase font-black rounded-lg bg-accent text-white hover:bg-black transition-all" onClick={() => navigate(`/profile/${u.uid}`)}>
-                                          <LayoutDashboard className="w-4 h-4 mr-2" /> View Client Dashboard
-                                        </Button>
-                                      </div>
-                                    </div>
-                                    <div className="p-4 bg-black text-white rounded-2xl">
-                                      <p className="text-[10px] font-black uppercase text-white/40 mb-2">Account Type</p>
-                                      <p className="text-xl font-black tracking-tighter uppercase">{u.waVerified ? "Verified WA" : "Unverified"}</p>
-                                      <p className="text-[9px] uppercase-soft text-white/60">Verification Status</p>
-                                    </div>
-                                  </div>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-                            <div className="flex items-center gap-2 mt-1">
-                              {u.tier === 'deal' || u.lifetimeAccess ? (
-                                <Badge variant="outline" className="text-[7px] border-green-500 text-green-500 uppercase font-black px-1.5 h-4">Unlimited AI</Badge>
-                              ) : (
-                                <div className="flex gap-1">
-                                  {Array.from({ length: u.waVerified ? 5 : 1 }).map((_, i) => (
-                                    <div key={i} className={cn("w-1 h-1 rounded-full", (u.aiUsageCount || 0) > i ? "bg-accent" : "bg-neutral-200")} />
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn(
-                            "uppercase-soft text-[9px] rounded-md",
-                            u.lastPaymentStatus === 'paid' ? "border-green-500 text-green-500" : "border-red-500 text-red-500"
-                          )}>
-                            {u.lastPaymentStatus || "Unpaid"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-[10px] font-bold uppercase">{u.location || "N/A"}</TableCell>
-                        <TableCell className="text-[10px] text-neutral-400">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClient(u)}>
-                              <FileText className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+              <Card className="border border-neutral-200 rounded-2xl overflow-hidden shadow-sm bg-white/50 backdrop-blur-sm">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-neutral-50/50 border-b border-neutral-100">
+                        <TableHead className="uppercase-soft text-[9px] font-black tracking-widest pl-6">Client Identity</TableHead>
+                        <TableHead className="uppercase-soft text-[9px] font-black tracking-widest">Membership Tier</TableHead>
+                        <TableHead className="uppercase-soft text-[9px] font-black tracking-widest">Financial Status</TableHead>
+                        <TableHead className="uppercase-soft text-[9px] font-black tracking-widest">Regional Location</TableHead>
+                        <TableHead className="uppercase-soft text-[9px] font-black tracking-widest">Acquisition Date</TableHead>
+                        <TableHead className="uppercase-soft text-[9px] font-black tracking-widest text-right pr-6">Operations</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedClients.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="h-40 text-center text-neutral-400 italic uppercase font-black tracking-widest text-[10px]">
+                            No clients identified in this segment.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        paginatedClients.map((u) => (
+                          <TableRow key={u.uid} className="hover:bg-neutral-50/50 transition-colors border-b border-neutral-50 last:border-0">
+                            <TableCell className="pl-6">
+                              <div className="flex items-center gap-3 py-1">
+                                <div className="w-9 h-9 rounded-full bg-neutral-100 border border-neutral-200 flex items-center justify-center text-[11px] font-black text-neutral-600 shadow-inner">
+                                  {u.displayName?.[0] || 'U'}
+                                </div>
+                                <div className="space-y-0.5">
+                                  <p className="font-bold text-xs text-neutral-800 tracking-tight">{u.displayName}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-[10px] text-neutral-400 font-medium">{u.email}</p>
+                                    {u.waVerified && u.whatsapp ? (
+                                      <a 
+                                        href={`https://wa.me/${u.whatsapp.replace(/\D/g, '')}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-green-500 hover:text-green-600 transition-colors"
+                                      >
+                                        <Phone className="w-2.5 h-2.5" />
+                                      </a>
+                                    ) : (
+                                      <span className="text-[8px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full border border-red-100/50 font-black uppercase tracking-tighter">Unverified</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-1.5">
+                                <Dialog>
+                                  <DialogTrigger nativeButton={false} render={
+                                    <Badge className={cn(
+                                      "uppercase font-black text-[8px] tracking-widest rounded-full px-2.5 py-1 border-none cursor-pointer hover:scale-105 transition-transform",
+                                      u.tier === 'deal' ? "bg-accent/10 text-accent shadow-sm shadow-accent/5" : 
+                                      u.tier === 'survey' ? "bg-blue-50 text-blue-500 shadow-sm shadow-blue-500/5" : "bg-neutral-100 text-neutral-500"
+                                    )}>
+                                      {u.tier === 'deal' ? "Gold Access" : u.tier === 'survey' ? "Silver Partner" : "Lead Prospect"}
+                                    </Badge>
+                                  } />
+                                  <DialogContent className="sm:max-w-3xl rounded-[2rem] border border-neutral-200 p-0 overflow-hidden shadow-2xl">
+                                    <div className="bg-neutral-900 p-8 text-white relative">
+                                      <div className="absolute top-0 right-0 p-8 opacity-10">
+                                        <Users className="w-32 h-32" />
+                                      </div>
+                                      <div className="relative z-10 space-y-2">
+                                         <Badge className="bg-accent text-white border-none text-[8px] font-black uppercase tracking-widest rounded-full px-4 py-1">Standard Dossier</Badge>
+                                         <h1 className="text-4xl font-black uppercase tracking-tighter">{u.displayName}</h1>
+                                         <div className="flex items-center gap-4 text-[10px] font-bold text-white/60 tracking-widest uppercase">
+                                            <span className="flex items-center gap-1.5"><Mail className="w-3 h-3" /> {u.email}</span>
+                                            <span className="flex items-center gap-1.5"><Calendar className="w-3 h-3" /> Joined {u.createdAt ? new Date(u.createdAt).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }) : 'Unknown'}</span>
+                                         </div>
+                                      </div>
+                                    </div>
+                                    <div className="p-8 grid md:grid-cols-2 gap-8 max-h-[60vh] overflow-y-auto thin-scrollbar">
+                                      <div className="space-y-6">
+                                        <div className="space-y-3">
+                                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Core Identity</h4>
+                                          <div className="grid grid-cols-2 gap-4">
+                                             <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 space-y-1">
+                                                <p className="text-[8px] font-black text-neutral-400 uppercase">WhatsApp</p>
+                                                <p className="text-xs font-bold">{u.whatsapp || 'No Contact'}</p>
+                                             </div>
+                                             <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 space-y-1">
+                                                <p className="text-[8px] font-black text-neutral-400 uppercase">Region</p>
+                                                <p className="text-xs font-bold">{u.location || 'Undisclosed'}</p>
+                                             </div>
+                                          </div>
+                                          <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 space-y-1">
+                                             <p className="text-[8px] font-black text-neutral-400 uppercase">Physical Address</p>
+                                             <p className="text-xs font-bold leading-relaxed">{u.address || 'No detailed address provided.'}</p>
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">AI & System Analytics</h4>
+                                          <div className="p-6 rounded-3xl bg-accent/5 border border-accent/10 space-y-4">
+                                             <div className="flex justify-between items-end">
+                                                <div className="space-y-0.5">
+                                                  <p className="text-[10px] font-black text-accent/60 uppercase">Analisa Digunakan</p>
+                                                  <p className="text-2xl font-black text-accent">{u.aiUsageCount || 0} / {u.waVerified ? "5" : "1"}</p>
+                                                </div>
+                                                <Zap className="w-8 h-8 text-accent/20" />
+                                             </div>
+                                             <Progress value={Math.min(((u.aiUsageCount || 0) / (u.waVerified ? 5 : 1)) * 100, 100)} className="h-2 bg-accent/10" />
+                                             <p className="text-[9px] font-medium text-neutral-500 italic">
+                                                {u.waVerified 
+                                                  ? "Status Terverifikasi (Limit 5 Analisa Aktif)" 
+                                                  : "Status Free (Limit 1 Analisa, verifikasi WA untuk 5 analisa)"}
+                                             </p>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-6">
+                                        <div className="space-y-3">
+                                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Project Operations</h4>
+                                          <div className="grid gap-3">
+                                             <Button variant="outline" className="w-full h-12 rounded-2xl border-neutral-200 flex justify-between px-6 hover:bg-neutral-50 group" onClick={() => navigate(`/projects`)}>
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Access All Estimates</span>
+                                                <ChevronRight className="w-4 h-4 text-neutral-300 group-hover:text-accent transition-all" />
+                                             </Button>
+                                             <Button className="w-full h-12 rounded-2xl bg-neutral-900 text-white hover:bg-black flex justify-between px-6 group" onClick={() => navigate(`/profile/${u.uid}`)}>
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Master Dashboard</span>
+                                                <LayoutDashboard className="w-4 h-4 text-white/30 group-hover:text-accent transition-all" />
+                                             </Button>
+                                          </div>
+                                        </div>
+
+                                        <div className="p-6 rounded-3xl bg-neutral-900 shadow-2xl text-white space-y-4">
+                                           <div className="flex items-center gap-3">
+                                              <ShieldCheck className="w-6 h-6 text-accent" />
+                                              <div>
+                                                 <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Account Status</p>
+                                                 <p className="text-sm font-black uppercase">{u.waVerified ? "Fully Verified" : "Verification Required"}</p>
+                                              </div>
+                                           </div>
+                                           <div className="pt-4 border-t border-white/10 flex justify-between items-center text-[10px] font-medium text-white/40 uppercase tracking-tighter">
+                                              <span>Security Level: L1-Standard</span>
+                                              <span>IP: 102.xxx.xxx</span>
+                                           </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex justify-end gap-3">
+                                       <Button variant="ghost" className="rounded-xl text-[10px] font-black uppercase tracking-widest px-6" onClick={() => handleEditClient(u)}>Edit Profile</Button>
+                                       <Button className="rounded-xl bg-accent text-white hover:bg-black text-[10px] font-black uppercase tracking-widest px-8">Close Record</Button>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                                <div className="flex items-center gap-1.5 ml-0.5">
+                                  {u.tier === 'deal' || u.lifetimeAccess ? (
+                                    <div className="flex items-center gap-1 text-[7px] text-green-500 font-black uppercase bg-green-50 px-2 py-0.5 rounded-full border border-green-100/50">
+                                      <Sparkles className="w-2 h-2" /> Unlimited AI
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-0.5">
+                                      {Array.from({ length: u.waVerified ? 5 : 1 }).map((_, i) => (
+                                        <div key={i} className={cn("w-1.5 h-1.5 rounded-full", (u.aiUsageCount || 0) > i ? "bg-accent shadow-sm shadow-accent/20" : "bg-neutral-100")} />
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={cn(
+                                "uppercase font-black text-[8px] tracking-widest rounded-md px-2 py-0.5 border-none",
+                                u.lastPaymentStatus === 'paid' ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"
+                              )}>
+                                {u.lastPaymentStatus || "Awaiting Verification"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-[10px] font-black text-neutral-600 uppercase tracking-tight">{u.location || "Central JKT"}</TableCell>
+                            <TableCell className="text-[10px] text-neutral-400 font-medium">{u.createdAt ? new Date(u.createdAt).toLocaleDateString('id-ID') : "-"}</TableCell>
+                            <TableCell className="text-right pr-6">
+                              <div className="flex justify-end gap-1.5">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-accent transition-all" onClick={() => handleEditClient(u)}>
+                                  <FileEdit className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-50 text-neutral-400 hover:text-red-500 transition-all">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </Card>
 
-              {isEditingClient && (
-                <Dialog open={isEditingClient} onOpenChange={setIsEditingClient}>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl font-black uppercase tracking-tighter">Edit Client Info</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="grid md:grid-cols-2 gap-4">
+              {/* Client Pagination Controls */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/50 p-4 rounded-2xl border border-neutral-200 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Density Settings:</span>
+                  <div className="flex gap-1">
+                    {[10, 50, 100].map((size) => (
+                      <Button 
+                        key={size}
+                        variant="outline" 
+                        size="sm"
+                        className={cn(
+                          "h-7 px-2.5 rounded-lg text-[9px] font-black tracking-widest transition-all",
+                          clientsPerPage === size ? "bg-neutral-900 text-white border-neutral-900" : "bg-white text-neutral-400 border-neutral-200 hover:bg-neutral-50"
+                        )}
+                        onClick={() => {
+                          setClientsPerPage(size);
+                          setCurrentClientPage(1);
+                        }}
+                      >
+                        {size}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400">
+                    Segment {currentClientPage} of {totalClientPages || 1}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-xl border border-neutral-200 hover:bg-neutral-50 transition-all"
+                      disabled={currentClientPage === 1}
+                      onClick={() => setCurrentClientPage(prev => Math.max(1, prev - 1))}
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-xl border border-neutral-200 hover:bg-neutral-50 transition-all"
+                      disabled={currentClientPage === totalClientPages || totalClientPages === 0}
+                      onClick={() => setCurrentClientPage(prev => Math.min(totalClientPages, prev + 1))}
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {isEditingClient !== null && (
+                <Dialog open={isEditingClient !== null} onOpenChange={(open) => !open && setIsEditingClient(null)}>
+                  <DialogContent className="sm:max-w-xl rounded-3xl border border-neutral-200 p-0 overflow-hidden shadow-2xl">
+                    <div className="max-h-[90vh] overflow-y-auto thin-scrollbar">
+                      <div className="bg-neutral-50 border-b border-neutral-100 p-6 flex justify-between items-center">
+                         <div className="space-y-0.5">
+                            <h2 className="text-lg font-black uppercase tracking-tighter">Client Profile Management</h2>
+                            <p className="text-[10px] font-medium text-neutral-400 uppercase tracking-widest">Update credential and system privileges</p>
+                         </div>
+                         <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+                            <Settings className="w-5 h-5" />
+                         </div>
+                      </div>
+                      <div className="space-y-6 p-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="uppercase-soft text-[10px]">Display Name</label>
+                            <Input 
+                              value={clientEditForm.displayName || ""} 
+                              onChange={e => setClientEditForm({...clientEditForm, displayName: e.target.value})}
+                              className="h-11 rounded-xl border-neutral-200"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="uppercase-soft text-[10px]">WhatsApp / Phone</label>
+                            <Input 
+                              value={clientEditForm.whatsapp || ""} 
+                              onChange={e => setClientEditForm({...clientEditForm, whatsapp: e.target.value})}
+                              className="h-11 rounded-xl border-neutral-200"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="uppercase-soft text-[10px]">Location (City)</label>
+                            <Input 
+                              value={clientEditForm.location || ""} 
+                              onChange={e => setClientEditForm({...clientEditForm, location: e.target.value})}
+                              className="h-11 rounded-xl border-neutral-200"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="uppercase-soft text-[10px]">Tier</label>
+                            <select 
+                              className="w-full h-11 rounded-xl border border-neutral-200 px-4 text-xs font-bold outline-none"
+                              value={clientEditForm.tier || "prospect"}
+                              onChange={e => setClientEditForm({...clientEditForm, tier: e.target.value as any})}
+                            >
+                              <option value="prospect">Tier 1 (Lead)</option>
+                              <option value="survey">Tier 2 (Silver)</option>
+                              <option value="deal">Tier 3 (Gold)</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="uppercase-soft text-[10px]">Role</label>
+                            <select 
+                              className="w-full h-11 rounded-xl border border-neutral-200 px-4 text-xs font-bold outline-none"
+                              value={clientEditForm.role || "user"}
+                              onChange={e => setClientEditForm({...clientEditForm, role: e.target.value as any})}
+                            >
+                              <option value="user">CLIENT / USER</option>
+                              <option value="pm">PROJECT MANAGER</option>
+                              <option value="admin">ADMINISTRATOR</option>
+                            </select>
+                          </div>
+                        </div>
                         <div className="space-y-1">
-                          <label className="uppercase-soft text-[10px]">Display Name</label>
-                          <Input 
-                            value={clientEditForm.displayName || ""} 
-                            onChange={e => setClientEditForm({...clientEditForm, displayName: e.target.value})}
+                          <label className="uppercase-soft text-[10px]">Photo Profile / Background</label>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              className="w-full h-11 rounded-xl border-2 border-dashed border-neutral-200 gap-2 text-[10px] font-bold uppercase hover:bg-neutral-50"
+                              onClick={() => document.getElementById('client-photo-input')?.click()}
+                            >
+                              <Camera className="w-3.5 h-3.5" /> Select Photo
+                            </Button>
+                            <input 
+                              id="client-photo-input"
+                              type="file" 
+                              accept="image/*" 
+                              className="hidden" 
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const url = await saveImageToGudang(file, 'projects');
+                                  setClientEditForm({ ...clientEditForm, photoURL: url });
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="uppercase-soft text-[10px]">Full Address</label>
+                          <Textarea 
+                            value={clientEditForm.address || ""} 
+                            onChange={e => setClientEditForm({...clientEditForm, address: e.target.value})}
+                            placeholder="Detailed address..."
+                            className="rounded-xl border-neutral-200 min-h-[100px]"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="uppercase-soft text-[10px]">WhatsApp / Phone</label>
-                          <Input 
-                            value={clientEditForm.whatsapp || ""} 
-                            onChange={e => setClientEditForm({...clientEditForm, whatsapp: e.target.value})}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="uppercase-soft text-[10px]">Location (City)</label>
-                          <Input 
-                            value={clientEditForm.location || ""} 
-                            onChange={e => setClientEditForm({...clientEditForm, location: e.target.value})}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="uppercase-soft text-[10px]">Tier</label>
-                          <select 
-                            className="w-full h-10 rounded-md border border-black/10 px-3 text-sm"
-                            value={clientEditForm.tier || "prospect"}
-                            onChange={e => setClientEditForm({...clientEditForm, tier: e.target.value as any})}
-                          >
-                            <option value="prospect">Tier 1 (Lead)</option>
-                            <option value="survey">Tier 2 (Silver)</option>
-                            <option value="deal">Tier 3 (Gold)</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="uppercase-soft text-[10px]">Role</label>
-                          <select 
-                            className="w-full h-10 rounded-md border border-black/10 px-3 text-sm"
-                            value={clientEditForm.role || "user"}
-                            onChange={e => setClientEditForm({...clientEditForm, role: e.target.value as any})}
-                          >
-                            <option value="user">CLIENT / USER</option>
-                            <option value="pm">PROJECT MANAGER</option>
-                            <option value="admin">ADMINISTRATOR</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="uppercase-soft text-[10px]">Photo Profile / Background</label>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            className="w-full h-10 rounded-xl border-2 border-dashed border-neutral-200 gap-2 text-[10px] font-bold uppercase hover:bg-neutral-50"
-                            onClick={() => document.getElementById('client-photo-input')?.click()}
-                          >
-                            <Camera className="w-3.5 h-3.5" /> Select Photo
-                          </Button>
-                          <input 
-                            id="client-photo-input"
-                            type="file" 
-                            accept="image/*" 
-                            className="hidden" 
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const url = await saveImageToGudang(file, 'projects');
-                                setClientEditForm({ ...clientEditForm, photoURL: url });
-                              }
-                            }}
+                          <label className="uppercase-soft text-[10px]">Internal Notes</label>
+                          <Textarea 
+                            value={clientEditForm.notes || ""} 
+                            onChange={e => setClientEditForm({...clientEditForm, notes: e.target.value})}
+                            placeholder="Important notes..."
+                            className="rounded-xl border-neutral-200 min-h-[80px]"
                           />
                         </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="uppercase-soft text-[10px]">Full Address</label>
-                        <Textarea 
-                          value={clientEditForm.address || ""} 
-                          onChange={e => setClientEditForm({...clientEditForm, address: e.target.value})}
-                          placeholder="Detailed address for site assessment..."
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="uppercase-soft text-[10px]">Secondary Contact</label>
-                        <Input 
-                          value={clientEditForm.secondaryContact || ""} 
-                          onChange={e => setClientEditForm({...clientEditForm, secondaryContact: e.target.value})}
-                          placeholder="Name / Phone"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="uppercase-soft text-[10px]">Internal Notes</label>
-                        <Textarea 
-                          value={clientEditForm.notes || ""} 
-                          onChange={e => setClientEditForm({...clientEditForm, notes: e.target.value})}
-                          placeholder="Important notes about this client..."
-                        />
+                      <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex justify-end gap-3">
+                        <Button variant="ghost" onClick={() => setIsEditingClient(null)} className="text-[10px] font-black uppercase tracking-widest px-6 h-11 rounded-xl">Cancel</Button>
+                        <Button className="btn-sleek text-[10px] font-black uppercase tracking-widest px-8 h-11 rounded-xl" onClick={handleSaveClient}>Save Changes</Button>
                       </div>
                     </div>
-                    <DialogFooter>
-                      <Button variant="ghost" onClick={() => setIsEditingClient(false)}>Cancel</Button>
-                      <Button className="btn-sleek" onClick={handleSaveClient}>Save Changes</Button>
-                    </DialogFooter>
                   </DialogContent>
                 </Dialog>
               )}
@@ -2393,29 +2598,80 @@ export default function AdminPanel() {
           )}
 
           {activeTab === "workforce" && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h2 className="text-2xl font-black uppercase tracking-tighter">Workforce Database</h2>
-                <Button className="btn-sleek h-10 px-6 rounded-xl w-full md:w-auto" onClick={() => setShowAddWorker(true)}>
-                  <UserPlus className="w-4 h-4 mr-2" /> Register Worker
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-black uppercase tracking-tighter">Human Capital Portal</h2>
+                  <p className="text-[10px] font-medium text-neutral-400 uppercase tracking-widest">Manage workforce, skills, and availability</p>
+                </div>
+                <Button className="btn-sleek h-10 px-6 rounded-xl w-full md:w-auto shadow-lg shadow-accent/20" onClick={() => setShowAddWorker(true)}>
+                  <UserPlus className="w-4 h-4 mr-2" /> Register Personnel
                 </Button>
               </div>
 
+              {/* Advanced Workforce Filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-white/50 p-4 rounded-2xl border border-neutral-200 shadow-sm backdrop-blur-sm">
+                 <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+                    <Input 
+                      placeholder="Search name/role/skill..." 
+                      className="pl-9 h-10 border-neutral-200 rounded-xl text-xs bg-white focus:ring-accent/20"
+                      value={workerSearch}
+                      onChange={e => setWorkerSearch(e.target.value)}
+                    />
+                 </div>
+                 <select 
+                    className="h-10 border border-neutral-200 rounded-xl px-4 text-[10px] font-black uppercase tracking-tight bg-white outline-none focus:ring- accent/20"
+                    value={selectedWorkerRole}
+                    onChange={e => setSelectedWorkerRole(e.target.value)}
+                  >
+                    <option value="all">ALL ROLES</option>
+                    {["pm", "designer", "drafter", "tukang", "mandor", "kenek"].map(r => (
+                      <option key={r} value={r}>{r.toUpperCase()}</option>
+                    ))}
+                  </select>
+                  <select 
+                    className="h-10 border border-neutral-200 rounded-xl px-4 text-[10px] font-black uppercase tracking-tight bg-white outline-none focus:ring- accent/20"
+                    value={selectedWorkerSkill}
+                    onChange={e => setSelectedWorkerSkill(e.target.value)}
+                  >
+                    <option value="all">ALL SKILLS</option>
+                    {workerSkills.map(s => (
+                      <option key={s} value={s}>{s?.toUpperCase()}</option>
+                    ))}
+                  </select>
+                  <select 
+                    className="h-10 border border-neutral-200 rounded-xl px-4 text-[10px] font-black uppercase tracking-tight bg-white outline-none focus:ring- accent/20"
+                    value={workerAvailability}
+                    onChange={e => setWorkerAvailability(e.target.value)}
+                  >
+                    <option value="all">ANY AVAILABILITY</option>
+                    <option value="available">STANDBY / AVAILABLE</option>
+                    <option value="busy">ON MISSION / BUSY</option>
+                    <option value="on_leave">ON LEAVE / ABSENT</option>
+                  </select>
+              </div>
+
               {showAddWorker && (
-                <Card className="border-2 border-black rounded-2xl p-6 bg-neutral-50 animate-in fade-in slide-in-from-top-4">
-                  <div className="grid md:grid-cols-3 gap-6">
+                <Card className="border border-neutral-200 rounded-2xl p-6 bg-white shadow-xl animate-in fade-in slide-in-from-top-4">
+                  <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-sm font-black uppercase tracking-widest text-accent">New Personnel Onboarding</h3>
+                     <Button variant="ghost" size="icon" onClick={() => setShowAddWorker(false)} className="rounded-full"><X className="w-4 h-4" /></Button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">Full Name</label>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Full Legal Name</label>
                       <Input 
-                        placeholder="Worker Name" 
+                        placeholder="John Doe" 
                         value={newWorker.name}
                         onChange={e => setNewWorker({...newWorker, name: e.target.value})}
+                        className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">Role</label>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Professional Role</label>
                       <select 
-                        className="w-full h-10 rounded-md border border-black/10 px-3 text-sm"
+                        className="w-full h-11 rounded-xl border border-neutral-200 px-4 text-xs font-bold outline-none focus:ring-accent/20"
                         value={newWorker.role}
                         onChange={e => setNewWorker({...newWorker, role: e.target.value})}
                       >
@@ -2425,168 +2681,319 @@ export default function AdminPanel() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">KTP Number</label>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">KTP / NIK Number</label>
                       <Input 
-                        placeholder="16-digit KTP" 
+                        placeholder="16-digit ID" 
                         value={newWorker.ktp}
                         onChange={e => setNewWorker({...newWorker, ktp: e.target.value})}
+                        className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">Specialized Skill</label>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">WhatsApp / Direct</label>
                       <Input 
-                        placeholder="e.g. Las, Keramik, Atap" 
+                        placeholder="62812xxxx" 
+                        value={newWorker.whatsapp}
+                        onChange={e => setNewWorker({...newWorker, whatsapp: e.target.value})}
+                        className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Specialized Core Skill</label>
+                      <Input 
+                        placeholder="e.g. Electrical, Carpentry" 
                         value={newWorker.skill}
                         onChange={e => setNewWorker({...newWorker, skill: e.target.value})}
+                        className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">WhatsApp</label>
+                       <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Start Date</label>
+                       <Input 
+                         type="date"
+                         value={newWorker.startDate ? newWorker.startDate.split('T')[0] : ''}
+                         onChange={e => setNewWorker({...newWorker, startDate: new Date(e.target.value).toISOString()})}
+                         className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
+                       />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Direct WhatsApp</label>
                       <Input 
                         placeholder="0812..." 
                         value={newWorker.whatsapp}
                         onChange={e => setNewWorker({...newWorker, whatsapp: e.target.value})}
+                        className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="uppercase-soft text-[10px]">Foto Tenaga Kerja</label>
+                       <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Mulai Kerja (Start Date)</label>
+                       <Input 
+                         type="date"
+                         value={newWorker.startDate || ""}
+                         onChange={e => setNewWorker({...newWorker, startDate: e.target.value})}
+                         className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
+                       />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Personnel Visualization</label>
                       <ImageUpload 
                         path="workforce"
-                        label="Pilih Foto / Ambil Foto"
+                        label="Upload Avatar"
                         onUploadComplete={(url) => setNewWorker({...newWorker, photoUrl: url})}
                       />
                     </div>
                   </div>
-                  <div className="flex justify-end gap-4 mt-6">
-                    <Button variant="ghost" onClick={() => setShowAddWorker(false)}>Cancel</Button>
-                    <Button className="btn-sleek px-8" onClick={handleAddWorker}>Save Worker</Button>
+                  <div className="flex justify-end gap-3 mt-8">
+                    <Button variant="ghost" className="rounded-xl text-[10px] font-black uppercase tracking-widest px-6" onClick={() => setShowAddWorker(false)}>Discard</Button>
+                    <Button className="rounded-xl bg-accent text-white hover:bg-black text-[10px] font-black uppercase tracking-widest px-10 shadow-lg shadow-accent/20" onClick={handleAddWorker}>Archive System</Button>
                   </div>
                 </Card>
               )}
               
-              <div className="space-y-6">
-                {["pm", "designer", "drafter", "tukang", "mandor", "kenek"].map(role => {
-                  const workers = workforce.filter(w => w.role === role);
-                  return (
-                    <Card key={role} className="border-2 border-black rounded-2xl overflow-hidden shadow-sm">
-                      <button 
-                        onClick={() => toggleCategory(role)}
-                        className="w-full flex items-center justify-between p-4 bg-neutral-50 hover:bg-neutral-100 transition-colors border-b-2 border-black"
-                      >
-                        <div className="flex items-center gap-3">
-                          {expandedCategories.includes(role) ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                          <h3 className="text-sm font-black uppercase tracking-widest">{role}</h3>
-                          <Badge className="bg-black text-white text-[9px]">{workers.length} Personnel</Badge>
-                        </div>
-                      </button>
-                      
-                      {expandedCategories.includes(role) && (
-                        <div className="p-6 grid md:grid-cols-3 gap-6">
-                          {workers.map(worker => (
-                            <Dialog key={worker.id}>
-                              <DialogTrigger nativeButton={false} render={
-                                <Card className="border-2 border-black/10 rounded-xl overflow-hidden hover:border-accent transition-all cursor-pointer group">
-                                  <div className="h-40 bg-neutral-100 relative">
-                                    {worker.photoUrl ? (
-                                      <img src={getDriveImageUrl(worker.photoUrl)} alt={worker.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center text-neutral-300">
-                                        <User className="w-12 h-12" />
-                                      </div>
-                                    )}
-                                    <Badge className="absolute top-3 right-3 bg-black text-white text-[8px] uppercase font-black">{worker.status}</Badge>
-                                  </div>
-                                  <CardContent className="p-4 space-y-3">
-                                    <div className="space-y-1">
-                                      <p className="font-black text-xs uppercase tracking-widest">{worker.name}</p>
-                                      {worker.skill && <p className="text-[9px] font-bold text-accent uppercase">{worker.skill}</p>}
-                                      <p className="text-[9px] text-neutral-400 font-mono">KTP: {worker.ktp}</p>
-                                    </div>
-                                    <div className="space-y-2 pt-2 border-t border-black/5">
-                                      <div className="flex items-center gap-2 text-[9px] font-bold uppercase text-neutral-500">
-                                        <Phone className="w-3 h-3 text-accent" /> {worker.whatsapp || "No WA"}
-                                      </div>
-                                      <div className="flex justify-end gap-2 pt-2">
-                                        <select 
-                                          className="h-6 text-[8px] rounded border border-black/10 bg-white px-1 font-black uppercase"
-                                          value={worker.projectId || ""}
-                                          onChange={async (e) => {
-                                            await updateWorkforce(worker.id, { projectId: e.target.value });
-                                            toast.success(`Worker assigned to project`);
-                                          }}
-                                        >
-                                          <option value="">Assign Project</option>
-                                          {projects.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                          ))}
-                                        </select>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={(e) => {
-                                          e.stopPropagation();
-                                          if(confirm(`Remove ${worker.name}?`)) deleteWorkforce(worker.id);
-                                        }}>
-                                          <Trash2 className="w-3 h-3" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              } />
-                              <DialogContent className="max-w-3xl rounded-3xl border-2 border-black">
-                                <DialogHeader>
-                                  <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Personnel Profile: {worker.name}</DialogTitle>
-                                </DialogHeader>
-                                <div className="grid md:grid-cols-2 gap-8 py-6">
-                                  <div className="space-y-6">
-                                    <div className="aspect-square rounded-2xl overflow-hidden border-2 border-black/10">
-                                      <img src={getDriveImageUrl(worker.photoUrl) || `https://picsum.photos/seed/${worker.id}/400/400`} className="w-full h-full object-cover" />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div className="aspect-video rounded-xl overflow-hidden border-2 border-black/10 bg-neutral-50 flex flex-col items-center justify-center">
-                                        <ImageIcon className="w-6 h-6 text-neutral-300 mb-1" />
-                                        <p className="text-[8px] font-black uppercase">KTP Photo</p>
-                                      </div>
-                                      <div className="aspect-video rounded-xl overflow-hidden border-2 border-black/10 bg-neutral-50 flex flex-col items-center justify-center">
-                                        <MapPin className="w-6 h-6 text-neutral-300 mb-1" />
-                                        <p className="text-[8px] font-black uppercase">GPS Location</p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-6">
-                                    <div className="p-6 bg-neutral-50 rounded-2xl border border-black/5 space-y-4">
-                                      <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase text-neutral-400">Personal Info</p>
-                                        <p className="text-sm font-bold">Address: <span className="font-normal">Jl. Raya Jakarta No. {worker.id.slice(-2)}</span></p>
-                                        <p className="text-sm font-bold">DOB: <span className="font-normal">12 Jan 199{worker.id.slice(-1)}</span></p>
-                                        <p className="text-sm font-bold">WhatsApp: <span className="font-normal">{worker.whatsapp}</span></p>
-                                      </div>
-                                      <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase text-neutral-400">Current Assignment</p>
-                                        <p className="text-sm font-bold">Project: <span className="font-normal">{projects.find(p => p.id === worker.projectId)?.name || "Standby"}</span></p>
-                                      </div>
-                                    </div>
-                                    <div className="p-6 bg-accent/5 rounded-2xl border border-accent/20">
-                                      <p className="text-[10px] font-black uppercase text-accent mb-2">Live Status</p>
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-                                        <p className="text-xs font-bold uppercase">Online - On Site</p>
-                                      </div>
-                                      <p className="text-[9px] mt-2 text-neutral-500">Last GPS Ping: 5 mins ago</p>
-                                    </div>
-                                  </div>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-                          ))}
-                          {workers.length === 0 && (
-                            <div className="col-span-full py-12 text-center border-2 border-dashed border-neutral-200 rounded-xl">
-                              <p className="uppercase-soft text-neutral-400">No personnel registered for this category.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedWorkforce.length === 0 ? (
+                  <div className="col-span-full py-20 text-center border border-dashed border-neutral-200 rounded-3xl bg-neutral-50/50">
+                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-300">No personnel data matching selected parameters.</p>
+                  </div>
+                ) : (
+                  paginatedWorkforce.map(worker => (
+                    <Dialog key={worker.id}>
+                      <DialogTrigger nativeButton={false} render={
+                        <Card className="border border-neutral-200 rounded-2xl overflow-hidden hover:border-accent/40 shadow-sm transition-all cursor-pointer group hover:bg-white bg-neutral-50/30">
+                          <div className="h-44 bg-neutral-100 relative overflow-hidden">
+                            {worker.photoUrl ? (
+                              <img src={getDriveImageUrl(worker.photoUrl)} alt={worker.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-neutral-300">
+                                <User className="w-16 h-16 opacity-20" />
+                              </div>
+                            )}
+                            <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
+                               <Badge className={cn(
+                                 "text-[8px] font-black uppercase tracking-widest rounded-full border-none shadow-sm",
+                                 worker.status === 'active' ? "bg-green-500 text-white" : "bg-neutral-200 text-neutral-500"
+                               )}>
+                                 {worker.status || 'Active'}
+                               </Badge>
+                               <Badge className={cn(
+                                 "text-[8px] font-black uppercase tracking-widest rounded-full border-none shadow-sm",
+                                 worker.availability === 'available' ? "bg-accent text-white" : 
+                                 worker.availability === 'busy' ? "bg-orange-500 text-white" : "bg-red-500 text-white"
+                               )}>
+                                 {worker.availability?.replace('_', ' ') || 'Available'}
+                               </Badge>
                             </div>
-                          )}
+                            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
+                               <p className="text-[9px] font-black uppercase text-accent tracking-[0.2em]">{worker.role}</p>
+                               <h3 className="text-sm font-black text-white uppercase tracking-tight leading-tight">{worker.name}</h3>
+                            </div>
+                          </div>
+                          <CardContent className="p-4 space-y-4">
+                            <div className="flex justify-between items-start">
+                               <div className="space-y-0.5">
+                                  <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Core Skill</p>
+                                  <p className="text-xs font-bold text-neutral-800 uppercase">{worker.skill || "All-Rounder"}</p>
+                               </div>
+                               <div className="space-y-0.5 text-right">
+                                  <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Joined</p>
+                                  <p className="text-[10px] font-black text-neutral-600">{worker.startDate ? new Date(worker.startDate).toLocaleDateString() : 'N/A'}</p>
+                               </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-3 border-t border-neutral-100">
+                                <Phone className="w-3.5 h-3.5 text-accent" />
+                                <span className="text-[11px] font-bold text-neutral-600">{worker.whatsapp || "No Secure Comms"}</span>
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                                <select 
+                                  className="h-8 flex-grow text-[9px] rounded-xl border border-neutral-200 bg-white px-3 font-black uppercase tracking-tight outline-none focus:ring-1 focus:ring-accent/20"
+                                  value={worker.projectId || ""}
+                                  onClick={e => e.stopPropagation()}
+                                  onChange={async (e) => {
+                                    e.stopPropagation();
+                                    await updateWorkforce(worker.id, { projectId: e.target.value, availability: e.target.value ? "busy" : "available" });
+                                    toast.success(`Deployment updated`);
+                                  }}
+                                >
+                                  <option value="">STANDBY (NO PROJECT)</option>
+                                  {projects.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>
+                                  ))}
+                                </select>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all shrink-0" onClick={(e) => {
+                                  e.stopPropagation();
+                                  if(confirm(`Remove personnel ${worker.name} from database?`)) deleteWorkforce(worker.id);
+                                }}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      } />
+                      <DialogContent className="sm:max-w-4xl rounded-[2.5rem] border border-neutral-200 p-0 overflow-hidden shadow-2xl">
+                        <div className="grid grid-cols-1 md:grid-cols-12 max-h-[90vh] overflow-y-auto thin-scrollbar">
+                           <div className="md:col-span-12 lg:col-span-5 bg-neutral-900 text-white p-6 md:p-10 space-y-8 relative overflow-hidden min-h-[300px] md:min-h-[400px]">
+                              <div className="absolute bottom-0 left-0 right-0 h-48 md:h-64 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                              {worker.photoUrl ? (
+                                <img src={getDriveImageUrl(worker.photoUrl)} className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center bg-neutral-800">
+                                   <User className="w-24 md:w-32 h-24 md:h-32 text-neutral-700" />
+                                </div>
+                              )}
+                              
+                              <div className="relative z-20 h-full flex flex-col justify-between">
+                                 <div className="space-y-4">
+                                     <Badge className="bg-accent text-white border-none text-[8px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full">Secure Profile</Badge>
+                                     <div className="space-y-2">
+                                        <h1 className="text-2xl md:text-4xl font-black uppercase tracking-tighter leading-none">{worker.name}</h1>
+                                        <p className="text-accent text-[10px] md:text-xs font-black uppercase tracking-[0.3em]">{worker.role}</p>
+                                     </div>
+                                 </div>
+
+                                 <div className="space-y-4 bg-black/40 backdrop-blur-md p-4 md:p-6 rounded-2xl md:rounded-3xl border border-white/10">
+                                    <div className="grid grid-cols-2 gap-4 text-center">
+                                       <div className="space-y-1">
+                                          <p className="text-[7px] md:text-[8px] font-black text-white/40 uppercase tracking-widest text-[8px]">Active Deploy</p>
+                                          <p className="text-[10px] md:text-xs font-bold text-accent truncate">{projects.find(p=>p.id === worker.projectId)?.name || "Available"}</p>
+                                       </div>
+                                       <div className="space-y-1 border-l border-white/10">
+                                          <p className="text-[7px] md:text-[8px] font-black text-white/40 uppercase tracking-widest text-[8px]">Status</p>
+                                          <p className="text-[10px] md:text-xs font-bold uppercase">{worker.availability?.replace('_', ' ') || 'Ready'}</p>
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+
+                           <div className="md:col-span-12 lg:col-span-7 p-6 md:p-10 space-y-10 bg-white">
+                              <div className="space-y-6">
+                                 <div className="flex items-center gap-3">
+                                    <div className="w-1.5 h-1.5 bg-accent rounded-full" />
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Operational Dossier</h4>
+                                 </div>
+                                 
+                                 <div className="grid sm:grid-cols-2 gap-8 px-4">
+                                    <div className="space-y-4">
+                                       <div className="flex items-start gap-4">
+                                          <div className="p-2 rounded-lg bg-neutral-50 text-neutral-400"><CreditCard className="w-4 h-4" /></div>
+                                          <div>
+                                             <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Identifier (KTP)</p>
+                                             <p className="text-xs font-bold tracking-widest">{worker.ktp || "XXXXXXXXXXXX"}</p>
+                                          </div>
+                                       </div>
+                                       <div className="flex items-start gap-4">
+                                          <div className="p-2 rounded-lg bg-neutral-50 text-neutral-400"><Calendar className="w-4 h-4" /></div>
+                                          <div>
+                                             <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Date of Recruitment</p>
+                                             <p className="text-xs font-bold">{worker.startDate ? new Date(worker.startDate).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) : "N/A"}</p>
+                                          </div>
+                                       </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                       <div className="flex items-start gap-4">
+                                          <div className="p-2 rounded-lg bg-neutral-50 text-neutral-400"><Phone className="w-4 h-4" /></div>
+                                          <div>
+                                             <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Direct Contact</p>
+                                             <p className="text-xs font-bold">{worker.whatsapp || "No Contact"}</p>
+                                          </div>
+                                       </div>
+                                       <div className="flex items-start gap-4">
+                                          <div className="p-2 rounded-lg bg-neutral-50 text-neutral-400"><Box className="w-4 h-4" /></div>
+                                          <div>
+                                             <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Specialization</p>
+                                             <p className="text-xs font-bold uppercase">{worker.skill || "General Construction"}</p>
+                                          </div>
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+
+                              <div className="space-y-6">
+                                 <div className="flex items-center gap-3">
+                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Absence & Leave Tracking</h4>
+                                 </div>
+                                 <div className="p-6 rounded-3xl border border-neutral-100 bg-neutral-50 flex items-center justify-between">
+                                    <div className="flex items-center gap-5">
+                                       <div className="w-14 h-14 rounded-2xl bg-white border border-neutral-200 flex flex-col items-center justify-center">
+                                          <span className="text-xl font-black text-accent">{worker.absences?.length || 0}</span>
+                                          <span className="text-[7px] font-black uppercase text-neutral-400">Days</span>
+                                       </div>
+                                       <div>
+                                          <p className="text-xs font-bold uppercase tracking-tight">Personnel Leave Balance</p>
+                                          <p className="text-[9px] font-medium text-neutral-400 underline cursor-pointer">View full absence logs</p>
+                                       </div>
+                                    </div>
+                                    <Button variant="outline" className="h-9 px-5 rounded-xl text-[9px] font-black uppercase tracking-widest border-neutral-200 hover:bg-white">
+                                       Register Leave
+                                    </Button>
+                                 </div>
+                              </div>
+
+                              <div className="pt-6 border-t border-neutral-100 flex justify-end gap-3">
+                                 <Button variant="ghost" className="rounded-xl text-[10px] font-black uppercase tracking-widest px-8">Audit History</Button>
+                                 <Button className="rounded-xl bg-accent text-white hover:bg-black text-[10px] font-black uppercase tracking-widest px-10 shadow-lg shadow-accent/20">Sync Data</Button>
+                              </div>
+                           </div>
                         </div>
-                      )}
-                    </Card>
-                  );
-                })}
+                      </DialogContent>
+                    </Dialog>
+                  ))
+                )}
+              </div>
+
+              {/* Workforce Pagination */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/50 p-4 rounded-2xl border border-neutral-200 shadow-sm mb-12">
+                <div className="flex items-center gap-3">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400">View Grid:</span>
+                  <div className="flex gap-1">
+                    {[12, 24, 48].map((size) => (
+                      <Button 
+                        key={size}
+                        variant="outline" 
+                        size="sm"
+                        className={cn(
+                          "h-7 px-3 rounded-lg text-[9px] font-black tracking-widest transition-all",
+                          workersPerPage === size ? "bg-accent text-white border-accent" : "bg-white text-neutral-400 border-neutral-200 hover:bg-neutral-50"
+                        )}
+                        onClick={() => {
+                          setWorkersPerPage(size);
+                          setCurrentWorkerPage(1);
+                        }}
+                      >
+                        {size}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400">
+                    Personnel Segment {currentWorkerPage} of {totalWorkerPages || 1}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-xl border border-neutral-200 hover:bg-neutral-50 shadow-sm"
+                      disabled={currentWorkerPage === 1}
+                      onClick={() => setCurrentWorkerPage(prev => Math.max(1, prev - 1))}
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-xl border border-neutral-200 hover:bg-neutral-50 shadow-sm"
+                      disabled={currentWorkerPage === totalWorkerPages || totalWorkerPages === 0}
+                      onClick={() => setCurrentWorkerPage(prev => Math.min(totalWorkerPages, prev + 1))}
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -2672,20 +3079,38 @@ export default function AdminPanel() {
                                  className="h-12 bg-white border-2 border-black/5 rounded-xl text-xs font-black uppercase tracking-tight px-4"
                                  placeholder="Enter promo text..."
                                />
-                               <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-black/5">
-                                 <Calendar className="w-3.5 h-3.5 text-neutral-400" />
-                                 <div className="flex flex-col flex-grow">
-                                   <span className="text-[8px] font-black uppercase text-neutral-400">Scheduled Takedown (Expiry)</span>
-                                   <input 
-                                     type="date"
-                                     value={promo.expiresAt ? new Date(promo.expiresAt).toISOString().split('T')[0] : ""}
-                                     onChange={(e) => {
-                                       const newPromos = [...(cmsForm.promos || [])];
-                                       newPromos[idx] = { ...promo, expiresAt: e.target.value || undefined };
-                                       setCmsForm({ ...cmsForm, promos: newPromos });
-                                     }}
-                                     className="text-[10px] font-bold outline-none bg-transparent"
-                                   />
+                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                 <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-black/5">
+                                   <Clock className="w-3.5 h-3.5 text-neutral-400" />
+                                   <div className="flex flex-col flex-grow">
+                                     <span className="text-[8px] font-black uppercase text-neutral-400">Scheduled Posting (Start)</span>
+                                     <input 
+                                       type="date"
+                                       value={promo.scheduledAt ? new Date(promo.scheduledAt).toISOString().split('T')[0] : ""}
+                                       onChange={(e) => {
+                                         const newPromos = [...(cmsForm.promos || [])];
+                                         newPromos[idx] = { ...promo, scheduledAt: e.target.value || undefined };
+                                         setCmsForm({ ...cmsForm, promos: newPromos });
+                                       }}
+                                       className="text-[10px] font-bold outline-none bg-transparent"
+                                     />
+                                   </div>
+                                 </div>
+                                 <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-black/5">
+                                   <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+                                   <div className="flex flex-col flex-grow">
+                                     <span className="text-[8px] font-black uppercase text-neutral-400">Auto Takedown (Expiry)</span>
+                                     <input 
+                                       type="date"
+                                       value={promo.expiresAt ? new Date(promo.expiresAt).toISOString().split('T')[0] : ""}
+                                       onChange={(e) => {
+                                         const newPromos = [...(cmsForm.promos || [])];
+                                         newPromos[idx] = { ...promo, expiresAt: e.target.value || undefined };
+                                         setCmsForm({ ...cmsForm, promos: newPromos });
+                                       }}
+                                       className="text-[10px] font-bold outline-none bg-transparent"
+                                     />
+                                   </div>
                                  </div>
                                </div>
                             </div>
@@ -3411,21 +3836,21 @@ export default function AdminPanel() {
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader className="bg-neutral-50">
-                        <TableRow className="border-b-4 border-black hover:bg-transparent">
-                          <TableHead className="p-8 text-[10px] font-black uppercase tracking-widest text-neutral-400 w-1/3">Client Identity & Contact</TableHead>
-                          <TableHead className="p-8 text-[10px] font-black uppercase tracking-widest text-neutral-400">Lead Metadata</TableHead>
-                          <TableHead className="p-8 text-[10px] font-black uppercase tracking-widest text-neutral-400 text-center">Pipeline Progress</TableHead>
-                          <TableHead className="p-8 text-[10px] font-black uppercase tracking-widest text-neutral-400 text-right">Command Actions</TableHead>
+                      <TableHeader className="bg-neutral-50/50">
+                        <TableRow className="border-b border-neutral-200 hover:bg-transparent">
+                          <TableHead className="p-6 text-[10px] font-black uppercase tracking-widest text-neutral-400 w-1/3">Client Identity & Contact</TableHead>
+                          <TableHead className="p-6 text-[10px] font-black uppercase tracking-widest text-neutral-400">Lead Metadata</TableHead>
+                          <TableHead className="p-6 text-[10px] font-black uppercase tracking-widest text-neutral-400 text-center">Pipeline Progress</TableHead>
+                          <TableHead className="p-6 text-[10px] font-black uppercase tracking-widest text-neutral-400 text-right">Command Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {leadsLoading ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="p-24 text-center">
+                            <TableCell colSpan={4} className="p-20 text-center">
                               <div className="flex flex-col items-center gap-4">
-                                <Loader2 className="w-12 h-12 animate-spin text-accent" />
-                                <p className="text-xs font-black uppercase tracking-[0.4em] animate-pulse">Syncing Global Lead Database...</p>
+                                <Loader2 className="w-10 h-10 animate-spin text-accent" />
+                                <p className="text-[10px] font-black uppercase tracking-[0.4em] animate-pulse">Syncing Global Lead Database...</p>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -3435,96 +3860,87 @@ export default function AdminPanel() {
                           l.source.toLowerCase().includes(leadSearch.toLowerCase())
                         ).length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="p-24 text-center">
-                              <div className="w-20 h-20 bg-neutral-50 rounded-full flex items-center justify-center mx-auto mb-6 text-neutral-300">
-                                <Users className="w-10 h-10" />
+                            <TableCell colSpan={4} className="p-20 text-center">
+                              <div className="w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mx-auto mb-4 text-neutral-300">
+                                <Users className="w-8 h-8" />
                               </div>
-                              <p className="uppercase-soft font-black text-neutral-400 mb-2 text-lg">No Prospects Found</p>
-                              <p className="text-xs text-neutral-300 font-medium max-w-sm mx-auto">Try adjusting your search filter or initialize a new relationship.</p>
+                              <p className="text-[10px] font-black text-neutral-400 mb-1 uppercase tracking-widest">No Prospects Found</p>
+                              <p className="text-[9px] text-neutral-300 font-medium max-w-sm mx-auto">Try adjusting your search filter.</p>
                             </TableCell>
                           </TableRow>
                         ) : leads.filter(l => 
                           l.name.toLowerCase().includes(leadSearch.toLowerCase()) || 
                           l.whatsapp.includes(leadSearch)
                         ).map((lead) => (
-                          <TableRow key={lead.id} className="group border-b border-black/5 hover:bg-neutral-50/50 transition-all duration-300">
-                            <TableCell className="p-8">
-                              <div className="flex items-center gap-6">
-                                <div className="w-16 h-16 rounded-[1.25rem] bg-black text-white flex items-center justify-center font-black text-2xl shadow-xl transform group-hover:rotate-3 transition-transform">
+                          <TableRow key={lead.id} className="group border-b border-neutral-100 hover:bg-neutral-50/30 transition-all duration-300">
+                            <TableCell className="p-6">
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-black text-lg shadow-sm">
                                   {lead.name[0].toUpperCase()}
                                 </div>
-                                <div className="space-y-1">
-                                  <p className="font-black text-lg uppercase tracking-tight text-black leading-none">{lead.name}</p>
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex items-center gap-1.5 bg-green-50 px-2 py-0.5 rounded text-green-600 border border-green-100">
-                                      <Phone className="w-3 h-3" />
-                                      <p className="text-[10px] font-mono font-bold tracking-tighter">{lead.whatsapp}</p>
+                                <div className="space-y-0.5">
+                                  <p className="font-black text-sm uppercase tracking-tight text-neutral-800 leading-none">{lead.name}</p>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5 text-green-600">
+                                      <Phone className="w-2.5 h-2.5" />
+                                      <p className="text-[9px] font-mono font-bold tracking-tighter">{lead.whatsapp}</p>
                                     </div>
-                                    <p className="text-[10px] font-bold text-neutral-400 border-l border-neutral-100 pl-3">Registered: {new Date(lead.createdAt).toLocaleDateString()}</p>
+                                    <p className="text-[8px] font-black text-neutral-300 uppercase">RD: {new Date(lead.createdAt).toLocaleDateString()}</p>
                                   </div>
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="p-8">
-                              <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <Badge className="bg-blue-50 text-blue-600 border-none uppercase text-[8px] font-black px-2 py-0.5">{lead.source}</Badge>
-                                </div>
+                            <TableCell className="p-6">
+                              <div className="space-y-2">
+                                <Badge className="bg-neutral-100 text-neutral-500 border-none uppercase text-[7px] font-black px-2 py-0.5">{lead.source}</Badge>
                                 {lead.notes ? (
-                                  <div className="bg-neutral-50 p-4 rounded-xl border border-black/5 relative overflow-hidden">
-                                     <div className="absolute top-0 left-0 w-1 h-full bg-neutral-200" />
-                                     <p className="text-[11px] font-medium text-neutral-600 italic line-clamp-2">"{lead.notes}"</p>
-                                  </div>
+                                  <p className="text-[10px] font-medium text-neutral-500 italic line-clamp-1 max-w-[200px]">"{lead.notes}"</p>
                                 ) : (
-                                  <p className="text-[10px] text-neutral-300 italic">No notes provided for this prospect.</p>
+                                  <p className="text-[9px] text-neutral-300 italic">No notes.</p>
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell className="p-8 text-center">
-                              <div className="flex flex-col items-center gap-2">
-                                <select 
-                                  className={cn(
-                                    "h-11 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 focus:outline-none transition-all cursor-pointer shadow-sm w-44 text-center",
-                                    lead.status === 'Won' ? "bg-black text-white border-black" :
-                                    lead.status === 'Qualified' ? "bg-accent text-white border-accent shadow-accent/20" :
-                                    lead.status === 'Lost' ? "bg-neutral-100 text-neutral-400 border-neutral-200" :
-                                    "bg-white text-blue-600 border-blue-100"
-                                  )}
-                                  value={lead.status}
-                                  onChange={async (e) => {
-                                    await updateLead(lead.id, { status: e.target.value as any });
-                                    toast.success(`Pipeline progression: ${lead.name} is now ${e.target.value}`);
-                                  }}
-                                >
-                                  <option value="Lead">Initial Lead</option>
-                                  <option value="Qualified">Qualified (Surveyed)</option>
-                                  <option value="Won">Won (Deal Closed)</option>
-                                  <option value="Lost">Lead Lost</option>
-                                </select>
-                                <p className="text-[8px] font-black uppercase text-neutral-300 tracking-tighter">Current Status In Database</p>
-                              </div>
+                            <TableCell className="p-6 text-center">
+                              <select 
+                                className={cn(
+                                  "h-9 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest border border-neutral-200 focus:outline-none transition-all cursor-pointer shadow-sm w-40 text-center",
+                                  lead.status === 'Won' ? "bg-green-500 text-white border-green-500" :
+                                  lead.status === 'Qualified' ? "bg-accent text-white border-accent" :
+                                  lead.status === 'Lost' ? "bg-neutral-100 text-neutral-400 border-neutral-200" :
+                                  "bg-white text-neutral-600"
+                                )}
+                                value={lead.status}
+                                onChange={async (e) => {
+                                  await updateLead(lead.id, { status: e.target.value as any });
+                                  toast.success(`Updated: ${lead.name}`);
+                                }}
+                              >
+                                <option value="Lead">Initial Lead</option>
+                                <option value="Qualified">Qualified</option>
+                                <option value="Won">Won</option>
+                                <option value="Lost">Lost</option>
+                              </select>
                             </TableCell>
-                            <TableCell className="p-8 text-right">
-                              <div className="flex justify-end gap-3">
+                            <TableCell className="p-6 text-right">
+                              <div className="flex justify-end gap-2">
                                 <Button 
                                   variant="outline" 
-                                  className="h-12 w-auto px-6 border-2 border-black rounded-2xl hover:bg-black hover:text-white transition-all shadow-lg active:translate-y-1 font-black text-[10px] uppercase gap-2 flex items-center"
-                                  onClick={() => window.open(`https://wa.me/${lead.whatsapp}?text=Halo Bapak/Ibu ${lead.name}, saya Admin TBJ Constech. Ingin menindaklanjuti rencana proyek Anda...`, '_blank')}
+                                  className="h-9 w-auto px-4 border border-neutral-200 rounded-xl hover:bg-neutral-900 hover:text-white transition-all text-[9px] font-black uppercase gap-2 flex items-center shadow-sm"
+                                  onClick={() => window.open(`https://wa.me/${lead.whatsapp}?text=Halo Bapak/Ibu ${lead.name}, saya Admin TBJ Constech.`, '_blank')}
                                 >
-                                  <Phone className="w-5 h-5 text-green-500 group-hover:text-white" /> Follow Up
+                                  <Phone className="w-3.5 h-3.5" /> Follow Up
                                 </Button>
                                 <Button 
-                                  variant="outline" 
+                                  variant="ghost" 
                                   size="icon" 
-                                  className="h-12 w-12 border-2 border-red-500 text-red-500 rounded-2xl hover:bg-red-50 transition-all shadow-lg active:translate-y-1"
+                                  className="h-9 w-9 border border-neutral-100 text-neutral-300 hover:text-red-500 rounded-xl transition-all"
                                   onClick={async () => {
-                                    if (confirm(`Hapus prospect ${lead.name} dari database CRM secara permanen? Tindakan ini tidak dapat dibatalkan.`)) {
+                                    if (confirm(`Hapus prospect ${lead.name}?`)) {
                                       await deleteLead(lead.id);
-                                      toast.success("Lead purged from ecosystem.");
                                     }
                                   }}
                                 >
-                                  <Trash2 className="w-5 h-5" />
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
                             </TableCell>
@@ -4110,7 +4526,18 @@ export default function AdminPanel() {
           {activeTab === "vendors" && (
             <div className="space-y-8">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h2 className="text-2xl font-black uppercase tracking-tighter">Vendor Database</h2>
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <h2 className="text-2xl font-black uppercase tracking-tighter shrink-0">Vendor Database</h2>
+                  <div className="relative w-full md:w-96">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <Input 
+                      placeholder="Search vendors by name or category..." 
+                      className="pl-10 h-10 border-2 border-black rounded-xl w-full"
+                      value={vendorSearch}
+                      onChange={e => setVendorSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
                 <Button className="btn-sleek h-10 px-6 rounded-xl w-full md:w-auto" onClick={() => setShowAddVendor(true)}>
                   <Plus className="w-4 h-4 mr-2" /> Register Vendor
                 </Button>
@@ -4163,27 +4590,87 @@ export default function AdminPanel() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vendors.map(v => (
-                      <TableRow key={v.id}>
-                        <TableCell className="font-black text-xs uppercase tracking-widest">{v.name}</TableCell>
-                        <TableCell><Badge variant="outline" className="border-black text-[9px] uppercase">{v.category}</Badge></TableCell>
-                        <TableCell className="text-[10px] font-bold">{v.contactName}</TableCell>
-                        <TableCell>
-                          <a href={`https://wa.me/${v.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-green-600 hover:underline">
-                            <Phone className="w-3 h-3" />
-                            <span className="text-[10px] font-bold">{v.whatsapp}</span>
-                          </a>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => deleteVendor(v.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                    {paginatedVendors.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-40 text-center text-neutral-400 italic uppercase font-black tracking-widest">
+                          No vendors found matching your search.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      paginatedVendors.map(v => (
+                        <TableRow key={v.id}>
+                          <TableCell className="font-black text-xs uppercase tracking-widest">{v.name}</TableCell>
+                          <TableCell><Badge variant="outline" className="border-black text-[9px] uppercase">{v.category}</Badge></TableCell>
+                          <TableCell className="text-[10px] font-bold">{v.contactName}</TableCell>
+                          <TableCell>
+                            <a href={`https://wa.me/${v.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-green-600 hover:underline">
+                              <Phone className="w-3 h-3" />
+                              <span className="text-[10px] font-bold">{v.whatsapp}</span>
+                            </a>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => deleteVendor(v.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </Card>
+
+              {/* Vendor Pagination Controls */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/50 p-4 rounded-2xl border border-neutral-200 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400">Density View:</span>
+                  <div className="flex gap-1">
+                    {[10, 50, 100].map((size) => (
+                      <Button 
+                        key={size}
+                        variant="outline" 
+                        size="sm"
+                        className={cn(
+                          "h-7 px-3 rounded-lg text-[9px] font-black tracking-widest transition-all",
+                          vendorsPerPage === size ? "bg-neutral-900 text-white border-neutral-900" : "bg-white text-neutral-400 border-neutral-200 hover:bg-neutral-50"
+                        )}
+                        onClick={() => {
+                          setVendorsPerPage(size);
+                          setCurrentVendorPage(1);
+                        }}
+                      >
+                        {size}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400">
+                    Segment {currentVendorPage} of {totalVendorPages || 1}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-xl border border-neutral-200 hover:bg-neutral-50 shadow-sm"
+                      disabled={currentVendorPage === 1}
+                      onClick={() => setCurrentVendorPage(prev => Math.max(1, prev - 1))}
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-xl border border-neutral-200 hover:bg-neutral-50 shadow-sm"
+                      disabled={currentVendorPage === totalVendorPages || totalVendorPages === 0}
+                      onClick={() => setCurrentVendorPage(prev => Math.min(totalVendorPages, prev + 1))}
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

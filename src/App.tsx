@@ -4,6 +4,7 @@
  */
 
 import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, Link } from "react-router-dom";
+import { motion, AnimatePresence } from "motion/react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import ErrorBoundary from "@/components/ErrorBoundary.tsx";
@@ -573,6 +574,7 @@ const ProjectDetail = () => {
 
   const totalWeight = items.reduce((sum, i) => sum + (i.totalPrice / (project.totalBudget || 1)) * 100, 0);
   const [activeTab, setActiveTab] = useState<"overview" | "rab" | "timeline" | "photos" | "finance" | "procurement">("overview");
+  const [showRABActions, setShowRABActions] = useState(false);
 
   const currentProgress = items.reduce((sum, i) => sum + ((i.progress || 0) * (i.totalPrice / (project.totalBudget || 1))), 0);
 
@@ -617,9 +619,9 @@ const ProjectDetail = () => {
                 <ChevronLeft className="w-4 h-4" />
               </Button>
             </Link>
-            <h1 className="text-2xl md:text-4xl font-black tracking-tighter uppercase leading-tight truncate">{project.name}</h1>
+            <h1 className="text-xl md:text-4xl font-black tracking-tighter uppercase leading-tight truncate">{project.name}</h1>
           </div>
-          <p className="text-neutral-500 uppercase font-bold text-[9px] md:text-[10px] tracking-widest ml-11 line-clamp-1">{project.description}</p>
+          <p className="text-neutral-500 uppercase font-bold text-[8px] md:text-[10px] tracking-widest ml-11 line-clamp-1">{project.description}</p>
         </div>
         
         <div className="md:hidden w-full">
@@ -1242,100 +1244,215 @@ const ProjectDetail = () => {
 
       {activeTab === "rab" && (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-neutral-50 p-6 rounded-[2rem] border-2 border-black/5 gap-4">
-             <div className="flex flex-wrap gap-4 w-full md:w-auto">
-                <Button variant="outline" className="flex-1 md:flex-none h-12 px-6 border-2 border-black rounded-2xl gap-2 font-black uppercase text-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-neutral-100" onClick={() => {
-                  const cats = categories.map(c => ({ id: c.id, name: c.name }));
-                  const formattedItems = items.map(item => ({
-                    name: item.name,
-                    unit: item.unit,
-                    quantity: item.quantity,
-                    pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup),
-                    totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup),
-                    categoryId: item.categoryId,
-                    technicalSpecs: item.technicalSpecs
-                  }));
-                  generateRABPDF(`RAB ${project.name}`, cats, formattedItems, pdfLogo, { name: project.name, location: project.description || "Jakarta", client: user?.displayName || "Klien Terhomat" });
-                  toast.success("RAB PDF Generated!");
-                }}>
-                  <Download className="w-4 h-4" /> Export RAB PDF
-                </Button>
-                
-                {canEditRAB && (
-                  <div className="flex gap-3">
-                    <Dialog>
-                      <DialogTrigger render={<Button className="btn-accent h-12 px-6 rounded-2xl gap-2 font-black uppercase text-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"><Plus className="w-4 h-4" /> Kategori</Button>} />
-                      <DialogContent>
-                        <DialogHeader><DialogTitle className="font-black uppercase tracking-tighter">Tambah Kategori Baru</DialogTitle></DialogHeader>
-                        <div className="py-4 space-y-4">
-                          <div className="space-y-2">
-                             <Label className="uppercase-soft text-[10px]">Nama Kategori</Label>
-                             <Input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Contoh: Pekerjaan Tanah" className="h-12 border-2 border-black/10 rounded-xl" />
-                          </div>
-                        </div>
-                        <DialogFooter><Button className="btn-sleek w-full h-12" onClick={() => { addCategory(newCatName); setNewCatName(""); }}>Simpan</Button></DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    
-                    <Dialog>
-                      <DialogTrigger render={<Button className="btn-sleek h-12 px-6 rounded-2xl gap-2 font-black uppercase text-[10px] shadow-[4px_4px_0px_0px_#FF6B00]"><Plus className="w-4 h-4" /> Item RAB</Button>} />
-                      <DialogContent className="max-w-xl">
-                        <DialogHeader><DialogTitle className="font-black uppercase tracking-tighter">Tambah Item RAB</DialogTitle></DialogHeader>
-                        <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar">
-                           <div className="space-y-2">
-                              <Label className="uppercase-soft text-[10px]">Kategori</Label>
-                              <select className="w-full h-12 px-4 border-2 border-black/10 rounded-xl font-bold uppercase text-xs" value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)}>
-                                <option value="">Pilih Kategori</option>
-                                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                              </select>
-                           </div>
-                           <div className="space-y-2 relative">
-                              <Label className="uppercase-soft text-[10px]">Cari Pekerjaan (Master Data)</Label>
-                              <div className="relative">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-                                <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Ketik nama pekerjaan..." className="h-12 pl-11 border-2 border-black/10 rounded-xl" />
-                              </div>
-                              {isSearching && searchResults.length > 0 && (
-                                <div className="absolute z-50 w-full mt-2 bg-white border-2 border-black rounded-2xl shadow-xl max-h-60 overflow-auto scrollbar-hide">
-                                  {searchResults.map(item => (
-                                    <div key={item.id} className="p-4 hover:bg-neutral-50 cursor-pointer border-b-2 border-black/5 last:border-0" onClick={() => selectMasterItem(item)}>
-                                      <div className="flex justify-between items-center mb-1"><span className="font-black text-[11px] uppercase tracking-tighter">{item.name}</span><Badge variant="outline" className="text-[9px] border-black/10 uppercase-soft">{item.category}</Badge></div>
-                                      <div className="flex justify-between text-[10px] font-bold text-neutral-400 italic"><span>Satuan: {item.unit}</span><span>Rp {item.price.toLocaleString('id-ID')}</span></div>
-                                    </div>
-                                  ))}
+          <div className="bg-neutral-50 p-4 md:p-6 rounded-[2rem] border-2 border-black/5 space-y-4">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="w-full md:w-auto">
+                   <div className="md:hidden">
+                      <Button 
+                        variant="outline" 
+                        className="w-full h-12 border-2 border-black rounded-2xl justify-between px-6 font-black uppercase text-[10px]"
+                        onClick={() => setShowRABActions(!showRABActions)}
+                      >
+                        Actions Menu
+                        {showRABActions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Button>
+                      <AnimatePresence>
+                        {showRABActions && (
+                          <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden mt-3 space-y-3"
+                          >
+                             <Button variant="outline" className="w-full h-12 px-6 border border-neutral-200 rounded-2xl gap-2 font-black uppercase text-[10px] shadow-sm" onClick={() => {
+                               const cats = categories.map(c => ({ id: c.id, name: c.name }));
+                               const formattedItems = items.map(item => ({
+                                 name: item.name,
+                                 unit: item.unit,
+                                 quantity: item.quantity,
+                                 pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup),
+                                 totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup),
+                                 categoryId: item.categoryId,
+                                 technicalSpecs: item.technicalSpecs
+                               }));
+                               generateRABPDF(`RAB ${project.name}`, cats, formattedItems, pdfLogo, { name: project.name, location: project.description || "Jakarta", client: user?.displayName || "Klien Terhomat" });
+                               toast.success("RAB PDF Generated!");
+                               setShowRABActions(false);
+                             }}>
+                               <Download className="w-4 h-4" /> Export RAB PDF
+                             </Button>
+                             {canEditRAB && (
+                               <>
+                                 <Dialog>
+                                   <DialogTrigger render={<Button className="w-full h-12 px-6 border border-neutral-200 rounded-2xl gap-2 font-black uppercase text-[10px] shadow-sm"><Plus className="w-4 h-4" /> Kategori</Button>} />
+                                   <DialogContent>
+                                     <DialogHeader><DialogTitle className="font-black uppercase tracking-tighter">Tambah Kategori Baru</DialogTitle></DialogHeader>
+                                     <div className="py-4 space-y-4">
+                                       <div className="space-y-2">
+                                          <Label className="uppercase-soft text-[10px]">Nama Kategori</Label>
+                                          <Input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Contoh: Pekerjaan Tanah" className="h-12 border-2 border-black/10 rounded-xl" />
+                                       </div>
+                                     </div>
+                                     <DialogFooter><Button className="btn-sleek w-full h-12" onClick={() => { addCategory(newCatName); setNewCatName(""); }}>Simpan</Button></DialogFooter>
+                                   </DialogContent>
+                                 </Dialog>
+                                 <Dialog>
+                                   <DialogTrigger render={<Button className="w-full h-12 px-6 border border-neutral-200 rounded-2xl gap-2 font-black uppercase text-[10px] shadow-sm"><Plus className="w-4 h-4" /> Item RAB</Button>} />
+                                   <DialogContent className="max-w-xl">
+                                      <DialogHeader><DialogTitle className="font-black uppercase tracking-tighter">Tambah Item RAB</DialogTitle></DialogHeader>
+                                      <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar">
+                                         <div className="space-y-2">
+                                            <Label className="uppercase-soft text-[10px]">Kategori</Label>
+                                            <select className="w-full h-12 px-4 border-2 border-black/10 rounded-xl font-bold uppercase text-xs" value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)}>
+                                              <option value="">Pilih Kategori</option>
+                                              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            </select>
+                                         </div>
+                                         <div className="space-y-2 relative">
+                                            <Label className="uppercase-soft text-[10px]">Cari Pekerjaan (Master Data)</Label>
+                                            <div className="relative">
+                                              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                                              <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Ketik nama pekerjaan..." className="h-12 pl-11 border-2 border-black/10 rounded-xl" />
+                                            </div>
+                                            {isSearching && searchResults.length > 0 && (
+                                              <div className="absolute z-50 w-full mt-2 bg-white border-2 border-black rounded-2xl shadow-xl max-h-60 overflow-auto scrollbar-hide">
+                                                {searchResults.map(item => (
+                                                  <div key={item.id} className="p-4 hover:bg-neutral-50 cursor-pointer border-b-2 border-black/5 last:border-0" onClick={() => selectMasterItem(item)}>
+                                                    <div className="flex justify-between items-center mb-1"><span className="font-black text-[11px] uppercase tracking-tighter">{item.name}</span><Badge variant="outline" className="text-[9px] border-black/10 uppercase-soft">{item.category}</Badge></div>
+                                                    <div className="flex justify-between text-[10px] font-bold text-neutral-400 italic"><span>Satuan: {item.unit}</span><span>Rp {item.price.toLocaleString('id-ID')}</span></div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                         </div>
+                                         <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Nama Item</Label><Input value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="Nama pekerjaan..." className="h-12 border-2 border-black/10 rounded-xl" /></div>
+                                         <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Spesifikasi Teknis</Label><Textarea value={newItemSpecs} onChange={e => setNewItemSpecs(e.target.value)} placeholder="Merk, Tipe, Material..." className="min-h-[80px] border-2 border-black/10 rounded-xl" /></div>
+                                         <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Volume</Label><Input type="number" value={newItemQty || 0} onChange={e => setNewItemQty(Math.max(0, Number(e.target.value)))} className="h-12 border-2 border-black/10 rounded-xl" /></div>
+                                            <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Satuan</Label><Input value={newItemUnit} onChange={e => setNewItemUnit(e.target.value)} className="h-12 border-2 border-black/10 rounded-xl" /></div>
+                                         </div>
+                                         <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                              <Label className="uppercase-soft text-[10px]">Prioritas</Label>
+                                              <select className="w-full h-12 px-4 border-2 border-black/10 rounded-xl font-bold uppercase text-xs" value={newItemPriority} onChange={e => setNewItemPriority(e.target.value as any)}>
+                                                <option value="Low">Low</option>
+                                                <option value="Medium">Medium</option>
+                                                <option value="High">High</option>
+                                                <option value="Urgent">Urgent</option>
+                                              </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label className="uppercase-soft text-[10px]">Deadline / Due Date</Label>
+                                              <Input type="date" value={newItemDueDate} onChange={e => setNewItemDueDate(e.target.value)} className="h-12 border-2 border-black/10 rounded-xl" />
+                                            </div>
+                                         </div>
+                                         <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Harga Satuan (Rp)</Label><Input type="number" value={newItemPrice || 0} onChange={e => setNewItemPrice(Math.max(0, Number(e.target.value)))} className="h-12 border-2 border-black/10 rounded-xl" /></div>
+                                      </div>
+                                      <DialogFooter><Button className="btn-accent w-full h-12 shadow-md" onClick={() => { if(selectedCatId && newItemName) { addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate); setNewItemName(""); setNewItemSpecs(""); setNewItemQty(1); setNewItemPrice(0); setNewItemPriority("Medium"); setNewItemDueDate(""); setSearchQuery(""); setShowRABActions(false); } }}>Simpan Item</Button></DialogFooter>
+                                   </DialogContent>
+                                 </Dialog>
+                               </>
+                             )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                   </div>
+
+                   <div className="hidden md:flex flex-wrap gap-4">
+                      <Button variant="outline" className="h-12 px-6 border-2 border-black rounded-2xl gap-2 font-black uppercase text-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-neutral-100" onClick={() => {
+                        const cats = categories.map(c => ({ id: c.id, name: c.name }));
+                        const formattedItems = items.map(item => ({
+                          name: item.name,
+                          unit: item.unit,
+                          quantity: item.quantity,
+                          pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup),
+                          totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup),
+                          categoryId: item.categoryId,
+                          technicalSpecs: item.technicalSpecs
+                        }));
+                        generateRABPDF(`RAB ${project.name}`, cats, formattedItems, pdfLogo, { name: project.name, location: project.description || "Jakarta", client: user?.displayName || "Klien Terhomat" });
+                        toast.success("RAB PDF Generated!");
+                      }}>
+                        <Download className="w-4 h-4" /> Export RAB PDF
+                      </Button>
+                      
+                      {canEditRAB && (
+                        <div className="flex gap-3">
+                          <Dialog>
+                            <DialogTrigger render={<Button className="btn-accent h-12 px-6 rounded-2xl gap-2 font-black uppercase text-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"><Plus className="w-4 h-4" /> Kategori</Button>} />
+                            <DialogContent>
+                              <DialogHeader><DialogTitle className="font-black uppercase tracking-tighter">Tambah Kategori Baru</DialogTitle></DialogHeader>
+                              <div className="py-4 space-y-4">
+                                <div className="space-y-2">
+                                   <Label className="uppercase-soft text-[10px]">Nama Kategori</Label>
+                                   <Input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Contoh: Pekerjaan Tanah" className="h-12 border-2 border-black/10 rounded-xl" />
                                 </div>
-                              )}
-                           </div>
-                           <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Nama Item</Label><Input value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="Nama pekerjaan..." className="h-12 border-2 border-black/10 rounded-xl" /></div>
-                           <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Spesifikasi Teknis</Label><Textarea value={newItemSpecs} onChange={e => setNewItemSpecs(e.target.value)} placeholder="Merk, Tipe, Material..." className="min-h-[80px] border-2 border-black/10 rounded-xl" /></div>
-                           <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Volume</Label><Input type="number" value={newItemQty || 0} onChange={e => setNewItemQty(Math.max(0, Number(e.target.value)))} className="h-12 border-2 border-black/10 rounded-xl" /></div>
-                              <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Satuan</Label><Input value={newItemUnit} onChange={e => setNewItemUnit(e.target.value)} className="h-12 border-2 border-black/10 rounded-xl" /></div>
-                           </div>
-                           <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label className="uppercase-soft text-[10px]">Prioritas</Label>
-                                <select className="w-full h-12 px-4 border-2 border-black/10 rounded-xl font-bold uppercase text-xs" value={newItemPriority} onChange={e => setNewItemPriority(e.target.value as any)}>
-                                  <option value="Low">Low</option>
-                                  <option value="Medium">Medium</option>
-                                  <option value="High">High</option>
-                                  <option value="Urgent">Urgent</option>
-                                </select>
                               </div>
-                              <div className="space-y-2">
-                                <Label className="uppercase-soft text-[10px]">Deadline / Due Date</Label>
-                                <Input type="date" value={newItemDueDate} onChange={e => setNewItemDueDate(e.target.value)} className="h-12 border-2 border-black/10 rounded-xl" />
+                              <DialogFooter><Button className="btn-sleek w-full h-12" onClick={() => { addCategory(newCatName); setNewCatName(""); }}>Simpan</Button></DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                          
+                          <Dialog>
+                            <DialogTrigger render={<Button className="btn-sleek h-12 px-6 rounded-2xl gap-2 font-black uppercase text-[10px] shadow-[4px_4px_0px_0px_#FF6B00]"><Plus className="w-4 h-4" /> Item RAB</Button>} />
+                            <DialogContent className="max-w-xl">
+                              <DialogHeader><DialogTitle className="font-black uppercase tracking-tighter">Tambah Item RAB</DialogTitle></DialogHeader>
+                              <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar">
+                                 <div className="space-y-2">
+                                    <Label className="uppercase-soft text-[10px]">Kategori</Label>
+                                    <select className="w-full h-12 px-4 border-2 border-black/10 rounded-xl font-bold uppercase text-xs" value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)}>
+                                      <option value="">Pilih Kategori</option>
+                                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                 </div>
+                                 <div className="space-y-2 relative">
+                                    <Label className="uppercase-soft text-[10px]">Cari Pekerjaan (Master Data)</Label>
+                                    <div className="relative">
+                                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                                      <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Ketik nama pekerjaan..." className="h-12 pl-11 border-2 border-black/10 rounded-xl" />
+                                    </div>
+                                    {isSearching && searchResults.length > 0 && (
+                                      <div className="absolute z-50 w-full mt-2 bg-white border-2 border-black rounded-2xl shadow-xl max-h-60 overflow-auto scrollbar-hide">
+                                        {searchResults.map(item => (
+                                          <div key={item.id} className="p-4 hover:bg-neutral-50 cursor-pointer border-b-2 border-black/5 last:border-0" onClick={() => selectMasterItem(item)}>
+                                            <div className="flex justify-between items-center mb-1"><span className="font-black text-[11px] uppercase tracking-tighter">{item.name}</span><Badge variant="outline" className="text-[9px] border-black/10 uppercase-soft">{item.category}</Badge></div>
+                                            <div className="flex justify-between text-[10px] font-bold text-neutral-400 italic"><span>Satuan: {item.unit}</span><span>Rp {item.price.toLocaleString('id-ID')}</span></div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                 </div>
+                                 <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Nama Item</Label><Input value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="Nama pekerjaan..." className="h-12 border-2 border-black/10 rounded-xl" /></div>
+                                 <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Spesifikasi Teknis</Label><Textarea value={newItemSpecs} onChange={e => setNewItemSpecs(e.target.value)} placeholder="Merk, Tipe, Material..." className="min-h-[80px] border-2 border-black/10 rounded-xl" /></div>
+                                 <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Volume</Label><Input type="number" value={newItemQty || 0} onChange={e => setNewItemQty(Math.max(0, Number(e.target.value)))} className="h-12 border-2 border-black/10 rounded-xl" /></div>
+                                    <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Satuan</Label><Input value={newItemUnit} onChange={e => setNewItemUnit(e.target.value)} className="h-12 border-2 border-black/10 rounded-xl" /></div>
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <Label className="uppercase-soft text-[10px]">Prioritas</Label>
+                                      <select className="w-full h-12 px-4 border-2 border-black/10 rounded-xl font-bold uppercase text-xs" value={newItemPriority} onChange={e => setNewItemPriority(e.target.value as any)}>
+                                        <option value="Low">Low</option>
+                                        <option value="Medium">Medium</option>
+                                        <option value="High">High</option>
+                                        <option value="Urgent">Urgent</option>
+                                      </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="uppercase-soft text-[10px]">Deadline / Due Date</Label>
+                                      <Input type="date" value={newItemDueDate} onChange={e => setNewItemDueDate(e.target.value)} className="h-12 border-2 border-black/10 rounded-xl" />
+                                    </div>
+                                 </div>
+                                 <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Harga Satuan (Rp)</Label><Input type="number" value={newItemPrice || 0} onChange={e => setNewItemPrice(Math.max(0, Number(e.target.value)))} className="h-12 border-2 border-black/10 rounded-xl" /></div>
                               </div>
-                           </div>
-                           <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Harga Satuan (Rp)</Label><Input type="number" value={newItemPrice || 0} onChange={e => setNewItemPrice(Math.max(0, Number(e.target.value)))} className="h-12 border-2 border-black/10 rounded-xl" /></div>
+                              <DialogFooter><Button className="btn-accent w-full h-12 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" onClick={() => { if(selectedCatId && newItemName) { addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate); setNewItemName(""); setNewItemSpecs(""); setNewItemQty(1); setNewItemPrice(0); setNewItemPriority("Medium"); setNewItemDueDate(""); setSearchQuery(""); } }}>Simpan Item</Button></DialogFooter>
+                            </DialogContent>
+                          </Dialog>
                         </div>
-                        <DialogFooter><Button className="btn-accent w-full h-12 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" onClick={() => { if(selectedCatId && newItemName) { addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate); setNewItemName(""); setNewItemSpecs(""); setNewItemQty(1); setNewItemPrice(0); setNewItemPriority("Medium"); setNewItemDueDate(""); setSearchQuery(""); } }}>Simpan Item</Button></DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                )}
+                      )}
+                   </div>
+                </div>
+                <p className="font-black text-[10px] md:text-xs uppercase tracking-tighter text-neutral-400">Total RAB: <span className="text-black">{formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(project.totalBudget, sysConfig?.globalMarkup) : calculateClientPrice(project.totalBudget, sysConfig?.globalMarkup))}</span></p>
              </div>
-             <p className="font-black text-[11px] uppercase tracking-tighter">Total RAB: {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(project.totalBudget, sysConfig?.globalMarkup) : calculateClientPrice(project.totalBudget, sysConfig?.globalMarkup))}</p>
           </div>
 
           <div className="space-y-12">
@@ -1799,8 +1916,8 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
 
           {step === 2 && (
             <div className="p-6 md:p-12 space-y-8 md:space-y-12">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b-2 border-neutral-200 pb-6 gap-4">
-                <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tighter flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-neutral-100 pb-6 gap-4">
+                <h2 className="text-xl md:text-4xl font-black uppercase tracking-tighter flex items-center gap-3">
                   <MapPin className="w-8 md:w-10 h-8 md:h-10" /> Detail Proyek
                 </h2>
                 <div className="flex items-center gap-4">
@@ -1854,7 +1971,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                           {expandedRenovasi ? <ChevronUp className="w-4 md:w-5 h-4 md:h-5" /> : <ChevronDown className="w-4 md:w-5 h-4 md:h-5" />}
                         </div>
                         {expandedRenovasi && (
-                          <div className="p-4 md:p-6 bg-neutral-50 grid grid-cols-2 gap-2 md:gap-3">
+                          <div className="p-4 md:p-6 bg-neutral-50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
                             {["Dinding", "Lantai", "Atap", "Plafon", "Cat", "Kamar Mandi"].map(item => (
                               <div 
                                 key={item}

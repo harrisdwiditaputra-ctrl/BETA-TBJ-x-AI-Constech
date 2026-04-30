@@ -122,10 +122,13 @@ export interface Workforce {
   ktp: string;
   photoUrl: string;
   role: "pm" | "designer" | "drafter" | "tukang" | "mandor" | "kenek" | string;
-  skill?: string; // Added for worker specialization
+  skill?: string; 
   whatsapp: string;
-  projectId?: string; // Label proyek dimana
+  projectId?: string; 
   status: "active" | "inactive";
+  availability: "available" | "busy" | "on_leave";
+  startDate?: string;
+  absences?: { date: string; reason: string; approved: boolean }[];
   location?: { lat: number; lng: number };
   lastSeen?: string;
 }
@@ -238,7 +241,7 @@ export interface CMSConfig {
   heroSubtitle: string;
   promoText: string;
   promoActive: boolean;
-  promos?: { id: string; text: string; isActive: boolean; expiresAt?: string }[];
+  promos?: { id: string; text: string; isActive: boolean; expiresAt?: string; scheduledAt?: string }[];
   // Dynamic Payment & Transfer Instructions
   paymentBankName?: string;
   paymentAccountNumber?: string;

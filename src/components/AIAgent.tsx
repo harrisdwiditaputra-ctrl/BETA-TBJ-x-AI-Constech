@@ -120,11 +120,24 @@ export default function AIAgent() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Gagal menghubungi AI Agent");
+        let errorMsg = "Gagal menghubungi AI Agent";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          errorMsg = await response.text() || errorMsg;
+        }
+        throw new Error(errorMsg);
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        const text = await response.text();
+        console.error("Failed to parse AI response as JSON:", text);
+        throw new Error("Respon AI tidak valid (Bukan JSON). Silakan coba lagi.");
+      }
       const responseText = data.text || "Maaf, saya tidak bisa memberikan jawaban saat ini.";
       setMessages(prev => [...prev, { role: "assistant", content: responseText }]);
       

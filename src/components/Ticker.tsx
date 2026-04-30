@@ -19,9 +19,14 @@ export default function Ticker() {
       cmsConfig.promos
         .filter(p => {
           if (!p.isActive) return false;
+          const now = new Date();
           if (p.expiresAt) {
             const expiry = new Date(p.expiresAt);
-            return expiry > now;
+            if (expiry <= now) return false;
+          }
+          if (p.scheduledAt) {
+            const scheduled = new Date(p.scheduledAt);
+            if (scheduled > now) return false;
           }
           return true;
         })
