@@ -25,7 +25,7 @@ import { Progress } from "@/components/ui/progress";
 import { WorkItemMaster, Property, AIEstimateResponse, BudgetItem, TimelineEvent } from "@/types";
 import { cn, getDriveImageUrl, calculateAdminPrice, calculateClientPrice, formatRupiah } from "@/lib/utils";
 import { getAIEstimation } from "./services/aiEstimator";
-import { generateAIPDF, generateRABPDF } from "@/lib/pdfUtils";
+import { generateAIPDF, generateRABPDF, generateInvoicePDF } from "@/lib/pdfUtils";
 import { Plus, Trash2, ChevronRight, ChevronLeft, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles, Minus, Brain, Quote, Zap, LayoutDashboard, DollarSign, Edit2, ArrowRight, UserPlus, Fingerprint, History, Package } from "lucide-react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
@@ -1722,6 +1722,9 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
           const area = projectData.area || 0;
           const categoriesStr = selectedCategories.join(", ");
           prompt = `PROYEK RENOVASI & MAINTENANCE:\nAnalisis: ${userProblem || "Renovasi bangunan"}\nKategori: ${categoriesStr}\nLuas Area: ${area}m2`;
+        } else if (projectData.type === "Interior") {
+          const area = projectData.area || 0;
+          prompt = `PROYEK DESAIN & INTERIOR:\nAnalisis: ${userProblem || "Pekerjaan desain/interior"}\nSub-Tipe: ${projectData.subType}\nLuas Area: ${area}m2`;
         } else if (projectData.type === "Lain-Lain" || projectData.type === "Lain-lain") {
           const area = projectData.area || 0;
           prompt = `PROYEK KHUSUS (LAIN-LAIN):\nDeskripsi: ${userProblem || "Pekerjaan konstruksi khusus"}\nLuas Area Estimasi: ${area}m2`;
@@ -2585,7 +2588,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                   </div>
                       <div className="pt-6 md:pt-8 flex flex-col gap-4">
                         <Button 
-                          className="w-full btn-orange h-16 md:h-20 text-lg md:text-xl font-black uppercase tracking-widest shadow-xl shadow-accent/20 transition-all active:scale-[0.98]" 
+                          className="w-full btn-orange h-16 md:h-20 text-sm md:text-base font-black uppercase tracking-widest shadow-xl shadow-accent/20 transition-all active:scale-[0.98]" 
                           onClick={() => {
                             if (projectData.type === "Renovasi" && !userProblem) {
                               toast.warning("Mohon jelaskan detail renovasi", { description: "Sedikit cerita membantu AI memberikan estimasi lebih akurat." });
@@ -2709,7 +2712,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                   </div>
                   <div className="pt-6 md:pt-12 flex flex-col gap-4">
                     <Button 
-                      className="w-full btn-orange h-16 md:h-20 text-lg md:text-xl font-black uppercase tracking-widest shadow-xl shadow-accent/20" 
+                      className="w-full btn-orange h-16 md:h-20 text-sm md:text-base font-black uppercase tracking-widest shadow-xl shadow-accent/20" 
                       onClick={handleNext}
                       disabled={isAnalyzing}
                     >
@@ -2851,7 +2854,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                             size="icon" 
                             className="h-12 w-12 rounded-xl border-2 border-black hover:border-green-500 hover:text-green-500 transition-all shadow-md active:translate-y-1"
                             onClick={() => {
-                              const message = `*ESTIMASI RAB - TBJ CONSTECH*%0AProyek: ${projectData.name || projectData.type}%0ATotal Biaya: Rp ${totalEstimate.toLocaleString('id-ID')}%0A%0AInformasi lebih lanjut hubungi: 081213496672%0A_Dibuat via TBJ Constech OS_`;
+                              const message = `*ESTIMASI RAB - TUKANG BANGUNAN JAKARTA*%0AProyek: ${projectData.name || projectData.type}%0ATotal Biaya: Rp ${totalEstimate.toLocaleString('id-ID')}%0A%0AInformasi lebih lanjut hubungi: 081213496672%0A_Dibuat via TBJ Constech OS_`;
                               window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
                             }}
                           >
@@ -2893,7 +2896,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                         <h4 className="text-xs font-black uppercase tracking-widest text-accent mb-4 flex items-center gap-2">
                           <Sparkles className="w-4 h-4" /> Strategic AI Summary
                         </h4>
-                        <p className="text-lg text-neutral-700 leading-relaxed font-medium italic">"{aiEstimation.analysis}"</p>
+                        <p className="text-sm md:text-base text-neutral-700 leading-relaxed font-medium italic">"{aiEstimation.analysis}"</p>
                       </div>
 
                       <div className="space-y-6">
@@ -2931,6 +2934,52 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                               </div>
                             </div>
                           ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-black text-white p-8 md:p-10 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-8 border-[1.75px] border-black shadow-2xl relative overflow-hidden">
+                        <div className="space-y-2 text-center md:text-left relative z-10">
+                          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-500">Gross Estimation Total</p>
+                          <h3 className="text-4xl md:text-5xl font-black tracking-tighter tabular-nums">Rp {(totalEstimate || 0).toLocaleString('id-ID')}</h3>
+                          <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-widest">Calculated by TBJ Neural Engine v4.0</p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-4 relative z-10 w-full md:w-auto">
+                          <Button 
+                            className="btn-orange h-14 px-8 text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-accent/20 active:translate-y-1 transition-all flex-1 md:flex-none"
+                            onClick={() => generateAIPDF(projectData.name || "Estimation", aiEstimation)}
+                          >
+                            <Download className="w-5 h-5 mr-3" /> Download RAB
+                          </Button>
+                          <Button 
+                            variant="outline"
+                            className="h-14 px-8 bg-white/10 hover:bg-white/20 border-white/20 text-white text-[10px] font-black uppercase tracking-[0.2em] active:translate-y-1 transition-all flex-1 md:flex-none"
+                            onClick={() => {
+                              const invoiceData = {
+                                number: `INV-${new Date().getFullYear()}${Math.floor(Math.random() * 10000)}`,
+                                date: new Date().toLocaleDateString('id-ID'),
+                                dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('id-ID'),
+                                clientName: user?.displayName || "Guest",
+                                clientPhone: (user as any)?.phone || "-",
+                                projectName: projectData.name || "AI Estimation",
+                                items: aiEstimation.items.map((it: any) => ({
+                                  desc: it.name,
+                                  qty: it.quantity,
+                                  unit: it.unit,
+                                  price: it.pricePerUnit,
+                                  total: it.totalPrice
+                                })),
+                                total: aiEstimation.totalEstimatedCost,
+                                bankInfo: {
+                                  bank: "BRI",
+                                  accNo: "4792-0103-1488-535",
+                                  accName: "TBJ CONTRACTOR"
+                                }
+                              };
+                              generateInvoicePDF(invoiceData);
+                            }}
+                          >
+                            <FileText className="w-5 h-5 mr-3" /> View Invoice
+                          </Button>
                         </div>
                       </div>
 
@@ -3097,13 +3146,18 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
               </div>
 
               <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                <div className="p-8 border-4 border-black rounded-[40px] bg-white space-y-6 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
+                <div className="p-8 border-[1.75px] border-black rounded-[40px] bg-white space-y-6 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
                   <div className="flex flex-col items-center gap-4">
-                    <div className="w-48 h-48 border-2 border-primary/20 rounded-3xl p-2 bg-white">
-                      <img src={qrisImage} alt="QRIS TBJ" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                    <div className="w-[280px] h-[280px] border-[0.75px] border-primary/20 rounded-3xl p-2 bg-white flex items-center justify-center shadow-inner overflow-hidden">
+                      <img 
+                        src={qrisImage} 
+                        alt="QRIS TBJ" 
+                        className="w-[280px] h-[280px] object-contain" 
+                        referrerPolicy="no-referrer" 
+                      />
                     </div>
                     <div className="text-center">
-                      <p className="text-xl font-black uppercase tracking-tighter">QRIS TBJ CONSTECH</p>
+                      <p className="text-xl font-black uppercase tracking-tighter">QRIS TUKANG BANGUNAN JAKARTA</p>
                       <p className="text-[10px] font-bold uppercase text-neutral-400">{cmsConfig?.paymentQrisInstructions || "Scan & Pay via All E-Wallet / Mobile Banking"}</p>
                     </div>
                   </div>
@@ -3116,7 +3170,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                       <div className="text-left">
                         <p className="text-[10px] font-black uppercase text-neutral-400">Nomor Rekening {cmsConfig?.paymentBankName || "BRI"}</p>
                         <p className="text-xl font-black tracking-tighter">{cmsConfig?.paymentAccountNumber || "4792-0103-1488-535"}</p>
-                        <p className="text-[9px] font-bold uppercase text-neutral-500">an {cmsConfig?.paymentAccountHolder || "TBJ CONTRACTOR"}</p>
+                        <p className="text-[9px] font-bold uppercase text-neutral-500">an {cmsConfig?.paymentAccountHolder || "TUKANG BANGUNAN JAKARTA"}</p>
                       </div>
                     </div>
                     <div className="p-4 bg-primary text-white rounded-2xl">

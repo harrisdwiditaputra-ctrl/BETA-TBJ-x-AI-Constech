@@ -31,7 +31,15 @@ export const generateRABPDF = async (
   const logoUrl = customLogoUrl || TBJ_LOGO;
   const base64Logo = await imageUrlToBase64(logoUrl);
   const orange = [255, 107, 0]; // Cosmic Orange
-  const rabNo = projectIdentity?.rabNumber || `RAB-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const generateRABNumber = (pName: string) => {
+    const date = new Date();
+    const datePart = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+    const projectPart = pName.substring(0, 3).toUpperCase().replace(/\s+/g, 'X');
+    const randomPart = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `RAB-${datePart}-${projectPart}-${randomPart}`;
+  };
+
+  const rabNo = projectIdentity?.rabNumber || generateRABNumber(projectName);
 
   // Helper for footer and page numbers
   const addFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
@@ -45,11 +53,11 @@ export const generateRABPDF = async (
     // Brand Footer
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(orange[0], orange[1], orange[2]);
-    doc.text('TUKANG BANGUNAN JAKARTA (TBJ CONSTECH)', 10, pageHeight - 20);
+    doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
     
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
-    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: TBJ Constech', 10, pageHeight - 15);
+    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
     doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
   };
 
@@ -65,13 +73,13 @@ export const generateRABPDF = async (
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(orange[0], orange[1], orange[2]);
-  doc.text('TBJ CONSTECH', 32, 18);
+  doc.text('Tukang Bangunan Jakarta', 32, 18);
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0);
-  doc.text('Virtual Construction System & Renovation Specialist', 32, 23);
-  doc.text('WA: 081213496672 | Jakarta, Indonesia', 32, 27);
+  doc.text('Professional Renovation Specialist | Integrasi AI & Data-Driven Estimation', 32, 23);
+  doc.text('WA 081213496672 | Jakarta, Indonesia', 32, 27);
 
   // Orange Line
   doc.setDrawColor(orange[0], orange[1], orange[2]);
@@ -182,7 +190,7 @@ export const generateRABPDF = async (
   doc.setTextColor(0);
   doc.setFontSize(10);
   doc.text('Hormat Kami,', 150, currentY);
-  doc.text('TBJ CONSTECH OS', 150, currentY + 5);
+  doc.text('TUKANG BANGUNAN JAKARTA', 150, currentY + 5);
   
   doc.line(140, currentY + 30, 190, currentY + 30);
   doc.text('Official Estimator', 150, currentY + 35);
@@ -211,10 +219,10 @@ export const generatePOPDF = async (request: any, vendor: any, customLogoUrl?: s
     doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(orange[0], orange[1], orange[2]);
-    doc.text('TUKANG BANGUNAN JAKARTA (TBJ CONSTECH)', 10, pageHeight - 20);
+    doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
-    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: TBJ Constech', 10, pageHeight - 15);
+    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
     doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
   };
 
@@ -225,15 +233,15 @@ export const generatePOPDF = async (request: any, vendor: any, customLogoUrl?: s
     doc.setFontSize(7);
     doc.text('LOGO', 14, 16);
   }
-  doc.setFontSize(16); // Reduced from 18 to prevent overlap
+  doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(orange[0], orange[1], orange[2]);
-  doc.text('TBJ CONSTECH', 28, 17); 
+  doc.text('Tukang Bangunan Jakarta', 28, 17); 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0);
-  doc.text('Virtual Construction & Material Supply System', 28, 22);
-  doc.text('QA/QC Verified | 081213496672', 28, 26);
+  doc.text('Professional Renovation Specialist | Integrasi AI & Data-Driven Estimation', 28, 22);
+  doc.text('WA 081213496672 | Jakarta, Indonesia', 28, 26);
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
@@ -360,10 +368,10 @@ export const generateInvoicePDF = async (
     doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(orange[0], orange[1], orange[2]);
-    doc.text('TUKANG BANGUNAN JAKARTA (TBJ CONSTECH)', 10, pageHeight - 20);
+    doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
-    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: TBJ Constech', 10, pageHeight - 15);
+    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
     doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
   };
 
@@ -378,13 +386,13 @@ export const generateInvoicePDF = async (
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(orange[0], orange[1], orange[2]);
-  doc.text('TBJ CONSTECH', 32, 18);
+  doc.text('Tukang Bangunan Jakarta', 32, 18);
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0);
-  doc.text('Professional Billing & Invoice Statement', 32, 23);
-  doc.text('Jakarta | 081213496672 | finance@tbjconstech.com', 32, 27);
+  doc.text('Professional Renovation Specialist | Integrasi AI & Data-Driven Estimation', 32, 23);
+  doc.text('WA 081213496672 | Jakarta, Indonesia', 32, 27);
 
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
@@ -489,10 +497,10 @@ export const generateAIPDF = async (projectName: string, estimation: AIEstimateR
     doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(orange[0], orange[1], orange[2]);
-    doc.text('TUKANG BANGUNAN JAKARTA (TBJ CONSTECH)', 10, pageHeight - 20);
+    doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
-    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: TBJ Constech', 10, pageHeight - 15);
+    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
     doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
   };
 
@@ -507,13 +515,13 @@ export const generateAIPDF = async (projectName: string, estimation: AIEstimateR
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(orange[0], orange[1], orange[2]);
-  doc.text('TBJ CONSTECH', 32, 18);
+  doc.text('Tukang Bangunan Jakarta', 32, 18);
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0);
-  doc.text('AI Strategic Estimation & Technical Insight', 32, 23);
-  doc.text('Jakarta | Verified AI Prediction v2.4', 32, 27);
+  doc.text('Professional Renovation Specialist | Integrasi AI & Data-Driven Estimation', 32, 23);
+  doc.text('WA 081213496672 | Jakarta, Indonesia', 32, 27);
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
@@ -548,24 +556,22 @@ export const generateAIPDF = async (projectName: string, estimation: AIEstimateR
     item.name.toUpperCase(),
     item.quantity,
     item.unit,
-    `Rp ${item.pricePerUnit.toLocaleString('id-ID')}`,
     `Rp ${item.totalPrice.toLocaleString('id-ID')}`
   ]);
 
   autoTable(doc, {
     startY: startY,
-    head: [['NO', 'ITEM DESCRIPTION', 'QTY', 'UNIT', 'PRICE/UNIT', 'TOTAL PRICE']],
+    head: [['NO', 'ITEM DESCRIPTION', 'QTY', 'UNIT', 'TOTAL PRICE']],
     body: tableData,
     theme: 'grid',
     headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], halign: 'center', fontSize: 9 },
     bodyStyles: { fontSize: 8 },
     columnStyles: {
       0: { halign: 'center', cellWidth: 10 },
-      1: { cellWidth: 70 },
-      2: { halign: 'center', cellWidth: 15 },
-      3: { halign: 'center', cellWidth: 15 },
-      4: { halign: 'right', cellWidth: 35 },
-      5: { halign: 'right', cellWidth: 35 }
+      1: { cellWidth: 105 },
+      2: { halign: 'center', cellWidth: 20 },
+      3: { halign: 'center', cellWidth: 20 },
+      4: { halign: 'right', cellWidth: 35 }
     }
   });
 

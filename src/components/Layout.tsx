@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Ticker from "./Ticker";
-import { TBJ_LOGO } from "@/constants";
+import { TBJ_LOGO_HEADER, TBJ_LOGO_FOOTER } from "@/constants";
 
 interface LayoutProps {
   children: ReactNode;
@@ -18,8 +18,8 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
 
-  const headerLogo = TBJ_LOGO;
-  const footerLogo = TBJ_LOGO;
+  const headerLogo = TBJ_LOGO_HEADER;
+  const footerLogo = TBJ_LOGO_FOOTER;
 
   const isAdmin = user?.role === "admin";
   const isPM = user?.role === "pm";

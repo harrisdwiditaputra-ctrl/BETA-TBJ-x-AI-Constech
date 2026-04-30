@@ -4746,8 +4746,13 @@ export default function AdminPanel() {
                                   
                                   const client = users.find(u => u.uid === selectedProjectFinance.clientId);
                                   
+                                  const date = new Date();
+                                  const dateStr = `${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate().toString().padStart(2,'0')}`;
+                                  const projectPart = selectedProjectFinance.name.substring(0,3).toUpperCase();
+                                  const invoiceNumber = `INV-${dateStr}-${projectPart}-${Math.floor(1000 + Math.random() * 9000)}`;
+
                                   generateInvoicePDF({
-                                    number: `INV/${new Date().getFullYear()}/${(new Date().getMonth() + 1).toString().padStart(2, '0')}/${Math.floor(1000 + Math.random() * 9000)}`,
+                                    number: invoiceNumber,
                                     date: new Date().toLocaleDateString('id-ID'),
                                     dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('id-ID'),
                                     clientName: client?.displayName || "Klien Terhormat",
@@ -4779,7 +4784,7 @@ export default function AdminPanel() {
                                 onClick={() => {
                                   const markup = systemConfig?.globalMarkup || 20;
                                   const finalBudget = user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(selectedProjectFinance.totalBudget, markup) : calculateClientPrice(selectedProjectFinance.totalBudget, markup);
-                                  const message = `*OFFICIAL INVOICE - TBJ CONSTECH*%0A%0AProyek: ${selectedProjectFinance.name}%0ATotal Tagihan: Rp ${finalBudget.toLocaleString('id-ID')}%0A%0AMohon segera melakukan pembayaran ke Bank ${cmsConfig?.paymentBankName || "BRI"}: ${cmsConfig?.paymentAccountNumber || "4792-0103-1488-535"} (a/n ${cmsConfig?.paymentAccountHolder || "TBJ CONTRACTOR"}).%0A%0A_Dibuat via TBJ Constech OS_`;
+                                  const message = `*OFFICIAL INVOICE - TUKANG BANGUNAN JAKARTA*%0A%0AProyek: ${selectedProjectFinance.name}%0ATotal Tagihan: Rp ${finalBudget.toLocaleString('id-ID')}%0A%0AMohon segera melakukan pembayaran ke Bank ${cmsConfig?.paymentBankName || "BRI"}: ${cmsConfig?.paymentAccountNumber || "4792-0103-1488-535"} (a/n ${cmsConfig?.paymentAccountHolder || "TBJ CONTRACTOR"}).%0A%0A_Dibuat via TBJ Constech OS_`;
                                   const client = users.find(u => u.uid === selectedProjectFinance.clientId);
                                   window.open(`https://wa.me/${client?.whatsapp || '081213496672'}?text=${encodeURIComponent(message)}`, "_blank");
                                 }}

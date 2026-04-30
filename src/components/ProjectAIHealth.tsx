@@ -112,7 +112,7 @@ export const ProjectAIHealth: React.FC<ProjectAIHealthProps> = ({
           <div className="flex items-center gap-2">
             <div className="flex h-5 items-center gap-1.5 px-2 rounded-md bg-accent/10 border border-accent/20">
               <Zap className="w-3 h-3 text-accent fill-accent animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-accent">TBJ Constech OS</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-accent">TUKANG BANGUNAN JAKARTA OS</span>
             </div>
             <div className="h-5 w-[1px] bg-white/20 mx-1" />
             <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Alpha Terminal</span>
@@ -261,7 +261,7 @@ export const ProjectAIHealth: React.FC<ProjectAIHealthProps> = ({
       {/* Footer */}
       <div className="p-6 border-t bg-white flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
         <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest text-center sm:text-left">
-          © 2024 TBJ CONSTECH OS • DATA SYNC: {new Date().toLocaleTimeString()}
+          © 2024 TUKANG BANGUNAN JAKARTA • DATA SYNC: {new Date().toLocaleTimeString()}
         </div>
         <Button className="btn-sleek w-full sm:w-auto px-12 h-14 rounded-2xl font-black uppercase tracking-widest text-[11px]" onClick={onClose}>
           Exit Analysis Mode

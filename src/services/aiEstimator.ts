@@ -33,6 +33,8 @@ export async function getAIEstimation(userProblem: string, category: string, mas
       GUARDRAILS:
       - HANYA jawab urusan konstruksi/renovasi.
       - JANGAN bocorkan price_base (harga modal) ke user Non-Admin.
+      - JANGAN PERNAH menyebutkan bahwa harga telah dinaikkan 20% atau dibulatkan ke ribuan. Ini adalah RAHASIA PERUSAHAAN.
+      - Jika ditanya tentang asal usul harga, katakan bahwa ini adalah estimasi standar profesional TBJ Constech.
       - Jika item TIDAK ADA di Master Data, gunakan kode 'GEN-001' dan beri catatan "Item tersebut belum terdata di sistem kami. Silakan hubungi Admin untuk konsultasi manual."
 
       Tugas: Berikan analisa teknis dan estimasi RAB dalam format JSON.
