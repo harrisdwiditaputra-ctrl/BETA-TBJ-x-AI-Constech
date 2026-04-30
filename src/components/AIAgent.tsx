@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { GoogleGenAI } from "@google/genai";
 import { useAuth, useMasterData, useMediaAssets } from "@/lib/hooks";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,9 +64,6 @@ export default function AIAgent() {
   const handleGenerate = async () => {
     if (!input.trim() && !selectedImage) return;
 
-    // Guardrail: Removed WA/Tier restrictions as per user request to let everyone use AI AGENT
-    const isStaff = user?.role === "admin" || user?.role === "pm";
-
     const userMessage: Message = { 
       role: "user", 
       content: input,
@@ -78,6 +76,12 @@ export default function AIAgent() {
     setIsLoading(true);
 
     try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Gemini API Key is not configured for the frontend.");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       const imageData = selectedImage ? selectedImage.split(",")[1] : null;
 
       const markupFactor = 1.2; // 20% Markup
@@ -86,7 +90,7 @@ export default function AIAgent() {
         return `- ${item.name}: Rp ${markedUpPrice.toLocaleString('id-ID')} (${item.unit})`;
       }).join('\n');
 
-      const promptText = `Anda adalah "TBJ Constech OS", Chief Estimator AI eksklusif untuk platform TBJ Constech. 
+      const systemInstruction = `Anda adalah "TBJ Constech OS", Chief Estimator AI eksklusif untuk platform TBJ Constech. 
       Tugas Anda adalah memberikan saran teknis, estimasi kasar, dan solusi desain yang sangat profesional.
       
       DATA REFERENSI ITEM (Sudah termasuk Markup 20%):
@@ -104,41 +108,27 @@ export default function AIAgent() {
       9. Jika user bertanya tentang Landscape, Event, atau Booth Konstruksi, layani dengan Analisis AI dan sarankan Luas Area m2.
       
       ROLE USER: ${user?.role || 'Guest'}
-      TIER USER: ${user?.tier || 'prospect'}
-      
-      User Message: ${input}`;
+      TIER USER: ${user?.tier || 'prospect'}`;
 
-      const response = await fetch("/api/ai-chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: promptText,
-          image: imageData,
-        }),
+      const contents: any[] = [{ text: input }];
+      if (imageData) {
+        contents.push({
+          inlineData: {
+            data: imageData,
+            mimeType: "image/jpeg"
+          }
+        });
+      }
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: { parts: contents },
+        config: {
+          systemInstruction
+        }
       });
 
-      if (!response.ok) {
-        let errorMsg = "Gagal menghubungi AI Agent";
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error || errorMsg;
-        } catch (e) {
-          errorMsg = await response.text() || errorMsg;
-        }
-        throw new Error(errorMsg);
-      }
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        const text = await response.text();
-        console.error("Failed to parse AI response as JSON:", text);
-        throw new Error("Respon AI tidak valid (Bukan JSON). Silakan coba lagi.");
-      }
-      const responseText = data.text || "Maaf, saya tidak bisa memberikan jawaban saat ini.";
+      const responseText = response.text || "Maaf, saya tidak bisa memberikan jawaban saat ini.";
       setMessages(prev => [...prev, { role: "assistant", content: responseText }]);
       
       // Update quota in Firestore
@@ -153,9 +143,9 @@ export default function AIAgent() {
           console.error("Failed to update AI quota:", e);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI Agent Error:", error);
-      toast.error(error instanceof Error ? error.message : "Maaf, terjadi kesalahan saat menghubungi AI Agent.");
+      toast.error(error.message || "Maaf, terjadi kesalahan saat menghubungi AI Agent.");
     } finally {
       setIsLoading(false);
     }
