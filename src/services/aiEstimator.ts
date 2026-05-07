@@ -3,12 +3,8 @@ import { AIEstimateResponse } from "../types";
 
 export async function getAIEstimation(userProblem: string, category: string, masterData?: any[], userRole: string = 'user', globalMarkup: number = 20): Promise<AIEstimateResponse> {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not configured.");
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    
     const masterDataString = (masterData || []).map((item: any) => {
       return `- [${item.code || 'N/A'}] ${item.name} (${item.unit}): Rp ${item.price?.toLocaleString('id-ID')}`;
     }).join('\n');
@@ -30,9 +26,9 @@ export async function getAIEstimation(userProblem: string, category: string, mas
       - Jika ditanya tentang asal usul harga, katakan bahwa ini adalah estimasi standar profesional TBJ Constech.
     `;
 
-    const response = await ai.models.generateContent({
+    const result = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: promptText,
+      contents: [{ role: 'user', parts: [{ text: promptText }] }],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -64,7 +60,7 @@ export async function getAIEstimation(userProblem: string, category: string, mas
       }
     });
 
-    const data = JSON.parse(response.text || "{}");
+    const data = JSON.parse(result.text || "{}");
     
     return {
       analysis: data.summary,

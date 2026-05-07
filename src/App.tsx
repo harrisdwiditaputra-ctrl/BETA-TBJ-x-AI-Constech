@@ -21,11 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { WorkItemMaster, Property, AIEstimateResponse, BudgetItem, TimelineEvent } from "@/types";
-import { cn, getDriveImageUrl, calculateAdminPrice, calculateClientPrice, formatRupiah } from "@/lib/utils";
+import { WorkItemMaster, Property, AIEstimateResponse, BudgetItem, TimelineEvent, BudgetCategory } from "@/types";
+import { cn, getDriveImageUrl, calculateAdminPrice, calculateClientPrice, formatRupiah, roundToRibuan } from "@/lib/utils";
 import { getAIEstimation } from "./services/aiEstimator";
 import { generateAIPDF, generateRABPDF, generateInvoicePDF, generateReceiptPDF } from "@/lib/pdfUtils";
-import { Plus, Trash2, ChevronRight, ChevronLeft, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles, Minus, Brain, Quote, Zap, LayoutDashboard, DollarSign, Edit2, ArrowRight, UserPlus, Fingerprint, History, Package, Terminal, X, Briefcase } from "lucide-react";
+import { Plus, Trash2, ChevronRight, ChevronLeft, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles, Minus, Brain, Quote, Zap, LayoutDashboard, DollarSign, Edit2, ArrowRight, UserPlus, Fingerprint, History, Package, Terminal, X, Briefcase, FileEdit } from "lucide-react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import Gallery from "./components/Gallery";
@@ -491,7 +491,34 @@ const ProjectDetail = () => {
   const { config: sysConfig } = useSystemConfig();
   const { masterData } = useMasterData(user?.role);
   const { project, categories, items, loading, addCategory, addItem, updateItem, deleteCategory, deleteItem, updateProjectStatus, updateItemProgress, updateTimelineEvent, addTimelineEvent, updateProjectMetadata } = useProjectDetails(id);
+  const { updateProject } = useProjects();
   const pdfLogo = TBJ_LOGO;
+
+  // Dynamic Grand Total Sync (Auto-Rounding to 1000)
+  useEffect(() => {
+    if (project && items.length > 0 && sysConfig && (user?.role === 'admin' || user?.role === 'pm')) {
+      const msMarkup = sysConfig.globalMarkup || 0;
+      
+      // Calculate subtotal by summing up marked-up prices for each item
+      const subtotal = items.reduce((sum, item) => {
+        const itemPrice = calculateClientPrice(item.totalPrice, msMarkup, item.isAHSP);
+        return sum + itemPrice;
+      }, 0);
+      
+      const discount = project.discount || 0;
+      const deposit = project.assessmentDeposit || 0;
+      const taxRate = (project.taxPercentage || 0) / 100;
+      
+      const taxableAmount = subtotal - discount - deposit;
+      const taxAmount = taxableAmount * taxRate;
+      const final = taxableAmount + taxAmount;
+      const roundedTotal = roundToRibuan(final);
+      
+      if (project.totalBudget !== roundedTotal) {
+        updateProject(project.id, { totalBudget: roundedTotal });
+      }
+    }
+  }, [project?.id, items, sysConfig, project?.discount, project?.assessmentDeposit, project?.taxPercentage]);
 
   if (user?.tier === 'prospect' && !user?.assessmentBooked) {
     return (
@@ -539,6 +566,16 @@ const ProjectDetail = () => {
   
   // Editing individual item specs
   const [editingItemSpecs, setEditingItemSpecs] = useState<{id: string, name: string, specs: string} | null>(null);
+  const [editingItem, setEditingItem] = useState<BudgetItem | null>(null);
+  const [editItemQty, setEditItemQty] = useState(0);
+  const [editItemPrice, setEditItemPrice] = useState(0);
+  const [editItemName, setEditItemName] = useState("");
+  const [editItemUnit, setEditItemUnit] = useState("");
+
+  const [editingCategory, setEditingCategory] = useState<BudgetCategory | null>(null);
+  const [editCatName, setEditCatName] = useState("");
+
+  const [isAHSPItem, setIsAHSPItem] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -564,10 +601,16 @@ const ProjectDetail = () => {
   const selectMasterItem = (item: WorkItemMaster) => {
     setNewItemName(item.name);
     setNewItemUnit(item.unit);
-    setNewItemPrice(user?.role === 'admin' || user?.role === 'pm' 
-      ? calculateAdminPrice(item.price, sysConfig?.globalMarkup) 
-      : calculateClientPrice(item.price, sysConfig?.globalMarkup));
+    // User says AHSP is already marked up. 
+    // We should use base price but tell calculation logic to skip Markup
+    setNewItemPrice(item.price); 
     setNewItemSpecs(item.technicalSpecs || "");
+    setIsAHSPItem(
+      (item.code && /^(AHSP|P|G|M|U|T)[0-9]/.test(item.code)) || 
+      item.code?.startsWith("AHSP-") || 
+      item.code?.startsWith("P-") || 
+      false
+    );
     setSearchQuery("");
     setIsSearching(false);
   };
@@ -671,7 +714,7 @@ const ProjectDetail = () => {
                <Card className="border-2 border-black rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-6 bg-accent text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                   <p className="uppercase font-black text-[9px] opacity-80">RAB Total</p>
                   <p className="text-xl md:text-2xl font-black tracking-tighter">
-                    {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(project.totalBudget, sysConfig?.globalMarkup) : calculateClientPrice(project.totalBudget, sysConfig?.globalMarkup))}
+                    {formatRupiah(project.totalBudget)}
                   </p>
                </Card>
                <Card className="border-2 border-black rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-6 bg-black text-white shadow-[4px_4px_0px_0px_#FF6B00]">
@@ -1143,12 +1186,20 @@ const ProjectDetail = () => {
                           <DialogDescription className="text-white/40 uppercase-soft text-xs">Official Invoices & Payment Receipts for {project.name}</DialogDescription>
                         </DialogHeader>
                         <div className="p-8 space-y-6 bg-white overflow-y-auto max-h-[60vh] custom-scrollbar">
-                          {[
+                          {(project.paymentMilestones && project.paymentMilestones.length > 0 ? [
+                            { label: 'Booking Fee (Digital Assessment)', value: 399000, status: 'paid', termin: 'DA-SURVEY' },
+                            ...project.paymentMilestones.map(m => ({
+                              label: m.label,
+                              value: project.totalBudget * (m.percentage / 100),
+                              status: m.status === 'released' ? 'paid' : (project.escrowBalance >= project.totalBudget * (m.percentage / 100) ? 'paid' : 'unpaid'),
+                              termin: m.label.split(' ')[0].toUpperCase()
+                            }))
+                          ] : [
                             { label: 'Booking Fee (Digital Assessment)', value: 399000, status: 'paid', termin: 'DA-SURVEY' },
                             { label: 'Termin I (DP 30%)', value: project.totalBudget * 0.3, status: project.escrowBalance >= project.totalBudget * 0.3 ? 'paid' : 'unpaid', termin: 'TERMIN-1' },
                             { label: 'Termin II (Mid 40%)', value: project.totalBudget * 0.4, status: 'unpaid', termin: 'TERMIN-2' },
                             { label: 'Termin III (Final 30%)', value: project.totalBudget * 0.3, status: 'unpaid', termin: 'TERMIN-3' },
-                          ].map((bill, i) => (
+                          ]).map((bill, i) => (
                             <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 border-2 border-black/5 rounded-2xl hover:border-black transition-all group">
                               <div className="space-y-1 mb-4 sm:mb-0">
                                 <div className="flex items-center gap-2">
@@ -1160,7 +1211,7 @@ const ProjectDetail = () => {
                                     {bill.status}
                                   </Badge>
                                 </div>
-                                <p className="text-sm font-black text-black">{formatRupiah(calculateClientPrice(bill.value, sysConfig?.globalMarkup))}</p>
+                                <p className="text-sm font-black text-black">{formatRupiah(bill.value)}</p>
                               </div>
                               <div className="flex gap-2 w-full sm:w-auto">
                                 <Button 
@@ -1171,11 +1222,11 @@ const ProjectDetail = () => {
                                       number: `INV-${bill.termin}-${project.id.substring(0, 4).toUpperCase()}`,
                                       date: new Date().toLocaleDateString('id-ID'),
                                       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('id-ID'),
-                                      clientName: project.clientName || user?.displayName || "Klien Terhormat",
+                                      clientName: project.clientName || "Klien Terhormat",
                                       clientPhone: project.clientPhone || "0812XXX",
                                       projectName: project.name,
-                                      items: [{ desc: bill.label, qty: 1, unit: 'Lot', price: calculateClientPrice(bill.value, sysConfig?.globalMarkup), total: calculateClientPrice(bill.value, sysConfig?.globalMarkup) }],
-                                      total: calculateClientPrice(bill.value, sysConfig?.globalMarkup),
+                                      items: [{ desc: bill.label, qty: 1, unit: 'Lot', price: bill.value, total: bill.value }],
+                                      total: bill.value,
                                       bankInfo: { bank: 'BRI', accNo: '479201031488535', accName: 'TBJ Architect & Constech' }
                                     };
                                     generateInvoicePDF(invData);
@@ -1195,11 +1246,11 @@ const ProjectDetail = () => {
                                       number: `RECT-${bill.termin}-${project.id.substring(0, 4).toUpperCase()}`,
                                       date: new Date().toLocaleDateString('id-ID'),
                                       paymentDate: new Date().toLocaleDateString('id-ID'),
-                                      clientName: project.clientName || user?.displayName || "Klien Terhormat",
+                                      clientName: project.clientName || "Klien Terhormat",
                                       clientPhone: project.clientPhone || "0812XXX",
                                       projectName: project.name,
-                                      items: [{ desc: bill.label, qty: 1, unit: 'Lot', price: calculateClientPrice(bill.value, sysConfig?.globalMarkup), total: calculateClientPrice(bill.value, sysConfig?.globalMarkup) }],
-                                      total: calculateClientPrice(bill.value, sysConfig?.globalMarkup),
+                                      items: [{ desc: bill.label, qty: 1, unit: 'Lot', price: bill.value, total: bill.value }],
+                                      total: bill.value,
                                       method: 'Digital Transfer'
                                     };
                                     generateReceiptPDF(rectData);
@@ -1355,12 +1406,12 @@ const ProjectDetail = () => {
                                  name: item.name,
                                  unit: item.unit,
                                  quantity: item.quantity,
-                                 pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup),
-                                 totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup),
+                                 pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP),
+                                 totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP),
                                  categoryId: item.categoryId,
                                  technicalSpecs: item.technicalSpecs
                                }));
-                               generateRABPDF(`RAB ${project.name}`, cats, formattedItems, pdfLogo, { name: project.name, location: project.description || "Jakarta", client: user?.displayName || "Klien Terhomat" });
+                               generateRABPDF(`RAB ${project.name}`, cats, formattedItems, pdfLogo, { name: project.name, location: project.location || "Jakarta", client: project.clientName || "Klien Terhormat", phone: project.clientPhone }, { discount: project.discount, taxPercentage: project.taxPercentage, assessmentDeposit: project.assessmentDeposit });
                                toast.success("RAB PDF Generated!");
                                setShowRABActions(false);
                              }}>
@@ -1433,7 +1484,20 @@ const ProjectDetail = () => {
                                          </div>
                                          <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Harga Satuan (Rp)</Label><Input type="number" value={newItemPrice || 0} onChange={e => setNewItemPrice(Math.max(0, Number(e.target.value)))} className="h-12 border-2 border-black/10 rounded-xl" /></div>
                                       </div>
-                                      <DialogFooter><Button className="btn-accent w-full h-12 shadow-md" onClick={() => { if(selectedCatId && newItemName) { addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate); setNewItemName(""); setNewItemSpecs(""); setNewItemQty(1); setNewItemPrice(0); setNewItemPriority("Medium"); setNewItemDueDate(""); setSearchQuery(""); setShowRABActions(false); } }}>Simpan Item</Button></DialogFooter>
+                                      <DialogFooter><Button className="btn-accent w-full h-12 shadow-md" onClick={() => { 
+                                        if(selectedCatId && newItemName) { 
+                                          addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate, isAHSPItem); 
+                                          setNewItemName(""); 
+                                          setNewItemSpecs(""); 
+                                          setNewItemQty(1); 
+                                          setNewItemPrice(0); 
+                                          setNewItemPriority("Medium"); 
+                                          setNewItemDueDate(""); 
+                                          setSearchQuery(""); 
+                                          setIsAHSPItem(false);
+                                          setShowRABActions(false); 
+                                        } 
+                                      }}>Simpan Item</Button></DialogFooter>
                                    </DialogContent>
                                  </Dialog>
                                </>
@@ -1450,12 +1514,12 @@ const ProjectDetail = () => {
                           name: item.name,
                           unit: item.unit,
                           quantity: item.quantity,
-                          pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup),
-                          totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup),
+                          pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP),
+                          totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP),
                           categoryId: item.categoryId,
                           technicalSpecs: item.technicalSpecs
                         }));
-                        generateRABPDF(`RAB ${project.name}`, cats, formattedItems, pdfLogo, { name: project.name, location: project.description || "Jakarta", client: user?.displayName || "Klien Terhomat" });
+                        generateRABPDF(`RAB ${project.name}`, cats, formattedItems, pdfLogo, { name: project.name, location: project.location || "Jakarta", client: project.clientName || "Klien Terhormat", phone: project.clientPhone }, { discount: project.discount, taxPercentage: project.taxPercentage, assessmentDeposit: project.assessmentDeposit });
                         toast.success("RAB PDF Generated!");
                       }}>
                         <Download className="w-4 h-4" /> Export RAB PDF
@@ -1529,14 +1593,83 @@ const ProjectDetail = () => {
                                  </div>
                                  <div className="space-y-2"><Label className="uppercase-soft text-[10px]">Harga Satuan (Rp)</Label><Input type="number" value={newItemPrice || 0} onChange={e => setNewItemPrice(Math.max(0, Number(e.target.value)))} className="h-12 border-2 border-black/10 rounded-xl" /></div>
                               </div>
-                              <DialogFooter><Button className="btn-accent w-full h-12 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" onClick={() => { if(selectedCatId && newItemName) { addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate); setNewItemName(""); setNewItemSpecs(""); setNewItemQty(1); setNewItemPrice(0); setNewItemPriority("Medium"); setNewItemDueDate(""); setSearchQuery(""); } }}>Simpan Item</Button></DialogFooter>
+                              <DialogFooter><Button className="btn-accent w-full h-12 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" onClick={() => { 
+                                if(selectedCatId && newItemName) { 
+                                  addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate, isAHSPItem); 
+                                  setNewItemName(""); 
+                                  setNewItemSpecs(""); 
+                                  setNewItemQty(1); 
+                                  setNewItemPrice(0); 
+                                  setNewItemPriority("Medium"); 
+                                  setNewItemDueDate(""); 
+                                  setSearchQuery(""); 
+                                  setIsAHSPItem(false);
+                                } 
+                              }}>Simpan Item</Button></DialogFooter>
                             </DialogContent>
                           </Dialog>
                         </div>
                       )}
                    </div>
                 </div>
-                <p className="font-black text-[10px] md:text-xs uppercase tracking-tighter text-neutral-400">Total RAB: <span className="text-black">{formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(project.totalBudget, sysConfig?.globalMarkup) : calculateClientPrice(project.totalBudget, sysConfig?.globalMarkup))}</span></p>
+                <div className="flex flex-col md:flex-row justify-between items-center gap-6 p-8 bg-neutral-50 rounded-[2rem] border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] w-full">
+                   <div className="flex flex-wrap gap-6 items-end w-full md:w-auto">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black uppercase text-neutral-400">Discount (Rp)</Label>
+                        <Input 
+                          type="number" 
+                          className="h-10 w-32 border-2 border-black rounded-xl font-bold bg-white" 
+                          value={project.discount || 0}
+                          onChange={(e) => updateProject(project.id, { discount: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black uppercase text-neutral-400">Asm. Deduction (Rp)</Label>
+                        <Input 
+                          type="number" 
+                          className="h-10 w-32 border-2 border-black rounded-xl font-bold bg-white" 
+                          value={project.assessmentDeposit || 0}
+                          onChange={(e) => updateProject(project.id, { assessmentDeposit: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black uppercase text-neutral-400">Tax (%)</Label>
+                        <Input 
+                          type="number" 
+                          className="h-10 w-20 border-2 border-black rounded-xl font-bold bg-white" 
+                          value={project.taxPercentage || 0}
+                          onChange={(e) => updateProject(project.id, { taxPercentage: Number(e.target.value) })}
+                        />
+                      </div>
+                   </div>
+
+                   <div className="text-right space-y-1 w-full md:w-auto">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Grand Total (Rounded)</p>
+                      <p className="text-4xl font-black text-accent italic">
+                        {(() => {
+                           const ahspTotal = items.filter(i => i.isAHSP).reduce((sum, i) => sum + i.totalPrice, 0);
+                           const nonAhspTotal = items.filter(i => !i.isAHSP).reduce((sum, i) => sum + i.totalPrice, 0);
+                           
+                           const msMarkup = sysConfig?.globalMarkup || 0;
+                           const markedUpNonAhsp = calculateClientPrice(nonAhspTotal, msMarkup);
+                           const markedUpAhsp = calculateClientPrice(ahspTotal, msMarkup, true); 
+                           
+                           const subtotalTotal = markedUpNonAhsp + markedUpAhsp;
+                           
+                           const discount = project.discount || 0;
+                           const deposit = project.assessmentDeposit || 0;
+                           const taxRate = (project.taxPercentage || 0) / 100;
+                           
+                           const beforeTax = subtotalTotal - discount - deposit;
+                           const taxAmount = beforeTax * taxRate;
+                           const final = beforeTax + taxAmount;
+                           
+                           const roundedTotal = Math.ceil(final / 1000) * 1000;
+                           return formatRupiah(roundedTotal);
+                        })()}
+                      </p>
+                   </div>
+                </div>
              </div>
           </div>
 
@@ -1545,10 +1678,15 @@ const ProjectDetail = () => {
               <div key={category.id} className="space-y-6">
                 <div className="flex justify-between items-center border-b-4 border-black pb-4">
                   <div className="flex items-center gap-4">
-                    <h3 className="text-2xl font-black uppercase tracking-tighter italic">{category.name}</h3>
-                    {canEdit && (
-                      <Button variant="ghost" size="icon" className="h-10 w-10 text-red-500 hover:bg-neutral-100 rounded-full" onClick={() => { if(confirm(`Hapus kategori "${category.name}"?`)) deleteCategory(category.id); }}><Trash2 className="w-5 h-5" /></Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-2xl font-black uppercase tracking-tighter italic">{category.name}</h3>
+                      {canEdit && (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-400 hover:text-black rounded-full" onClick={() => { setEditingCategory(category); setEditCatName(category.name); }}><Edit2 className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-neutral-100 rounded-full" onClick={() => { if(confirm(`Hapus kategori "${category.name}"?`)) deleteCategory(category.id); }}><Trash2 className="w-4 h-4" /></Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <Badge className="bg-black text-white h-10 px-6 rounded-2xl font-black uppercase text-[12px] shadow-[4px_4px_0px_0px_#FF6B00]">
                     Subtotal: {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(items.filter(i => i.categoryId === category.id).reduce((sum, i) => sum + i.totalPrice, 0), sysConfig?.globalMarkup) : calculateClientPrice(items.filter(i => i.categoryId === category.id).reduce((sum, i) => sum + i.totalPrice, 0), sysConfig?.globalMarkup))}
@@ -1576,7 +1714,15 @@ const ProjectDetail = () => {
                             <div className="space-y-1">
                               <div className="flex items-center gap-3">
                                 <span className="font-bold text-[13px] uppercase tracking-tighter leading-tight">{item.name}</span>
-                                {canEdit && <button onClick={() => setEditingItemSpecs({ id: item.id, name: item.name, specs: item.technicalSpecs || "" })} className="opacity-0 group-hover/row:opacity-100 transition-opacity"><Edit2 className="w-3 h-3 text-neutral-300 hover:text-accent" /></button>}
+                                {(user?.role === "admin" || user?.role === "pm") && item.isAHSP && (
+                                  <Badge className="bg-blue-600 text-[8px] font-black uppercase-soft">AHSP</Badge>
+                                )}
+                                {canEdit && (
+                                  <div className="flex gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                    <button onClick={() => { setEditingItem(item); setEditItemName(item.name); setEditItemQty(item.quantity); setEditItemPrice(item.pricePerUnit); setEditItemUnit(item.unit); }}><FileEdit className="w-3.5 h-3.5 text-neutral-300 hover:text-black" /></button>
+                                    <button onClick={() => setEditingItemSpecs({ id: item.id, name: item.name, specs: item.technicalSpecs || "" })}><Edit2 className="w-3 h-3 text-neutral-300 hover:text-accent" /></button>
+                                  </div>
+                                )}
                               </div>
                               {item.technicalSpecs && <p className="text-[10px] font-medium text-neutral-400 italic">{item.technicalSpecs}</p>}
                             </div>
@@ -1599,10 +1745,10 @@ const ProjectDetail = () => {
                              <p className="text-[10px] font-bold uppercase text-neutral-400">{item.unit}</p>
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs">
-                            {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup))}
+                            {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP))}
                           </TableCell>
                           <TableCell className="text-right font-mono font-black text-xs text-accent">
-                            {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup))}
+                            {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP))}
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col items-center gap-2">
@@ -1626,6 +1772,87 @@ const ProjectDetail = () => {
               </div>
             ))}
           </div>
+
+          {categories.length > 0 && (
+            <div className="mt-12 space-y-4 border-t-4 border-black pt-8">
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <h4 className="font-black uppercase text-xs tracking-[0.2em] text-neutral-400">Financial Adjustments</h4>
+                  {canEditRAB ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="uppercase-soft text-[9px]">Diskon (Rp)</Label>
+                        <Input type="number" value={project.discount || 0} onChange={(e) => updateProjectMetadata({ discount: Number(e.target.value) })} className="h-10 border-2 border-black/10 rounded-xl font-bold" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="uppercase-soft text-[9px]">Pajak (%)</Label>
+                        <Input type="number" value={project.taxPercentage || 0} onChange={(e) => updateProjectMetadata({ taxPercentage: Number(e.target.value) })} className="h-10 border-2 border-black/10 rounded-xl font-bold" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="uppercase-soft text-[9px]">Dipotong Deposit Survey (Rp)</Label>
+                        <Input type="number" value={project.assessmentDeposit || 0} onChange={(e) => updateProjectMetadata({ assessmentDeposit: Number(e.target.value) })} className="h-10 border-2 border-black/10 rounded-xl font-bold" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-4">
+                      {project.discount && <Badge variant="outline" className="h-10 px-4 border-black/10 text-red-500">Potongan Harga: {formatRupiah(project.discount)}</Badge>}
+                      {project.taxPercentage && <Badge variant="outline" className="h-10 px-4 border-black/10">Pajak: {project.taxPercentage}%</Badge>}
+                      {project.assessmentDeposit && <Badge variant="outline" className="h-10 px-4 border-black/10 text-green-600">Dipotong Deposit: {formatRupiah(project.assessmentDeposit)}</Badge>}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="bg-black text-white rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#FF6B00]">
+                  <div className="space-y-4">
+                    {(() => {
+                        const subtotal = items.reduce((sum, item) => sum + (user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP)), 0);
+                        return (
+                          <>
+                            <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-white/50 border-b border-white/10 pb-4">
+                              <span>Total RAB Bruto</span>
+                              <span>{formatRupiah(subtotal)}</span>
+                            </div>
+                            
+                            {project.discount && (
+                              <div className="flex justify-between items-center text-xs font-bold uppercase text-red-400">
+                                <span>Diskon</span>
+                                <span>- {formatRupiah(project.discount)}</span>
+                              </div>
+                            )}
+                            
+                            {project.assessmentDeposit && (
+                               <div className="flex justify-between items-center text-xs font-bold uppercase text-green-400">
+                                 <span>Pengurangan Deposit Survey</span>
+                                 <span>- {formatRupiah(project.assessmentDeposit)}</span>
+                               </div>
+                            )}
+
+                            {project.taxPercentage && (
+                              <div className="flex justify-between items-center text-xs font-bold uppercase text-blue-400">
+                                <span>Pajak ({project.taxPercentage}%)</span>
+                                <span>+ {formatRupiah((subtotal - (project.discount || 0) - (project.assessmentDeposit || 0)) * (project.taxPercentage / 100))}</span>
+                              </div>
+                            )}
+
+                            <div className="pt-4 border-t-2 border-white/20">
+                              <div className="flex justify-between items-end">
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-accent">GRAND TOTAL</p>
+                                  <p className="text-3xl font-black tracking-tighter italic">
+                                    {formatRupiah(project.totalBudget)}
+                                  </p>
+                                </div>
+                                <Badge className="bg-accent text-white font-black uppercase text-[8px] animate-pulse">Rounded to 1000</Badge>
+                              </div>
+                            </div>
+                          </>
+                        );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {categories.length === 0 && (
             <div className="py-20 text-center border-4 border-dashed rounded-[3rem] border-black/5 bg-neutral-50/50">
@@ -1665,6 +1892,119 @@ const ProjectDetail = () => {
               }}
             >
               Update Spesifikasi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingCategory} onOpenChange={(open) => !open && setEditingCategory(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tighter">Edit Category Name</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label className="uppercase-soft text-[10px]">Category Name</Label>
+              <Input 
+                value={editCatName}
+                onChange={e => setEditCatName(e.target.value)}
+                className="h-12 border-2 border-black/10 rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              className="btn-sleek w-full"
+              onClick={async () => {
+                if (editingCategory && editCatName) {
+                  try {
+                    const { doc, updateDoc } = await import('firebase/firestore');
+                    const { db } = await import('./lib/firebase');
+                    const catRef = doc(db, "budget_categories", editingCategory.id);
+                    await updateDoc(catRef, { name: editCatName });
+                    setEditingCategory(null);
+                    toast.success("Category updated");
+                  } catch (e) {
+                    toast.error("Failed to update category");
+                  }
+                }
+              }}
+            >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <DialogContent className="sm:max-w-md lg:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tighter">Edit RAB Item</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label className="uppercase-soft text-[10px]">Item Name</Label>
+              <Input 
+                value={editItemName}
+                onChange={e => setEditItemName(e.target.value)}
+                className="h-12 border-2 border-black/10 rounded-xl"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="uppercase-soft text-[10px]">Qty</Label>
+                <Input 
+                  type="number"
+                  value={editItemQty}
+                  onChange={e => setEditItemQty(Number(e.target.value))}
+                  className="h-12 border-2 border-black/10 rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="uppercase-soft text-[10px]">Unit</Label>
+                <Input 
+                  value={editItemUnit}
+                  onChange={e => setEditItemUnit(e.target.value)}
+                  className="h-12 border-2 border-black/10 rounded-xl"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="uppercase-soft text-[10px]">Price per Unit (Rp)</Label>
+              <Input 
+                type="number"
+                value={editItemPrice}
+                onChange={e => setEditItemPrice(Number(e.target.value))}
+                className="h-12 border-2 border-black/10 rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              className="btn-accent w-full"
+              onClick={async () => {
+                if (editingItem) {
+                  try {
+                    const { doc, updateDoc } = await import('firebase/firestore');
+                    const { db } = await import('./lib/firebase');
+                    const itemRef = doc(db, "budget_items", editingItem.id);
+                    await updateDoc(itemRef, { 
+                      name: editItemName,
+                      quantity: editItemQty,
+                      unit: editItemUnit,
+                      pricePerUnit: editItemPrice,
+                      totalPrice: editItemQty * editItemPrice,
+                      updatedAt: new Date().toISOString()
+                    });
+                    setEditingItem(null);
+                    toast.success("Item updated successfully");
+                  } catch (e) {
+                    toast.error("Failed to update item");
+                  }
+                }
+              }}
+            >
+              Update Item
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { GoogleGenAI } from "@google/genai";
-import { useAuth, useMasterData, useMediaAssets } from "@/lib/hooks";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { GoogleGenAI, Type } from "@google/genai";
+import { useAuth, useMasterData } from "@/lib/hooks";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
 import { TBJ_LOGO } from "@/constants";
 
 interface Message {
-  role: "user" | "assistant";
-  content: string;
-  image?: string;
+  role: "user" | "model";
+  parts: { text: string; inlineData?: { data: string; mimeType: string } }[];
+  image?: string; // UI compatibility
 }
 
 export default function AIAgent() {
@@ -23,16 +23,12 @@ export default function AIAgent() {
   const assistantLogo = TBJ_LOGO;
 
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Halo! Saya TBJ AI Agent. Ada yang bisa saya bantu terkait proyek konstruksi, renovasi, atau desain interior Anda hari ini? Anda juga bisa mengirimkan foto area yang ingin dikonsultasikan." }
+    { role: "model", parts: [{ text: "Halo! Saya TBJ AI Agent. Ada yang bisa saya bantu terkait proyek konstruksi, renovasi, atau desain interior Anda hari ini? Anda juga bisa mengirimkan foto area yang ingin dikonsultasikan." }] }
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, []);
 
   const scrollToTop = () => {
     if (scrollRef.current) {
@@ -62,31 +58,36 @@ export default function AIAgent() {
   };
 
   const handleGenerate = async () => {
-    if (!input.trim() && !selectedImage) return;
+    if ((!input.trim() && !selectedImage) || isLoading) return;
+
+    const userParts: any[] = [{ text: input || "Lihat gambar ini" }];
+    if (selectedImage) {
+      userParts.push({
+        inlineData: {
+          data: selectedImage.split(",")[1],
+          mimeType: "image/jpeg"
+        }
+      });
+    }
 
     const userMessage: Message = { 
       role: "user", 
-      content: input,
+      parts: userParts,
       image: selectedImage || ""
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
+    const currentImage = selectedImage;
     setInput("");
     setSelectedImage("");
     setIsLoading(true);
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Gemini API Key is not configured for the frontend.");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      const imageData = selectedImage ? selectedImage.split(",")[1] : null;
-
-      const markupFactor = 1.2; // 20% Markup
-      const masterDataSample = masterData.slice(0, 100).map(item => {
-        const markedUpPrice = item.price * markupFactor;
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const markupFactor = 1.2;
+      const masterDataSample = (masterData || []).slice(0, 50).map(item => {
+        const markedUpPrice = (item.price || 0) * markupFactor;
         return `- ${item.name}: Rp ${markedUpPrice.toLocaleString('id-ID')} (${item.unit})`;
       }).join('\n');
 
@@ -111,42 +112,36 @@ export default function AIAgent() {
       ROLE USER: ${user?.role || 'Guest'}
       TIER USER: ${user?.tier || 'prospect'}`;
 
-      const contents: any[] = [{ text: input }];
-      if (imageData) {
-        contents.push({
-          inlineData: {
-            data: imageData,
-            mimeType: "image/jpeg"
-          }
-        });
-      }
+      const history = messages.map(msg => ({
+        role: msg.role,
+        parts: msg.parts
+      }));
 
-      const response = await ai.models.generateContent({
+      const res = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: { parts: contents },
+        contents: [...history, userMessage],
         config: {
           systemInstruction
         }
       });
 
-      const responseText = response.text || "Maaf, saya tidak bisa memberikan jawaban saat ini.";
-      setMessages(prev => [...prev, { role: "assistant", content: responseText }]);
+      const responseText = res.text || "Maaf, saya tidak bisa memberikan jawaban saat ini.";
+      setMessages(prev => [...prev, { role: "model", parts: [{ text: responseText }] }]);
       
-      // Update quota in Firestore
       if (user && user.uid && !user.uid.startsWith("guest-")) {
-        try {
-          const { updateDoc, doc } = await import("firebase/firestore");
-          const { db } = await import("@/lib/firebase");
-          await updateDoc(doc(db, "users", user.uid), {
-            aiUsageCount: (user.aiUsageCount || 0) + 1
-          });
-        } catch (e) {
-          console.error("Failed to update AI quota:", e);
-        }
+        const { updateDoc, doc } = await import("firebase/firestore");
+        const { db } = await import("@/lib/firebase");
+        await updateDoc(doc(db, "users", user.uid), {
+          aiUsageCount: (user.aiUsageCount || 0) + 1
+        });
       }
     } catch (error: any) {
       console.error("AI Agent Error:", error);
       toast.error(error.message || "Maaf, terjadi kesalahan saat menghubungi AI Agent.");
+      // Revert in-flight UI state
+      setMessages(prev => prev.slice(0, prev.length - 1));
+      setInput(currentInput);
+      setSelectedImage(currentImage);
     } finally {
       setIsLoading(false);
     }
@@ -210,7 +205,7 @@ export default function AIAgent() {
                     "p-4 rounded-2xl border-2 border-black shadow-sm",
                     msg.role === "user" ? "bg-neutral-50" : "bg-[#FFF5ED] border-[#FF6B00]/30"
                   )}>
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.parts?.[0]?.text || ""}</p>
                     {msg.image && (
                       <div className="mt-3 rounded-xl overflow-hidden border-2 border-black">
                         <img src={msg.image} alt="User upload" className="w-full h-auto" />

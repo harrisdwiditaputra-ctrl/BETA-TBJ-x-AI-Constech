@@ -661,8 +661,8 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
                       </div>
                       <div className="space-y-1">
                         <p className="uppercase-soft text-[10px]">Budget Used</p>
-                        <p className="text-2xl font-black text-red-500">{formatRupiah(calculateAdminPrice(selectedProject.releasedAmount || 0))}</p>
-                        <p className="text-[9px] text-neutral-400 uppercase font-bold text-xs">of {formatRupiah(calculateAdminPrice(selectedProject.totalBudget || 0))} Total</p>
+                        <p className="text-2xl font-black text-red-500">{formatRupiah(selectedProject.releasedAmount || 0)}</p>
+                        <p className="text-[9px] text-neutral-400 uppercase font-bold text-xs">of {formatRupiah(selectedProject.totalBudget || 0)} Total</p>
                       </div>
                       <div className="space-y-1">
                         <p className="uppercase-soft text-[10px]">Deadline</p>

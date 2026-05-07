@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { TBJ_LOGO } from '../constants';
 import { AIEstimateResponse } from '../types';
+import { roundToRibuan } from './utils';
 
 // Helper to convert image URL to Base64
 const imageUrlToBase64 = async (url: string): Promise<string> => {
@@ -25,7 +26,8 @@ export const generateRABPDF = async (
   categories: any[], 
   items: any[], 
   customLogoUrl?: string,
-  projectIdentity?: { name: string, location: string, client: string, phone?: string, rabNumber?: string }
+  projectIdentity?: { name: string, location: string, client: string, phone?: string, rabNumber?: string },
+  finance?: { discount?: number, taxPercentage?: number, assessmentDeposit?: number }
 ) => {
   const doc = new jsPDF();
   const logoUrl = customLogoUrl || TBJ_LOGO;
@@ -41,60 +43,55 @@ export const generateRABPDF = async (
 
   const rabNo = projectIdentity?.rabNumber || generateRABNumber(projectName);
 
-  // Helper for footer and page numbers
-  const addFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
-    const pageHeight = doc.internal.pageSize.height;
+  // Header Helper - Called on every page
+  const drawRABHeader = (doc: jsPDF, pageNumber: number) => {
+    // Top Right Info
     doc.setFontSize(8);
-    doc.setTextColor(100);
-    
-    // Page Number
-    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
-    
-    // Brand Footer
+    doc.setTextColor(150);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`RAB NO: ${rabNo}`, 200, 10, { align: 'right' });
+
+    try {
+      doc.addImage(base64Logo, 'PNG', 10, 5, 20, 20); // Smaller logo
+    } catch (e) {
+      doc.rect(10, 5, 20, 20, 'S');
+      doc.setFontSize(8);
+      doc.text('LOGO', 16, 16);
+    }
+
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(orange[0], orange[1], orange[2]);
-    doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
+    doc.setTextColor(0);
+    doc.text('RENCANA ANGGARAN BIAYA (RAB)', 10, 32);
     
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
-    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
-    doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
+    doc.text('Professional Renovation & AI Data-Driven Estimation', 10, 37);
   };
 
-  // Header
-  try {
-    doc.addImage(base64Logo, 'PNG', 10, 5, 22, 22);
-  } catch (e) {
-    doc.rect(10, 5, 22, 22, 'S');
+  const addRABFooter = (doc: jsPDF, pageNumber: number) => {
+    const pageHeight = doc.internal.pageSize.height;
     doc.setFontSize(8);
-    doc.text('LOGO', 16, 17);
-  }
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(150);
+    
+    const now = new Date();
+    const timestamp = now.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+    
+    doc.text(`Printed: ${timestamp}`, 10, pageHeight - 10);
+    doc.text(`${pageNumber}`, 200, pageHeight - 10, { align: 'right' });
+  };
 
+  // Header will use headerY starting from 55
   doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0);
-
-  // Orange Line
-  doc.setDrawColor(orange[0], orange[1], orange[2]);
-  doc.setLineWidth(1);
-  doc.line(10, 35, 200, 35);
-
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('RENCANA ANGGARAN BIAYA (RAB)', 10, 45);
-  
-  doc.setFontSize(9);
-  doc.setTextColor(150);
-  doc.text(`RAB NUMBER: ${rabNo}`, 200, 45, { align: 'right' });
-  
-  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0);
   let headerY = 55;
   if (projectIdentity) {
     doc.text(`NAMA PROYEK: ${projectIdentity.name.toUpperCase()}`, 10, headerY);
     doc.text(`LOKASI: ${projectIdentity.location.toUpperCase()}`, 10, headerY + 5);
-    doc.text(`KLIEN: ${projectIdentity.client.toUpperCase()} (${projectIdentity.phone || '081213496672'})`, 10, headerY + 10);
+    doc.text(`KLIEN: ${projectIdentity.client.toUpperCase()} (${projectIdentity.phone || 'N/A'})`, 10, headerY + 10);
     headerY += 20;
   } else {
     doc.text(`PROJECT: ${projectName.toUpperCase()}`, 10, headerY);
@@ -151,25 +148,63 @@ export const generateRABPDF = async (
       },
       margin: { left: 10, right: 10 },
       didDrawPage: (data: any) => {
-        currentY = data.cursor.y;
+        drawRABHeader(doc, data.pageNumber);
+        addRABFooter(doc, data.pageNumber);
       }
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 12;
   });
 
-  const totalBudget = items.reduce((acc, i) => acc + i.totalPrice, 0);
+  // Summary Calculations
+  const subtotal = items.reduce((acc, i) => acc + i.totalPrice, 0);
+  const discount = finance?.discount || 0;
+  const deposit = finance?.assessmentDeposit || 0;
+  const taxRate = (finance?.taxPercentage || 0) / 100;
+  const beforeTax = subtotal - discount - deposit;
+  const taxAmount = beforeTax * taxRate;
+  const totalBudget = roundToRibuan(beforeTax + taxAmount);
   
-  if (currentY > 240) {
+  if (currentY > 210) {
     doc.addPage();
-    currentY = 20;
+    drawRABHeader(doc, (doc as any).internal.getNumberOfPages());
+    currentY = 55;
   }
   
-  doc.setDrawColor(0);
-  doc.line(130, currentY, 200, currentY);
-  doc.setFontSize(12);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('TOTAL BIAYA:', 110, currentY + 10);
+  doc.setTextColor(100);
+  
+  doc.text('SUBTOTAL PEKERJAAN:', 130, currentY + 5);
+  doc.text(`Rp ${subtotal.toLocaleString('id-ID')}`, 200, currentY + 5, { align: 'right' });
+  
+  if (discount > 0) {
+    currentY += 6;
+    doc.text('POTONGAN HARGA (DISKON):', 130, currentY + 5);
+    doc.text(`- Rp ${discount.toLocaleString('id-ID')}`, 200, currentY + 5, { align: 'right' });
+  }
+
+  if (deposit > 0) {
+    currentY += 6;
+    doc.text('PENGURANGAN DEPOSIT SURVEY:', 130, currentY + 5);
+    doc.text(`- Rp ${deposit.toLocaleString('id-ID')}`, 200, currentY + 5, { align: 'right' });
+  }
+
+  if (taxAmount > 0) {
+    currentY += 6;
+    doc.text(`PAJAK (${finance?.taxPercentage}%):`, 130, currentY + 5);
+    doc.text(`Rp ${taxAmount.toLocaleString('id-ID')}`, 200, currentY + 5, { align: 'right' });
+  }
+
+  currentY += 12;
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.5);
+  doc.line(130, currentY, 200, currentY);
+  
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0);
+  doc.text('GRAND TOTAL:', 130, currentY + 10);
   doc.setTextColor(orange[0], orange[1], orange[2]);
   doc.text(`Rp ${totalBudget.toLocaleString('id-ID')}`, 200, currentY + 10, { align: 'right' });
 
@@ -188,12 +223,9 @@ export const generateRABPDF = async (
   doc.line(140, currentY + 30, 190, currentY + 30);
   doc.text('Official Estimator', 150, currentY + 35);
 
-  // Add Page Numbers and Footers to all pages
-  const totalPages = (doc as any).internal.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    addFooter(doc, i, totalPages);
-  }
+  // Draw header for first page
+  drawRABHeader(doc, 1);
+  addRABFooter(doc, 1);
 
   doc.save(`${rabNo}-${projectName.replace(/\s+/g, '-')}.pdf`);
 };
@@ -220,28 +252,28 @@ export const generatePOPDF = async (request: any, vendor: any, customLogoUrl?: s
   };
 
   try {
-    doc.addImage(base64Logo, 'PNG', 10, 5, 22, 22);
+    doc.addImage(base64Logo, 'PNG', 10, 5, 38, 38);
   } catch (e) {
-    doc.rect(10, 5, 22, 22, 'S');
-    doc.setFontSize(7);
-    doc.text('LOGO', 16, 17);
+    doc.rect(10, 5, 38, 38, 'S');
+    doc.setFontSize(8);
+    doc.text('LOGO', 24, 22);
   }
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0);
 
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('PURCHASE ORDER', 200, 18, { align: 'right' }); 
+  doc.text('PURCHASE ORDER', 200, 22, { align: 'right' }); 
   doc.setFontSize(8);
   doc.setTextColor(150);
-  doc.text(`NO: PO-${request.id.substring(0, 8).toUpperCase()}`, 200, 23, { align: 'right' });
-  doc.text(`TGL: ${new Date(request.createdAt).toLocaleDateString('id-ID')}`, 200, 27, { align: 'right' });
+  doc.text(`NO: PO-${request.id.substring(0, 8).toUpperCase()}`, 200, 27, { align: 'right' });
+  doc.text(`TGL: ${new Date(request.createdAt).toLocaleDateString('id-ID')}`, 200, 31, { align: 'right' });
 
   doc.setTextColor(0);
   doc.setDrawColor(orange[0], orange[1], orange[2]);
   doc.setLineWidth(1);
-  doc.line(10, 35, 200, 35);
+  doc.line(10, 42, 200, 42);
 
   // Vendor Info
   doc.setFontSize(10);
@@ -364,40 +396,40 @@ export const generateInvoicePDF = async (
 
   // Header
   try {
-    doc.addImage(base64Logo, 'PNG', 10, 5, 22, 22);
+    doc.addImage(base64Logo, 'PNG', 10, 5, 38, 38);
   } catch (e) {
-    doc.rect(10, 5, 22, 22, 'S');
+    doc.rect(10, 5, 38, 38, 'S');
     doc.setFontSize(8);
-    doc.text('LOGO', 16, 17);
+    doc.text('LOGO', 24, 22);
   }
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0);
 
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('OFFICIAL INVOICE', 200, 25, { align: 'right' });
   doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('OFFICIAL INVOICE', 200, 22, { align: 'right' });
+  doc.setFontSize(8);
   doc.setTextColor(150);
-  doc.text(`INV No: ${invoiceData.number}`, 200, 32, { align: 'right' });
-  doc.text(`Tanggal: ${invoiceData.date}`, 200, 37, { align: 'right' });
+  doc.text(`INV No: ${invoiceData.number}`, 200, 27, { align: 'right' });
+  doc.text(`Tanggal: ${invoiceData.date}`, 200, 31, { align: 'right' });
 
   doc.setTextColor(0);
   doc.setDrawColor(orange[0], orange[1], orange[2]);
   doc.setLineWidth(1);
-  doc.line(10, 35, 200, 35);
+  doc.line(10, 48, 200, 48);
 
   // Info
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('BILL TO:', 10, 45);
+  doc.text('BILL TO:', 10, 52);
   doc.setFont('helvetica', 'normal');
-  doc.text(invoiceData.clientName.toUpperCase(), 10, 52);
-  doc.text(invoiceData.clientPhone, 10, 58);
+  doc.text(invoiceData.clientName.toUpperCase(), 10, 59);
+  doc.text(invoiceData.clientPhone, 10, 65);
   doc.setFont('helvetica', 'bold');
-  doc.text('PROJECT:', 10, 68);
+  doc.text('PROJECT:', 10, 75);
   doc.setFont('helvetica', 'normal');
-  doc.text(invoiceData.projectName, 10, 74);
+  doc.text(invoiceData.projectName, 10, 81);
 
   doc.setFont('helvetica', 'bold');
   doc.text('STATUS:', 140, 45);
@@ -499,40 +531,40 @@ export const generateReceiptPDF = async (
 
   // Header
   try {
-    doc.addImage(base64Logo, 'PNG', 10, 5, 22, 22);
+    doc.addImage(base64Logo, 'PNG', 10, 5, 38, 38);
   } catch (e) {
-    doc.rect(10, 5, 22, 22, 'S');
+    doc.rect(10, 5, 38, 38, 'S');
     doc.setFontSize(8);
-    doc.text('LOGO', 16, 17);
+    doc.text('LOGO', 24, 22);
   }
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0);
 
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('OFFICIAL RECEIPT', 200, 25, { align: 'right' });
   doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('OFFICIAL RECEIPT', 200, 22, { align: 'right' });
+  doc.setFontSize(9);
   doc.setTextColor(150);
-  doc.text(`Receipt No: ${paymentData.number}`, 200, 32, { align: 'right' });
-  doc.text(`Tanggal Bayar: ${paymentData.paymentDate}`, 200, 37, { align: 'right' });
+  doc.text(`Receipt No: ${paymentData.number}`, 200, 28, { align: 'right' });
+  doc.text(`Tanggal Bayar: ${paymentData.paymentDate}`, 200, 33, { align: 'right' });
 
   doc.setTextColor(0);
   doc.setDrawColor(orange[0], orange[1], orange[2]);
   doc.setLineWidth(1);
-  doc.line(10, 35, 200, 35);
+  doc.line(10, 48, 200, 48);
 
   // Info
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('RECEIVED FROM:', 10, 45);
+  doc.text('RECEIVED FROM:', 10, 52);
   doc.setFont('helvetica', 'normal');
-  doc.text(paymentData.clientName.toUpperCase(), 10, 52);
-  doc.text(paymentData.clientPhone, 10, 58);
+  doc.text(paymentData.clientName.toUpperCase(), 10, 59);
+  doc.text(paymentData.clientPhone, 10, 65);
   doc.setFont('helvetica', 'bold');
-  doc.text('PROJECT:', 10, 68);
+  doc.text('PROJECT:', 10, 75);
   doc.setFont('helvetica', 'normal');
-  doc.text(paymentData.projectName, 10, 74);
+  doc.text(paymentData.projectName, 10, 81);
 
   doc.setFont('helvetica', 'bold');
   doc.text('PAYMENT STATUS:', 140, 45);
@@ -618,33 +650,33 @@ export const generateAIPDF = async (projectName: string, estimation: AIEstimateR
 
   // Header
   try {
-    doc.addImage(base64Logo, 'PNG', 10, 5, 22, 22);
+    doc.addImage(base64Logo, 'PNG', 10, 5, 38, 38);
   } catch (e) {
-    doc.rect(10, 5, 22, 22, 'S');
+    doc.rect(10, 5, 38, 38, 'S');
     doc.setFontSize(8);
-    doc.text('LOGO', 16, 17);
+    doc.text('LOGO', 24, 22);
   }
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0);
 
-  doc.setFontSize(12);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0);
-  doc.text('AI ESTIMATION RESULT', 200, 25, { align: 'right' });
-  doc.setFontSize(9);
+  doc.text('AI ESTIMATION RESULT', 200, 22, { align: 'right' });
+  doc.setFontSize(8);
   doc.setTextColor(150);
-  doc.text(`TGL: ${new Date().toLocaleDateString('id-ID')}`, 200, 31, { align: 'right' });
+  doc.text(`TGL: ${new Date().toLocaleDateString('id-ID')}`, 200, 28, { align: 'right' });
 
   // Orange Line
   doc.setDrawColor(orange[0], orange[1], orange[2]);
   doc.setLineWidth(1);
-  doc.line(10, 35, 200, 35);
+  doc.line(10, 48, 200, 48);
 
-  doc.setFontSize(14);
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0);
-  doc.text(`PROYEK: ${projectName.toUpperCase()}`, 10, 45);
+  doc.text(`PROYEK: ${projectName.toUpperCase()}`, 10, 55);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');

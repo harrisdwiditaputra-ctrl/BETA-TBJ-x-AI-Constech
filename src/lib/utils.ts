@@ -14,14 +14,24 @@ export function formatRupiah(amount: number) {
   }).format(amount);
 }
 
-export function calculateAdminPrice(basePrice: number, globalMarkup: number = 20) {
+export function calculateAdminPrice(basePrice: number, globalMarkup: number = 20, skipMarkup: boolean = false) {
+  if (skipMarkup) return basePrice;
   const markupFactor = 1 + (globalMarkup / 100);
   return basePrice * markupFactor;
 }
 
-export function calculateClientPrice(basePrice: number, globalMarkup: number = 20) {
+export function calculateClientPrice(basePrice: number, globalMarkup: number = 20, skipMarkup: boolean = false) {
+  if (skipMarkup) return basePrice; 
   const markupFactor = 1 + (globalMarkup / 100);
-  return basePrice * markupFactor * 1.1; // Baseline Markup + 10% Profit
+  // Base + Markup + 10% Profit Margin as per instructions
+  return basePrice * markupFactor * 1.1;
+}
+
+/**
+ * Rounds a number to the nearest 1000 (Rupiah standard for professional look)
+ */
+export function roundToRibuan(amount: number) {
+  return Math.ceil(amount / 1000) * 1000;
 }
 
 export function getDriveImageUrl(url: string) {

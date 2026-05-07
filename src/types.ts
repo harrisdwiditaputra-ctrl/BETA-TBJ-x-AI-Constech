@@ -36,6 +36,10 @@ export interface Project {
   updatedAt?: string;
   pmName?: string;
   items?: BudgetItem[];
+  discount?: number;
+  taxPercentage?: number;
+  assessmentDeposit?: number;
+  grandTotal?: number;
 }
 
 export interface PaymentMilestone {
@@ -104,6 +108,7 @@ export interface BudgetItem {
   startDate?: string;
   endDate?: string;
   priority?: "Low" | "Medium" | "High" | "Urgent";
+  isAHSP?: boolean; // Added to skip global markup calculation
 }
 
 export interface Property {

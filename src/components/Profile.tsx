@@ -368,14 +368,14 @@ function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser
             <div className="space-y-1">
               <p className="uppercase-soft text-white/40">Total Nilai Kontrak</p>
               <p className="text-2xl font-black tracking-tighter">
-                {formatRupiah(calculateClientPrice(project.totalBudget || 0, sysConfig?.globalMarkup))}
+                {formatRupiah(project.totalBudget || 0)}
               </p>
             </div>
             <div className="w-full h-px bg-white/10" />
             <div className="space-y-1">
               <p className="uppercase-soft text-white/40">Dana Terbayar</p>
               <p className="text-xl font-black text-green-400">
-                {formatRupiah(calculateClientPrice((project.totalBudget || 0) * 0.3, sysConfig?.globalMarkup))}
+                {formatRupiah((project.totalBudget || 0) * 0.3)}
               </p>
             </div>
             <Button variant="outline" className="w-full rounded-xl uppercase-soft border-white/20 text-white hover:bg-white hover:text-black">Detail Keuangan</Button>

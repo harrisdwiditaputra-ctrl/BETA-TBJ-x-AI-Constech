@@ -189,26 +189,47 @@ export function useProjects(userId?: string, userRole?: string) {
     return () => unsubscribe();
   }, [auth.currentUser, userId, userRole]);
 
-  const createProject = async (name: string, description: string, extraData: Partial<Project> = {}) => {
-    if (!userId) return null;
+  const createProject = async (nameOrData: any, descriptionOrBlank?: string, extraData: any = {}) => {
     try {
+      let finalData: any = {};
+      
+      if (typeof nameOrData === 'string') {
+        finalData = {
+          name: nameOrData,
+          description: descriptionOrBlank || "",
+          ownerId: userId || extraData.ownerId || auth.currentUser?.uid,
+          ...extraData
+        };
+      } else {
+        finalData = {
+          ownerId: userId || nameOrData.ownerId || auth.currentUser?.uid,
+          ...nameOrData
+        };
+      }
+
+      if (!finalData.ownerId) {
+        toast.error("Tidak dapat membuat proyek: Owner ID tidak ditemukan");
+        return null;
+      }
+
       const newProject = {
-        name,
-        description,
-        ownerId: userId,
+        name: finalData.name || "Unnamed Project",
+        description: finalData.description || "",
+        ownerId: finalData.ownerId,
         createdAt: new Date().toISOString(),
-        totalBudget: 0,
-        escrowBalance: 0,
-        releasedAmount: 0,
-        paymentMilestones: [
+        totalBudget: finalData.totalBudget || 0,
+        escrowBalance: finalData.escrowBalance || 0,
+        releasedAmount: finalData.releasedAmount || 0,
+        paymentMilestones: finalData.paymentMilestones || [
           { id: "dp", label: "DP Awal", percentage: 30, amount: 0, status: "pending", requiredProgress: 0 },
           { id: "progress30", label: "Progress 30%", percentage: 30, amount: 0, status: "pending", requiredProgress: 30 },
           { id: "progress60", label: "Progress 60%", percentage: 35, amount: 0, status: "pending", requiredProgress: 60 },
           { id: "retention", label: "Retensi 5%", percentage: 5, amount: 0, status: "pending", requiredProgress: 100 }
         ],
-        status: "draft",
-        ...extraData
+        status: finalData.status || "draft",
+        ...finalData
       };
+      
       const docRef = await addDoc(collection(db, "projects"), newProject);
       return docRef.id;
     } catch (error) {
@@ -371,7 +392,7 @@ export function useProjectDetails(projectId: string | undefined) {
     }
   };
 
-  const addItem = async (categoryId: string, name: string, quantity: number, unit: string, pricePerUnit: number, technicalSpecs?: string, priority?: BudgetItem["priority"], progress: number = 0, endDate?: string) => {
+  const addItem = async (categoryId: string, name: string, quantity: number, unit: string, pricePerUnit: number, technicalSpecs?: string, priority?: BudgetItem["priority"], progress: number = 0, endDate?: string, isAHSP: boolean = false) => {
     if (!projectId) return;
     try {
       const totalPrice = quantity * pricePerUnit;
@@ -386,15 +407,9 @@ export function useProjectDetails(projectId: string | undefined) {
         totalPrice,
         progress: progress || 0,
         priority: priority || "Medium",
-        endDate: endDate || ""
+        endDate: endDate || "",
+        isAHSP
       });
-
-      // Update project total budget
-      if (project) {
-        await updateDoc(doc(db, "projects", projectId), {
-          totalBudget: project.totalBudget + totalPrice
-        });
-      }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `projects/${projectId}/items`);
     }
