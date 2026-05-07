@@ -3,7 +3,7 @@ import { WorkItemMaster } from "./types";
 export const TBJ_LOGO_HEADER = "/regenerated_image_1777553760779.png&text=TBJ+CONSTECH";
 export const TBJ_LOGO_FOOTER = "/regenerated_image_1777553770999.png&text=TBJ+CONSTECH";
 export const TBJ_LOGO = TBJ_LOGO_HEADER;
-export const QRIS_IMAGE = "/regenerated_image_1777553779461.png&text=TBJ+CONSTECH"; // Updated with one of the new images
+export const QRIS_IMAGE = "/regenerated_image_1777553779461.png&text=TBJ+CONSTECH.jpeg"; // Updated with one of the new images
 
 export const WORK_ITEMS_MASTER: WorkItemMaster[] = [
   // ==========================================
