@@ -4,12 +4,11 @@ import { useAuth, useMasterData } from "@/lib/hooks";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Send, Image as ImageIcon, Loader2, User, Bot, Sparkles, X, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { TBJ_LOGO } from "@/constants";
+import { TBJ_LOGO, TBJ_LOGO_SVG } from "@/constants";
 
 interface Message {
   role: "user" | "model";
@@ -118,7 +117,7 @@ export default function AIAgent() {
       }));
 
       const res = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.0-flash",
         contents: [...history, userMessage],
         config: {
           systemInstruction
@@ -132,7 +131,7 @@ export default function AIAgent() {
         const { updateDoc, doc } = await import("firebase/firestore");
         const { db } = await import("@/lib/firebase");
         await updateDoc(doc(db, "users", user.uid), {
-          aiUsageCount: (user.aiUsageCount || 0) + 1
+          analysisCount: (user.analysisCount || 0) + 1
         });
       }
     } catch (error: any) {
@@ -198,7 +197,7 @@ export default function AIAgent() {
                   "w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 border-2 border-black shadow-sm overflow-hidden",
                   msg.role === "user" ? "bg-black text-white" : "bg-white"
                 )}>
-                  {msg.role === "user" ? <User className="w-5 h-5" /> : <img src={assistantLogo} className="w-full h-full object-contain p-1" referrerPolicy="no-referrer" />}
+                  {msg.role === "user" ? <User className="w-5 h-5" /> : <img src={assistantLogo} className="w-full h-full object-contain p-1" referrerPolicy="no-referrer" onError={(e) => { (e.target as HTMLImageElement).src = TBJ_LOGO_SVG; }} />}
                 </div>
                 <div className="space-y-2">
                   <div className={cn(

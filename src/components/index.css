@@ -1,0 +1,200 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --color-accent: oklch(0.62 0.19 39);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.05 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.05 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.05 0 0);
+  --primary: oklch(0.05 0 0);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.05 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.62 0.19 39);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.5 0.22 25);
+  --border: oklch(0 0 0 / 10%);
+  --input: oklch(0 0 0 / 10%);
+  --ring: oklch(0.62 0.19 39);
+  --radius: 8px;
+}
+
+@layer base {
+  * { box-sizing: border-box; border-color: var(--border); }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .tech-grid {
+    background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.04) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+  .btn-sleek {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0.75rem 2rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.12em; font-size: 0.7rem; transition: all 0.2s;
+    border: 2px solid black; background: transparent; color: black;
+    border-radius: 0.75rem; cursor: pointer;
+  }
+  .btn-sleek:hover { background: black; color: white; }
+  .btn-orange {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0.75rem 2rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.1em; font-size: 0.7rem; transition: all 0.2s;
+    border: 2px solid var(--accent); background: var(--accent); color: white;
+    border-radius: 0.75rem; cursor: pointer;
+  }
+  .btn-orange:hover { background: white; color: var(--accent); }
+  .input-sleek {
+    width: 100%; height: 3rem; padding: 0 1rem;
+    border: 2px solid rgba(0,0,0,0.1); border-radius: 0.5rem;
+    background: transparent; font-size: 0.875rem; transition: border-color 0.2s; outline: none;
+  }
+  .input-sleek:focus { border-color: var(--accent); }
+  .uppercase-soft {
+    text-transform: capitalize; letter-spacing: 0.02em;
+    font-size: 0.7rem; opacity: 0.8; font-weight: 500;
+  }
+  .tag-tech {
+    display: inline-block; background: oklch(0.97 0 0); color: oklch(0.5 0 0);
+    padding: 0.375rem 1rem; font-size: 0.65rem; font-family: var(--font-mono);
+    letter-spacing: 0.1em; border: 1px solid oklch(0 0 0 / 8%); border-radius: 9999px;
+  }
+}
+
+/* Ticker */
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-ticker { animation: ticker 40s linear infinite; }
+.animate-ticker:hover { animation-play-state: paused; }
+
+/* Leaflet */
+.leaflet-container { width: 100%; height: 100%; z-index: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: oklch(0.97 0 0); }
+::-webkit-scrollbar-thumb { background: oklch(0.2 0 0); border-radius: 2px; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Snap */
+.snap-x { scroll-snap-type: x mandatory; }
+.snap-center { scroll-snap-align: center; }
+
+/* Print */
+@media print {
+  .no-print { display: none !important; }
+  .tech-grid { background: none; }
+}
+
+/* ─── Additional Component Classes ───────────────────────────────────────── */
+
+/* sleek-grid - used in Layout */
+.sleek-grid {
+  background-image: 
+    linear-gradient(rgba(0,0,0,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.02) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* btn-accent - orange accent button */
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 2rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+  transition: all 0.2s;
+  border: 2px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+.btn-accent:hover { background: color-mix(in oklch, var(--accent) 85%, black); }
+
+/* btn-titanium */
+.btn-titanium {
+  background: oklch(0.35 0 0);
+  color: white;
+  border: 2px solid oklch(0.35 0 0);
+  border-radius: 0.75rem;
+  padding: 0.5rem 1.5rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* Tailwind hover:bg-titanium workaround */
+.hover\:bg-titanium:hover { background-color: oklch(0.25 0 0); }
+
+/* custom-scrollbar */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: oklch(0.85 0 0); border-radius: 2px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: oklch(0.7 0 0); }
+
+/* animate-ticker pause on hover */
+.hover\:pause:hover { animation-play-state: paused; }
+
+/* touch pan scroll fix */
+.touch-pan-y { touch-action: pan-y; }
+.overscroll-contain { overscroll-behavior: contain; }
+
+/* AI Agent chat background */
+.bg-\[\#FFF5ED\] { background-color: #FFF5ED; }
+
+/* fade-in zoom-in for ErrorBoundary */
+.animate-in.fade-in.zoom-in {
+  animation: fadeInZoom 0.3s ease-out forwards;
+}
+@keyframes fadeInZoom {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Accent color direct use */
+.text-accent { color: var(--accent); }
+.bg-accent { background-color: var(--accent); }
+.border-accent { border-color: var(--accent); }
+.ring-accent { --tw-ring-color: var(--accent); }
+.shadow-accent\/20 { --tw-shadow-color: color-mix(in oklch, var(--accent) 20%, transparent); }
+.bg-accent\/10 { background-color: color-mix(in oklch, var(--accent) 10%, transparent); }
+.bg-accent\/5 { background-color: color-mix(in oklch, var(--accent) 5%, transparent); }
+.border-accent\/20 { border-color: color-mix(in oklch, var(--accent) 20%, transparent); }
+.text-accent\/60 { color: color-mix(in oklch, var(--accent) 60%, transparent); }
+.hover\:text-accent:hover { color: var(--accent); }
+.hover\:bg-accent:hover { background-color: var(--accent); }
+.hover\:border-accent:hover { border-color: var(--accent); }
+.shadow-\[0_0_15px_rgba\(255\,107\,0\,0\.5\)\] { box-shadow: 0 0 15px rgba(255,107,0,0.5); }

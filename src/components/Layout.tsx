@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Ticker from "./Ticker";
-import { TBJ_LOGO_HEADER, TBJ_LOGO_FOOTER } from "@/constants";
+import { TBJ_LOGO_HEADER, TBJ_LOGO_FOOTER, TBJ_LOGO_SVG } from "@/constants";
 
 interface LayoutProps {
   children: ReactNode;
@@ -62,6 +62,7 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
                     alt="TBJ Logo" 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
+                    onError={(e) => { (e.target as HTMLImageElement).src = TBJ_LOGO_SVG; }}
                   />
                 </div>
                 <div className="flex flex-col">
