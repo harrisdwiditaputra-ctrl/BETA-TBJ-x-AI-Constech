@@ -14,8 +14,18 @@ export interface Project {
   escrowBalance: number; // Total money paid by client but not yet released
   releasedAmount: number; // Total money released to company
   paymentMilestones: PaymentMilestone[];
-  status: "draft" | "survey" | "active" | "completed" | "awaiting";
+  status: "draft" | "survey" | "quoted" | "active" | "completed" | "awaiting" | "on-hold" | "cancelled";
   contractUrl?: string;
+  contractDraft?: string;
+  contractSignedAt?: string;
+  adminSignedAt?: string;
+  clientSignedAt?: string;
+  adminSignature?: string;
+  clientSignature?: string;
+  contractHistory?: { time: string; action: string; user: string; role: string }[];
+  contractParty1?: string;
+  contractParty2?: string;
+  contractClauses?: { id: string; title: string; content: string }[];
   timeline?: TimelineEvent[];
   location?: string;
   locationCoords?: { lat: number; lng: number }; // Added for multi-site tracking
@@ -24,7 +34,7 @@ export interface Project {
   category?: string;
   dailyReports?: DailyReport[];
   requests?: ProjectRequest[];
-  cctvUrls?: { id: string; name: string; url: string }[];
+  cctvUrls?: { id: string; name: string; url: string; type: "embed" | "rtsp" | "http" }[];
   imageUrl?: string;
   clientId?: string;
   clientName?: string;
@@ -196,6 +206,8 @@ export interface UserProfile {
   photoURL?: string;
   role: "admin" | "user" | "pm";
   tier: UserTier;
+  formalName?: string; // Full name for contracts
+  nik?: string; // KTP Number
   whatsapp?: string;
   phoneNumber?: string; // Added for AI limit tracking
   aiUsageCount?: number; // Added for AI limit tracking

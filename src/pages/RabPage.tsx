@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -21,6 +22,7 @@ import { TBJ_LOGO } from "@/constants";
 import { generateRABPDF } from "@/lib/pdfUtils";
 
 interface RabItem extends WorkItemMaster {
+  instanceId: string;
   volume: number;
   total: number;
   code?: string;
@@ -38,7 +40,62 @@ export default function RabPage({ user }: { user: any }) {
 
   const [activeTab, setActiveTab] = useState<"editor" | "archive">("editor");
   const [rabItems, setRabItems] = useState<RabItem[]>([]);
-  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
+  const [selectedIndexes, setSelectedIndexes] = useState<Set<string>>(new Set());
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  const [deleteEstimateId, setDeleteEstimateId] = useState<string | null>(null);
+
+  const handleBulkRemove = () => {
+    if (selectedIndexes.size === 0) return;
+    const newItems = rabItems.filter((item) => !selectedIndexes.has(item.instanceId));
+    const removedCount = selectedIndexes.size;
+    setRabItems(newItems);
+    setSelectedIndexes(new Set());
+    toast.success(`${removedCount} item berhasil dihapus.`);
+  };
+
+  const handleDeleteEstimate = async (id: string) => {
+    setDeleteEstimateId(id);
+  };
+
+  const executeDeleteEstimate = async () => {
+    if (deleteEstimateId) {
+      await deleteEstimate(deleteEstimateId);
+      setDeleteEstimateId(null);
+      toast.success("Estimasi dihapus.");
+    }
+  };
+
+  const toggleSelectIndex = (instanceId: string) => {
+    const next = new Set(selectedIndexes);
+    if (next.has(instanceId)) next.delete(instanceId);
+    else next.add(instanceId);
+    setSelectedIndexes(next);
+  };
+
+  const toggleSelectAllEditor = (category?: string) => {
+    const next = new Set(selectedIndexes);
+    const itemsToToggle = category 
+      ? rabItems.filter(i => i.category === category)
+      : rabItems;
+    
+    const allSelected = itemsToToggle.length > 0 && itemsToToggle.every(i => next.has(i.instanceId));
+
+    if (allSelected) {
+      itemsToToggle.forEach(i => next.delete(i.instanceId));
+    } else {
+      itemsToToggle.forEach(i => next.add(i.instanceId));
+    }
+    setSelectedIndexes(next);
+  };
+
+  const toggleExpand = (instanceId: string) => {
+    const next = new Set(expandedItems);
+    if (next.has(instanceId)) next.delete(instanceId);
+    else next.add(instanceId);
+    setExpandedItems(next);
+  };
+
   const [categories, setCategories] = useState<string[]>([
     "ARSITEKTUR", 
     "Struktur", 
@@ -99,6 +156,7 @@ export default function RabPage({ user }: { user: any }) {
     
     const newItem: RabItem = {
       ...master,
+      instanceId: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       price,
       volume: 1,
       total: price,
@@ -109,13 +167,6 @@ export default function RabPage({ user }: { user: any }) {
     setRabItems([...rabItems, newItem]);
     setSearchQuery("");
     setIsAddingItem(false);
-  };
-
-  const toggleExpand = (index: number) => {
-    const next = new Set(expandedItems);
-    if (next.has(index)) next.delete(index);
-    else next.add(index);
-    setExpandedItems(next);
   };
 
   const handleSaveDraft = async () => {
@@ -134,16 +185,24 @@ export default function RabPage({ user }: { user: any }) {
     await saveEstimate(draftData);
   };
 
-  const updateItem = (index: number, updates: Partial<RabItem>) => {
-    const newItems = [...rabItems];
-    const updatedItem = { ...newItems[index], ...updates };
-    updatedItem.total = updatedItem.volume * updatedItem.price;
-    newItems[index] = updatedItem;
-    setRabItems(newItems);
+  const updateItemById = (instanceId: string, updates: Partial<RabItem>) => {
+    setRabItems(prev => prev.map(item => {
+      if (item.instanceId === instanceId) {
+        const updatedItem = { ...item, ...updates };
+        updatedItem.total = (updatedItem.volume || 0) * (updatedItem.price || 0);
+        return updatedItem;
+      }
+      return item;
+    }));
   };
 
-  const removeItem = (index: number) => {
-    setRabItems(rabItems.filter((_, i) => i !== index));
+  const removeItem = (instanceId: string) => {
+    setRabItems(rabItems.filter((item) => item.instanceId !== instanceId));
+    setSelectedIndexes(prev => {
+      const next = new Set(prev);
+      next.delete(instanceId);
+      return next;
+    });
   };
 
   const groupedItems = useMemo(() => {
@@ -182,16 +241,13 @@ export default function RabPage({ user }: { user: any }) {
       date: est.date || new Date().toISOString(),
       contact: est.contact || user?.whatsapp || "",
     });
-    setRabItems(est.items || []);
+    // Ensure all items have instanceId for removal functionality
+    setRabItems((est.items || []).map((item: any) => ({
+      ...item,
+      instanceId: item.instanceId || `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    })));
     setActiveTab("editor");
     toast.success("Estimasi berhasil dimuat.");
-  };
-
-  const handleDeleteEstimate = async (id: string) => {
-    if (confirm("Apakah Anda yakin ingin menghapus arsip ini?")) {
-      await deleteEstimate(id);
-      toast.success("Estimasi dihapus.");
-    }
   };
 
   return (
@@ -437,6 +493,15 @@ export default function RabPage({ user }: { user: any }) {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Work Items Breakdown</h3>
             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              {selectedIndexes.size > 0 && canEdit && (
+                <Button 
+                  variant="destructive" 
+                  className="text-[10px] font-black uppercase gap-2 hover:bg-red-700 h-9 px-4 rounded-xl shadow-lg shadow-red-500/20"
+                  onClick={handleBulkRemove}
+                >
+                  <Trash2 className="w-3 h-3" /> Hapus Terpilih ({selectedIndexes.size})
+                </Button>
+              )}
               {canEdit && (
                 <Dialog open={showAddCategory} onOpenChange={setShowAddCategory}>
                   <DialogTrigger render={
@@ -525,6 +590,12 @@ export default function RabPage({ user }: { user: any }) {
             <Table className="min-w-[800px] md:min-w-full">
               <TableHeader className="bg-neutral-50/50">
                 <TableRow className="border-b border-neutral-100 hover:bg-transparent">
+                  <TableHead className="w-[40px] px-6">
+                    <Checkbox 
+                      checked={rabItems.length > 0 && Array.from(selectedIndexes).length === rabItems.length}
+                      onCheckedChange={() => toggleSelectAllEditor()}
+                    />
+                  </TableHead>
                   <TableHead className="w-[80px] text-[9px] font-black uppercase text-neutral-400 px-6">Code</TableHead>
                   <TableHead className="text-[9px] font-black uppercase text-neutral-400">Description</TableHead>
                   <TableHead className="w-[100px] text-center text-[9px] font-black uppercase text-neutral-400">Volume</TableHead>
@@ -539,17 +610,28 @@ export default function RabPage({ user }: { user: any }) {
                   <React.Fragment key={catName}>
                     {items.length > 0 && (
                       <TableRow className="bg-neutral-50/50 border-b border-neutral-100">
-                        <TableCell colSpan={canEdit ? 7 : 6} className="py-2 px-6">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-black">{catName}</span>
+                        <TableCell colSpan={canEdit ? 8 : 7} className="py-2 px-6">
+                          <div className="flex items-center gap-3">
+                            <Checkbox 
+                              checked={items.every(i => selectedIndexes.has(i.instanceId))}
+                              onCheckedChange={() => toggleSelectAllEditor(catName)}
+                            />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-black">{catName}</span>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}
                     {items.map((item, index) => {
-                      const globalIndex = rabItems.findIndex(ri => ri.id === item.id && ri.name === item.name);
-                      const isExpanded = expandedItems.has(globalIndex);
+                      const isExpanded = expandedItems.has(item.instanceId);
                       return (
-                        <React.Fragment key={index}>
+                        <React.Fragment key={item.instanceId}>
                           <TableRow className="border-b border-neutral-50 hover:bg-neutral-50/30 transition-colors">
+                            <TableCell className="px-6">
+                              <Checkbox 
+                                checked={selectedIndexes.has(item.instanceId)}
+                                onCheckedChange={() => toggleSelectIndex(item.instanceId)}
+                              />
+                            </TableCell>
                             <TableCell className="font-mono text-[9px] text-neutral-400 font-bold px-6">{item.code || "N/A"}</TableCell>
                             <TableCell className="max-w-[200px] md:max-w-[350px]">
                               <div className="flex items-center gap-2">
@@ -558,7 +640,7 @@ export default function RabPage({ user }: { user: any }) {
                                   variant="ghost" 
                                   size="icon" 
                                   className="h-5 w-5 rounded-full hover:bg-accent hover:text-white"
-                                  onClick={() => toggleExpand(globalIndex)}
+                                  onClick={() => toggleExpand(item.instanceId)}
                                 >
                                   {isExpanded ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                                 </Button>
@@ -573,7 +655,7 @@ export default function RabPage({ user }: { user: any }) {
                                 disabled={!canEdit}
                                 type="number" 
                                 value={item.volume || 0} 
-                                onChange={e => updateItem(globalIndex, { volume: Math.max(0, Number(e.target.value)) })}
+                                onChange={e => updateItemById(item.instanceId, { volume: Math.max(0, Number(e.target.value)) })}
                                 className="h-7 text-center border-neutral-100 rounded-lg font-bold text-xs bg-transparent focus-visible:ring-black"
                               />
                             </TableCell>
@@ -589,10 +671,10 @@ export default function RabPage({ user }: { user: any }) {
                                 <DropdownMenu>
                                   <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>} />
                                   <DropdownMenuContent align="end" className="rounded-xl">
-                                    <DropdownMenuItem className="text-xs uppercase font-bold gap-2" onClick={() => toggleExpand(globalIndex)}>
+                                    <DropdownMenuItem className="text-xs uppercase font-bold gap-2" onClick={() => toggleExpand(item.instanceId)}>
                                       <Edit3 className="w-3 h-3" /> Edit Specs
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem className="text-xs uppercase font-bold gap-2 text-red-600" onClick={() => removeItem(globalIndex)}>
+                                    <DropdownMenuItem className="text-xs uppercase font-bold gap-2 text-red-600" onClick={() => removeItem(item.instanceId)}>
                                       <Eraser className="w-3 h-3" /> Remove Item
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -602,12 +684,12 @@ export default function RabPage({ user }: { user: any }) {
                           </TableRow>
                           {isExpanded && (
                             <TableRow className="bg-neutral-50/20">
-                              <TableCell colSpan={canEdit ? 7 : 6} className="px-6 py-4">
+                              <TableCell colSpan={canEdit ? 8 : 7} className="px-6 py-4">
                                 <div className="space-y-2">
                                   <Label className="text-[9px] font-black uppercase text-neutral-400">Keterangan Spesifikasi (Merk, Tipe, Material)</Label>
                                   <Textarea 
                                     value={item.technicalSpecs || ""}
-                                    onChange={e => updateItem(globalIndex, { technicalSpecs: e.target.value })}
+                                    onChange={e => updateItemById(item.instanceId, { technicalSpecs: e.target.value })}
                                     placeholder="Masukkan spesifikasi teknis untuk item ini..."
                                     className="min-h-[60px] text-xs font-bold rounded-xl border-neutral-100 focus:border-black"
                                   />
@@ -622,7 +704,7 @@ export default function RabPage({ user }: { user: any }) {
                 ))}
                 {rabItems.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 7 : 6} className="h-64 text-center">
+                    <TableCell colSpan={canEdit ? 8 : 7} className="h-64 text-center">
                       <div className="flex flex-col items-center gap-2 text-neutral-200">
                         <FileText className="w-10 h-10" />
                         <p className="uppercase-soft text-[9px] font-black">No items added to this RAB</p>
@@ -658,6 +740,30 @@ export default function RabPage({ user }: { user: any }) {
           </a>
         </div>
       </div>
+
+      {/* Delete Estimate Confirmation Dialog */}
+      <Dialog open={!!deleteEstimateId} onOpenChange={(open) => !open && setDeleteEstimateId(null)}>
+        <DialogContent className="sm:max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
+          <div className="bg-red-500 p-8 text-white flex flex-col items-center text-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
+              <Trash2 className="w-8 h-8 text-white" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black uppercase tracking-tighter">Hapus Arsip?</h2>
+              <p className="text-white/80 text-[10px] font-black uppercase tracking-[0.2em]">Estimasi draf ini akan hilang</p>
+            </div>
+          </div>
+          <div className="p-8 space-y-6 text-center">
+            <p className="text-sm font-medium text-neutral-600 leading-relaxed">
+              Apakah Anda yakin ingin menghapus arsip estimasi ini secara permanen?
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="outline" className="rounded-2xl h-12 px-8 uppercase font-black text-[10px] tracking-widest border-neutral-200" onClick={() => setDeleteEstimateId(null)}>Batal</Button>
+              <Button className="rounded-2xl h-12 px-8 uppercase font-black text-[10px] tracking-widest bg-red-500 hover:bg-black text-white" onClick={executeDeleteEstimate}>Hapus</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

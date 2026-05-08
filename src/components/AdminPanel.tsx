@@ -106,7 +106,7 @@ export default function AdminPanel() {
     deleteVersion
   } = useMasterData(user?.role);
   const { categories: masterCategories } = useMasterCategories();
-  const { users, loading: usersLoading, updateUser } = useUsers(user?.role);
+  const { users, loading: usersLoading, updateUser, deleteUser } = useUsers(user?.role);
   const { projects, loading: projectsLoading, updateProject, deleteProject, createProject, fixProjectMilestones } = useProjects(undefined, user?.role);
   const [projectSearch, setProjectSearch] = useState("");
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
@@ -162,13 +162,28 @@ export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "clients" | "projects" | "workforce" | "cms" | "finance" | "marketing" | "management" | "materials" | "attendance" | "gallery" | "properties" | "vendors" | "payments" | "media" | "estimates">("dashboard");
   const [leadSearch, setLeadSearch] = useState("");
   const [showAddLead, setShowAddLead] = useState(false);
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [newProjectData, setNewProjectData] = useState({
+    name: "",
+    clientName: "",
+    clientEmail: "",
+    clientPhone: "",
+    clientAddress: "",
+    clientNik: "",
+    category: "Renovasi",
+    location: "Jakarta",
+    totalBudget: 0,
+  });
   const [newLead, setNewLead] = useState({
     name: "",
     email: "",
     whatsapp: "",
     source: "Manual",
-    status: "Lead",
-    notes: ""
+    status: "Lead" as any,
+    notes: "",
+    address: "",
+    nik: "",
+    projectType: "Renovasi"
   });
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -382,6 +397,70 @@ export default function AdminPanel() {
       toast.error("Gagal mengirim order massal.");
     }
   };
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [workerToDelete, setWorkerToDelete] = useState<Workforce | null>(null);
+  const [editingContractProject, setEditingContractProject] = useState<Project | null>(null);
+  const [managingCctvProject, setManagingCctvProject] = useState<Project | null>(null);
+  const [newCctv, setNewCctv] = useState({ name: "Site Monitor", url: "", type: "embed" as any });
+
+  const confirmDeleteUser = (uid: string) => {
+    setDeleteConfirmId(uid);
+  };
+
+  const executeDeleteUser = async () => {
+    if (deleteConfirmId) {
+      await deleteUser(deleteConfirmId);
+      setDeleteConfirmId(null);
+    }
+  };
+
+  const executeDeleteProject = async () => {
+    if (projectToDelete) {
+      await deleteProject(projectToDelete.id);
+      setProjectToDelete(null);
+      toast.success("Proyek berhasil dihapus");
+    }
+  };
+
+  const executeDeleteWorker = async () => {
+    if (workerToDelete) {
+      await deleteWorkforce(workerToDelete.id);
+      setWorkerToDelete(null);
+      toast.success("Data pekerja berhasil dihapus");
+    }
+  };
+
+  const handleUpdateContract = async () => {
+    if (!editingContractProject) return;
+    try {
+      await updateProject(editingContractProject.id, {
+        contractParty1: editingContractProject.contractParty1 || "",
+        contractParty2: editingContractProject.contractParty2 || "",
+        contractDraft: editingContractProject.contractDraft || "",
+        contractClauses: editingContractProject.contractClauses || []
+      });
+      setEditingContractProject(null);
+      toast.success("Kontrak berhasil diperbarui");
+    } catch (error) {
+      toast.error("Gagal memperbarui kontrak");
+    }
+  };
+
+  const handleAddCctv = async () => {
+    if (!managingCctvProject || !newCctv.url) return;
+    try {
+      const currentCctvs = managingCctvProject.cctvUrls || [];
+      const updatedCctvs = [...currentCctvs, { ...newCctv, id: Math.random().toString(36).substr(2, 9) }];
+      await updateProject(managingCctvProject.id, { cctvUrls: updatedCctvs });
+      setManagingCctvProject({ ...managingCctvProject, cctvUrls: updatedCctvs });
+      setNewCctv({ name: "Site Monitor", url: "", type: "embed" as any });
+      toast.success("CCTV berhasil ditambahkan");
+    } catch (error) {
+      toast.error("Gagal menambahkan CCTV");
+    }
+  };
+
   const [paymentForm, setPaymentForm] = useState({
     projectId: "",
     amount: 0,
@@ -2005,15 +2084,17 @@ export default function AdminPanel() {
                                              <div className="flex justify-between items-end">
                                                 <div className="space-y-0.5">
                                                   <p className="text-[10px] font-black text-accent/60 uppercase">Analisa Digunakan</p>
-                                                  <p className="text-2xl font-black text-accent">{u.aiUsageCount || 0} / {u.waVerified ? "5" : "1"}</p>
+                                                  <p className="text-2xl font-black text-accent">{u.aiUsageCount || 0} / {u.tier === 'deal' ? "∞" : u.waVerified ? "10" : "5"}</p>
                                                 </div>
                                                 <Zap className="w-8 h-8 text-accent/20" />
                                              </div>
-                                             <Progress value={Math.min(((u.aiUsageCount || 0) / (u.waVerified ? 5 : 1)) * 100, 100)} className="h-2 bg-accent/10" />
+                                             <Progress value={Math.min(((u.aiUsageCount || 0) / (u.waVerified ? 10 : 5)) * 100, 100)} className="h-2 bg-accent/10" />
                                              <p className="text-[9px] font-medium text-neutral-500 italic">
-                                                {u.waVerified 
-                                                  ? "Status Terverifikasi (Limit 5 Analisa Aktif)" 
-                                                  : "Status Free (Limit 1 Analisa, verifikasi WA untuk 5 analisa)"}
+                                                {u.tier === 'deal' 
+                                                  ? "Status Deal (Analisa Unlimited)"
+                                                  : u.waVerified 
+                                                    ? "Status Terverifikasi (Limit 10 Analisa Aktif)" 
+                                                    : "Status Free (Limit 5 Analisa, verifikasi WA untuk 10 analisa)"}
                                              </p>
                                           </div>
                                         </div>
@@ -2062,7 +2143,7 @@ export default function AdminPanel() {
                                     </div>
                                   ) : (
                                     <div className="flex gap-0.5">
-                                      {Array.from({ length: u.waVerified ? 5 : 1 }).map((_, i) => (
+                                      {Array.from({ length: u.waVerified ? 10 : 5 }).map((_, i) => (
                                         <div key={i} className={cn("w-1.5 h-1.5 rounded-full", (u.aiUsageCount || 0) > i ? "bg-accent shadow-sm shadow-accent/20" : "bg-neutral-100")} />
                                       ))}
                                     </div>
@@ -2085,7 +2166,7 @@ export default function AdminPanel() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-accent transition-all" onClick={() => handleEditClient(u)}>
                                   <FileEdit className="w-3.5 h-3.5" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-50 text-neutral-400 hover:text-red-500 transition-all">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-red-50 text-neutral-400 hover:text-red-500 transition-all" onClick={() => confirmDeleteUser(u.uid)}>
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
                               </div>
@@ -2317,9 +2398,107 @@ export default function AdminPanel() {
                       onChange={e => setProjectSearch(e.target.value)}
                     />
                   </div>
-                  <Button className="btn-sleek h-12 px-6 rounded-2xl w-full lg:w-auto text-[10px] sm:text-xs" onClick={() => navigate("/pm")}>
-                    <LayoutDashboard className="w-4 h-4 mr-2" /> Global Dashboard
-                  </Button>
+                  <Dialog open={showAddProject} onOpenChange={setShowAddProject}>
+                    <DialogTrigger render={
+                      <Button className="btn-accent h-12 px-6 rounded-2xl w-full lg:w-auto text-[10px] sm:text-xs">
+                        <Plus className="w-4 h-4 mr-2" /> Tambah Proyek
+                      </Button>
+                    } />
+                    <DialogContent className="max-w-2xl rounded-[2.5rem] border-4 border-black p-8">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Manual Project Initiation</DialogTitle>
+                        <DialogDescription className="uppercase-soft text-[10px]">Create a new project identity in the TBJ ecosystem.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-1">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase">Project Name</Label>
+                            <Input placeholder="e.g. Renovasi Bpk Alex" value={newProjectData.name} onChange={e => setNewProjectData({...newProjectData, name: e.target.value})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase">Category</Label>
+                            <select className="w-full h-12 border-2 border-black rounded-xl px-3 font-black text-[10px] uppercase" value={newProjectData.category} onChange={e => setNewProjectData({...newProjectData, category: e.target.value})}>
+                               <option>Renovasi</option>
+                               <option>Bangun Baru</option>
+                               <option>Interior</option>
+                               <option>Other</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase">Nama Lengkap Pihak Kedua (Klien)</Label>
+                           <Input placeholder="Sesuai KTP" value={newProjectData.clientName} onChange={e => setNewProjectData({...newProjectData, clientName: e.target.value})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase">NIK KTP Klien</Label>
+                            <Input placeholder="16 Digit" value={newProjectData.clientNik} onChange={e => setNewProjectData({...newProjectData, clientNik: e.target.value})} className="h-12 border-2 border-black rounded-xl font-mono" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase">WhatsApp Connection</Label>
+                            <Input placeholder="08xxxxxxxxxx" value={newProjectData.clientPhone} onChange={e => setNewProjectData({...newProjectData, clientPhone: e.target.value})} className="h-12 border-2 border-black rounded-xl font-mono" />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase">Alamat Lengkap Proyek</Label>
+                           <Input placeholder="Lokasi Pekerjaan" value={newProjectData.location} onChange={e => setNewProjectData({...newProjectData, location: e.target.value})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase">Email Address</Label>
+                           <Input type="email" placeholder="client@example.com" value={newProjectData.clientEmail} onChange={e => setNewProjectData({...newProjectData, clientEmail: e.target.value})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase">Initial Capital (Budget)</Label>
+                           <Input type="number" placeholder="Rp 0" value={newProjectData.totalBudget} onChange={e => setNewProjectData({...newProjectData, totalBudget: Number(e.target.value)})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                        </div>
+                      </div>
+                      <DialogFooter className="mt-4">
+                        <Button className="w-full bg-black text-white h-14 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl" onClick={async () => {
+                           if (!newProjectData.name || !newProjectData.clientName) {
+                              toast.error("Please fill Name & Client info.");
+                              return;
+                           }
+                           await (createProject as any)({
+                              ...newProjectData,
+                              status: 'survey',
+                              contractParty2: newProjectData.clientName,
+                              contractDraft: `KONTRAK KERJASAMA PEMBANGUNAN\n\nPROYEK: ${newProjectData.name.toUpperCase()}\nLOKASI: ${newProjectData.location.toUpperCase()}\n\nAntara PT. TBJ CONSTECH INDONESIA (Pihak Pertama) dan ${newProjectData.clientName.toUpperCase()} (Pihak Kedua).`,
+                              contractHistory: [
+                                { time: new Date().toISOString(), action: "Project Created Manually", user: user?.displayName || "Admin", role: "admin" }
+                              ],
+                              paymentMilestones: [
+                                { label: 'Booking Fee', percentage: 0, status: 'paid' },
+                                { label: 'Termin I (DP)', percentage: 30, status: 'released' },
+                                { label: 'Termin II (Mid)', percentage: 40, status: 'locked' },
+                                { label: 'Termin III (Final)', percentage: 30, status: 'locked' },
+                              ]
+                           });
+                           setShowAddProject(false);
+                           setNewProjectData({
+                              name: "", clientName: "", clientEmail: "", clientPhone: "", clientAddress: "", clientNik: "", category: "Renovasi", location: "Jakarta", totalBudget: 0
+                           });
+                           toast.success("Project Successfully Initiated.");
+                        }}>
+                          Deploy Project Platform &rarr;
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  <div className="flex flex-col gap-2 w-full lg:w-48">
+                    <Button 
+                      className="bg-black text-white h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-neutral-800"
+                      onClick={() => setShowAddProject(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" /> Tambah Proyek
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="border-2 border-black h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-50" 
+                      onClick={() => navigate("/pm")}
+                    >
+                      <LayoutDashboard className="w-4 h-4 mr-2" /> PM Dashboard
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -2367,6 +2546,8 @@ export default function AdminPanel() {
                              p.status === 'active' ? "bg-green-500 text-white" : 
                              p.status === 'survey' ? "bg-blue-500 text-white" :
                              p.status === 'completed' ? "bg-purple-500 text-white" :
+                             p.status === 'on-hold' ? "bg-yellow-500 text-white" :
+                             p.status === 'cancelled' ? "bg-red-500 text-white" :
                              "bg-neutral-500 text-white"
                            )}>{p.status}</Badge>
                         </div>
@@ -2425,15 +2606,30 @@ export default function AdminPanel() {
                           <Button 
                             variant="outline" 
                             className="h-9 w-9 md:h-10 md:w-10 border-2 border-black text-red-500 hover:bg-neutral-900 hover:text-white rounded-xl p-0 flex items-center justify-center transition-colors"
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm(`Hapus proyek ${p.name}?`)) {
-                                await deleteProject(p.id);
-                                toast.success("Proyek dihapus.");
-                              }
+                              setProjectToDelete(p);
                             }}
                           >
                             <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                          </Button>
+                          <Button 
+                            className="h-9 w-9 md:h-10 md:w-10 border-2 border-black bg-white text-black hover:bg-neutral-100 rounded-xl p-0 flex items-center justify-center"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingContractProject(p);
+                            }}
+                          >
+                             <FileText className="w-3.5 h-3.5 md:w-4 md:h-4 text-neutral-400" />
+                          </Button>
+                          <Button 
+                            className="h-9 w-9 md:h-10 md:w-10 border-2 border-black bg-white text-black hover:bg-neutral-100 rounded-xl p-0 flex items-center justify-center"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setManagingCctvProject(p);
+                            }}
+                          >
+                             <Camera className="w-3.5 h-3.5 md:w-4 md:h-4 text-neutral-400" />
                           </Button>
                           <Button 
                              className="h-9 w-9 md:h-10 md:w-10 border-2 border-black bg-black text-white hover:bg-accent rounded-xl p-0 flex items-center justify-center"
@@ -2459,6 +2655,28 @@ export default function AdminPanel() {
                       <DialogDescription className="uppercase-soft">Assign Project Manager and Workforce for {selectedProjectTeam.name}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-8 py-6">
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Project Status</label>
+                        <select 
+                          className="w-full h-12 rounded-xl border-2 border-black px-4 font-bold uppercase text-xs"
+                          value={selectedProjectTeam.status || "draft"}
+                          onChange={async (e) => {
+                            const status = e.target.value as any;
+                            await updateProject(selectedProjectTeam.id, { status });
+                            setSelectedProjectTeam({...selectedProjectTeam, status});
+                            toast.success(`Status updated to ${status}`);
+                          }}
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="survey">Survey</option>
+                          <option value="quoted">Quoted</option>
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                          <option value="on-hold">On-Hold (Pending DP)</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+
                       <div className="space-y-4">
                         <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Project Manager</label>
                         <select 
@@ -2571,10 +2789,10 @@ export default function AdminPanel() {
                                     className="h-7 w-7 text-neutral-400 hover:text-red-500 transition-colors" 
                                     onClick={(e) => { 
                                       e.stopPropagation(); 
-                                      if(confirm("Hapus proyek ini secara permanen?")) deleteProject(p.id); 
+                                      setProjectToDelete(p);
                                     }}
                                   >
-                                    <Trash2 className="w-3 h-3" />
+                                    <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                   </Button>
                                 </div>
                               </div>
@@ -3842,6 +4060,39 @@ export default function AdminPanel() {
                               </select>
                             </div>
                           </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Nomor KTP (ID)</Label>
+                              <Input 
+                                placeholder="NIK 16 Digit"
+                                value={newLead.nik}
+                                onChange={e => setNewLead({...newLead, nik: e.target.value})}
+                                className="h-12 border-2 border-black/10 rounded-xl font-bold bg-neutral-50 px-4"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Tipe Proyek</Label>
+                              <select 
+                                className="w-full h-12 border-2 border-black/10 rounded-xl bg-neutral-50 px-3 font-bold text-sm focus:outline-none focus:border-black"
+                                value={newLead.projectType}
+                                onChange={e => setNewLead({...newLead, projectType: e.target.value})}
+                              >
+                                <option>Renovasi</option>
+                                <option>Bangun Baru</option>
+                                <option>Interior</option>
+                                <option>Lahan</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Address / Lokasi</Label>
+                            <Input 
+                              placeholder="Alamat Lengkap Klien"
+                              value={newLead.address}
+                              onChange={e => setNewLead({...newLead, address: e.target.value})}
+                              className="h-12 border-2 border-black/10 rounded-xl font-bold bg-neutral-50 px-4"
+                            />
+                          </div>
                           <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Initial Brief / Notes</Label>
                             <Textarea 
@@ -3855,7 +4106,7 @@ export default function AdminPanel() {
                             if (!newLead.name || !newLead.whatsapp) return;
                             await addLead(newLead as any);
                             setShowAddLead(false);
-                            setNewLead({ name: "", email: "", whatsapp: "", source: "Manual", status: "Lead", notes: "" });
+                            setNewLead({ name: "", email: "", whatsapp: "", source: "Manual", status: "Lead", notes: "", address: "", nik: "", projectType: "" });
                             toast.success("Relationship initialized successfully!");
                           }}>
                             Initialize Phase 1 &rarr;
@@ -3953,12 +4204,15 @@ export default function AdminPanel() {
                                         clientName: lead.name,
                                         clientEmail: lead.email || "",
                                         clientPhone: lead.whatsapp,
+                                        clientAddress: (lead as any).address || "",
+                                        clientNik: (lead as any).nik || "",
                                         status: 'survey',
-                                        category: 'Renovasi',
-                                        location: 'TBD',
+                                        category: (lead as any).projectType || 'Renovasi',
+                                        location: (lead as any).address || 'TBD',
                                         description: lead.notes || "",
                                         totalBudget: 0,
                                         escrowBalance: 0,
+                                        contractParty2: lead.name, // Auto-fill Party 2
                                         paymentMilestones: [
                                           { label: 'Booking Fee', percentage: 0, status: 'paid' },
                                           { label: 'Termin I (DP)', percentage: 30, status: 'released' },
@@ -5370,7 +5624,7 @@ export default function AdminPanel() {
                             {systemConfig && (
                               <Input 
                                 type="number"
-                                defaultValue={systemConfig.aiVerifiedLimit || 5} 
+                                defaultValue={systemConfig.aiVerifiedLimit || 10} 
                                 onBlur={(e) => updateSystem({ aiVerifiedLimit: Number(e.target.value) })}
                                 className="font-mono font-bold" 
                               />
@@ -5471,6 +5725,262 @@ export default function AdminPanel() {
             >
               Simpan Spesifikasi
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <DialogContent className="sm:max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
+          <div className="bg-red-500 p-8 text-white flex flex-col items-center text-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
+              <Trash2 className="w-8 h-8 text-white" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black uppercase tracking-tighter">Konfirmasi Penghapusan</h2>
+              <p className="text-white/80 text-[10px] font-black uppercase tracking-[0.2em]">Data ini tidak dapat dikembalikan</p>
+            </div>
+          </div>
+          <div className="p-8 space-y-6 text-center">
+            <p className="text-sm font-medium text-neutral-600 leading-relaxed">
+              Apakah Anda yakin ingin menghapus akun user ini secara permanen dari TBJ Constech OS? Semua riwayat proyek dan akses akan terputus.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="outline" className="rounded-2xl h-12 px-8 uppercase font-black text-[10px] tracking-widest border-neutral-200" onClick={() => setDeleteConfirmId(null)}>Batal</Button>
+              <Button className="rounded-2xl h-12 px-8 uppercase font-black text-[10px] tracking-widest bg-red-500 hover:bg-black text-white" onClick={executeDeleteUser}>Hapus Permanen</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Project Confirmation Dialog */}
+      <Dialog open={!!projectToDelete} onOpenChange={(open) => !open && setProjectToDelete(null)}>
+        <DialogContent className="sm:max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
+          <div className="bg-red-500 p-8 text-white flex flex-col items-center text-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
+              <Trash2 className="w-8 h-8 text-white" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black uppercase tracking-tighter italic">Hapus Proyek?</h2>
+              <p className="text-white/80 text-[10px] font-black uppercase tracking-[0.2em]">TBJ OS Project Archive Protocol</p>
+            </div>
+          </div>
+          <div className="p-8 space-y-6 text-center">
+            <p className="text-sm font-medium text-neutral-600 leading-relaxed">
+              Konfirmasi: Hapus proyek <strong>"{projectToDelete?.name}"</strong>? Seluruh data RAB, timeline, dan transaksi terkait akan dihapus secara permanen dari sistem operasional.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="outline" className="rounded-2xl h-12 px-8 uppercase font-black text-[10px] tracking-widest border-neutral-200" onClick={() => setProjectToDelete(null)}>Batal</Button>
+              <Button className="rounded-2xl h-12 px-8 uppercase font-black text-[10px] tracking-widest bg-red-600 hover:bg-black text-white" onClick={executeDeleteProject}>Hapus Proyek</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Workforce Confirmation Dialog */}
+      <Dialog open={!!workerToDelete} onOpenChange={(open) => !open && setWorkerToDelete(null)}>
+        <DialogContent className="sm:max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
+          <div className="bg-red-500 p-8 text-white flex flex-col items-center text-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
+              <User className="w-8 h-8 text-white" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black uppercase tracking-tighter italic">Offboard Personnel?</h2>
+              <p className="text-white/80 text-[10px] font-black uppercase tracking-[0.2em]">TBJ Workforce Management Protocol</p>
+            </div>
+          </div>
+          <div className="p-8 space-y-6 text-center">
+            <p className="text-sm font-medium text-neutral-600 leading-relaxed">
+              Hapus data pekerja <strong>"{workerToDelete?.name}"</strong> dari sistem Human Capital TBJ? Riwayat kehadiran akan tetap tersimpan dalam log sistem.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="outline" className="rounded-2xl h-12 px-8 uppercase font-black text-[10px] tracking-widest border-neutral-200" onClick={() => setWorkerToDelete(null)}>Batal</Button>
+              <Button className="rounded-2xl h-12 px-8 uppercase font-black text-[10px] tracking-widest bg-red-600 hover:bg-black text-white" onClick={executeDeleteWorker}>Offboard Worker</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contract Management Dialog */}
+      <Dialog open={!!editingContractProject} onOpenChange={(open) => !open && setEditingContractProject(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto border-2 border-black rounded-[2.5rem]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Digital Contract Builder</DialogTitle>
+            <DialogDescription className="uppercase-soft">Drafting for {editingContractProject?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase">Pihak Pertama (TBJ Constech)</Label>
+                <Input 
+                  value={editingContractProject?.contractParty1 || "PT. TBJ Constech Indonesia"} 
+                  onChange={(e) => setEditingContractProject(prev => prev ? {...prev, contractParty1: e.target.value} : null)}
+                  className="border-2 border-black rounded-xl h-12 font-bold"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase">Pihak Kedua (Klien)</Label>
+                <Input 
+                  value={editingContractProject?.contractParty2 || editingContractProject?.clientName || ""} 
+                  onChange={(e) => setEditingContractProject(prev => prev ? {...prev, contractParty2: e.target.value} : null)}
+                  className="border-2 border-black rounded-xl h-12 font-bold"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label className="text-[10px] font-black uppercase">Isi Kontrak (Draft Utama)</Label>
+                <Button 
+                   variant="outline" 
+                   size="sm" 
+                   className="h-8 text-[9px] font-black uppercase border-black rounded-xl hover:bg-black hover:text-white transition-all gap-2"
+                   onClick={() => {
+                      if (!editingContractProject) return;
+                      const template = `SURAT PERJANJIAN KERJA (SPK)\n\nANTARA:\nPIHAK PERTAMA: ${editingContractProject.contractParty1 || "PT. TBJ Constech Indonesia"}\nPIHAK KEDUA: ${editingContractProject.contractParty2 || editingContractProject.clientName || "[Nama Klien]"}\n\nPASAL 1: RUANG LINGKUP PEKERJAAN\nPIHAK PERTAMA setuju untuk melaksanakan pekerjaan renovasi/pembangunan untuk PIHAK KEDUA pada proyek ${editingContractProject.name}.\n\nPASAL 2: NILAI KONTRAK\nTotal nilai kontrak disepakati sebesar Rp ${editingContractProject.totalBudget?.toLocaleString('id-ID') || "0"}.\n\nPASAL 3: SISTEM PEMBAYARAN\nPembayaran dilakukan sesuai dengan milestone yang telah disepakati di dalam dashboard TBJ Constech.\n\nPASAL 4: JANGKA WAKTU\nPekerjaan akan dimulai pada ${editingContractProject.startDate || "[Tgl Mulai]"} dan diperkirakan selesai dalam waktu yang disepakati.\n\nPASAL 5: GARANSI\nPIHAK PERTAMA memberikan garansi pemeliharaan selama 3 bulan setelah serah terima selesai dilakukan.`;
+                      setEditingContractProject({...editingContractProject, contractDraft: template});
+                   }}
+                >
+                  <Zap className="w-3 h-3" /> Auto-Generate Draft
+                </Button>
+              </div>
+              <Textarea 
+                className="min-h-[300px] border-2 border-black rounded-2xl p-6 font-medium text-sm leading-relaxed"
+                placeholder="Tulis pasal-pasal kontrak di sini..."
+                value={editingContractProject?.contractDraft || ""}
+                onChange={(e) => setEditingContractProject(prev => prev ? {...prev, contractDraft: e.target.value} : null)}
+              />
+            </div>
+            
+            <div className="bg-neutral-50 p-6 rounded-2xl border-2 border-dashed border-black/10">
+               <h4 className="text-[10px] font-black uppercase mb-4 flex items-center gap-2">
+                 <ShieldCheck className="w-4 h-4 text-green-600" /> Contract Status
+               </h4>
+               <div className="flex items-center justify-between border-b border-black/5 pb-4">
+                  <div className="space-y-1">
+                    <p className="font-black text-xs uppercase">TBJ Constech Signature (Pihak I)</p>
+                    <p className="text-[10px] font-medium text-neutral-400">
+                      {editingContractProject?.adminSignedAt ? `Signed on ${new Date(editingContractProject.adminSignedAt).toLocaleString()}` : "Not Signed yet"}
+                    </p>
+                  </div>
+                  {editingContractProject?.adminSignedAt ? (
+                    <Badge className="bg-green-500 text-white font-black px-4 py-1.5 rounded-full flex items-center gap-2 border-none">
+                        <ShieldCheck className="w-4 h-4" /> SIGNED
+                     </Badge>
+                  ) : (
+                    <Button 
+                      size="sm" 
+                      className="h-9 px-4 rounded-xl bg-orange-500 hover:bg-black text-white font-black uppercase text-[9px]"
+                      onClick={async () => {
+                         if (!editingContractProject) return;
+                         const now = new Date().toISOString();
+                         await updateProject(editingContractProject.id, { 
+                            adminSignedAt: now,
+                            contractHistory: [
+                                ...(editingContractProject.contractHistory || []),
+                                { time: now, action: "Admin Signed Contract", user: user?.displayName || "Admin", role: "admin" }
+                            ]
+                         });
+                         setEditingContractProject({...editingContractProject, adminSignedAt: now});
+                         toast.success("Kontrak berhasil ditandatangani oleh TBJ!");
+                      }}
+                    >
+                      Sign as TBJ
+                    </Button>
+                  )}
+               </div>
+
+               <div className="flex items-center justify-between pt-4">
+                  <div className="space-y-1">
+                    <p className="font-black text-xs uppercase">Client Signature (Pihak II)</p>
+                    <p className="text-[10px] font-medium text-neutral-400">
+                      {editingContractProject?.clientSignedAt ? `Signed on ${new Date(editingContractProject.clientSignedAt).toLocaleString()}` : "Waiting for client..."}
+                    </p>
+                  </div>
+                  <Badge variant={editingContractProject?.clientSignedAt || editingContractProject?.contractSignedAt ? "default" : "secondary"} className="rounded-full">
+                    {editingContractProject?.clientSignedAt || editingContractProject?.contractSignedAt ? "VERIFIED" : "PENDING"}
+                  </Badge>
+               </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="h-12 px-8 rounded-xl font-black uppercase text-[10px]" onClick={() => setEditingContractProject(null)}>Batal</Button>
+            <Button className="h-12 px-8 rounded-xl font-black uppercase text-[10px] bg-black text-white" onClick={handleUpdateContract}>Simpan Draft Kontrak</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CCTV Management Dialog */}
+      <Dialog open={!!managingCctvProject} onOpenChange={(open) => !open && setManagingCctvProject(null)}>
+        <DialogContent className="max-w-2xl border-2 border-black rounded-[2.5rem]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Site Monitor (CCTV)</DialogTitle>
+            <DialogDescription className="uppercase-soft">Integrate Site Live Streams for {managingCctvProject?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="bg-neutral-50 p-6 rounded-2xl space-y-4">
+              <h4 className="text-[10px] font-black uppercase">Add New Stream</h4>
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Stream Name</Label>
+                  <Input 
+                    value={newCctv.name} 
+                    onChange={(e) => setNewCctv({...newCctv, name: e.target.value})}
+                    placeholder="e.g. Area Depan, Lantai 2"
+                    className="border-2 border-black rounded-xl h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase">Stream URL (Embed/m3u8/HTTP)</Label>
+                  <Input 
+                    value={newCctv.url} 
+                    onChange={(e) => setNewCctv({...newCctv, url: e.target.value})}
+                    placeholder="https://your-cctv-provider.com/embed/..."
+                    className="border-2 border-black rounded-xl h-12"
+                  />
+                </div>
+                <Button className="h-12 w-full rounded-xl font-black uppercase text-[10px] bg-black text-white" onClick={handleAddCctv}>
+                   Tambahkan Stream
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black uppercase">Active Streams</h4>
+              <div className="space-y-2">
+                {managingCctvProject?.cctvUrls?.map((stream, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-4 border-2 border-black/5 rounded-xl bg-white hover:border-black transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-neutral-100 rounded-lg flex items-center justify-center">
+                        <Camera className="w-5 h-5 text-neutral-400" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">{stream.name}</p>
+                        <p className="text-[8px] font-mono text-neutral-400 truncate w-40">{stream.url}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-red-500 hover:bg-neutral-100 rounded-full"
+                      onClick={async () => {
+                        const updated = managingCctvProject.cctvUrls?.filter(s => s.id !== stream.id) || [];
+                        await updateProject(managingCctvProject.id, { cctvUrls: updated });
+                        setManagingCctvProject({...managingCctvProject, cctvUrls: updated});
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                {(!managingCctvProject?.cctvUrls || managingCctvProject.cctvUrls.length === 0) && (
+                  <p className="text-center py-8 text-neutral-400 text-xs font-bold uppercase tracking-widest italic">Belum ada CCTV terpasang.</p>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button className="h-12 w-full rounded-xl font-black uppercase text-[10px]" onClick={() => setManagingCctvProject(null)}>Tutup</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

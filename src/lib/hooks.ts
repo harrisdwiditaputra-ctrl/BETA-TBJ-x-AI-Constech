@@ -1192,7 +1192,16 @@ export function useUsers(userRole?: string) {
     }
   };
 
-  return { users, loading, updateUser };
+  const deleteUser = async (uid: string) => {
+    try {
+      await deleteDoc(doc(db, "users", uid));
+      toast.success("User deleted successfully");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${uid}`);
+    }
+  };
+
+  return { users, loading, updateUser, deleteUser };
 }
 
 export function useUser(uid: string | undefined) {
@@ -1613,7 +1622,8 @@ export function useSystemConfig() {
         // Default values
         setConfig({
           surveyFee: 399000,
-          aiFreeLimit: 1,
+          aiFreeLimit: 5,
+          aiVerifiedLimit: 10,
           globalMarkup: 20,
           autoNotificationWA: true,
           aiAnalysisMode: true

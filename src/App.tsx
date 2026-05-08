@@ -25,7 +25,7 @@ import { WorkItemMaster, Property, AIEstimateResponse, BudgetItem, TimelineEvent
 import { cn, getDriveImageUrl, calculateAdminPrice, calculateClientPrice, formatRupiah, roundToRibuan } from "@/lib/utils";
 import { getAIEstimation } from "./services/aiEstimator";
 import { generateAIPDF, generateRABPDF, generateInvoicePDF, generateReceiptPDF } from "@/lib/pdfUtils";
-import { Plus, Trash2, ChevronRight, ChevronLeft, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles, Minus, Brain, Quote, Zap, LayoutDashboard, DollarSign, Edit2, ArrowRight, UserPlus, Fingerprint, History, Package, Terminal, X, Briefcase, FileEdit } from "lucide-react";
+import { Plus, Trash2, ChevronRight, ChevronLeft, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles, AlertCircle, Minus, Brain, Quote, Zap, LayoutDashboard, DollarSign, Edit2, ArrowRight, UserPlus, Fingerprint, History, Package, Terminal, X, Briefcase, FileEdit } from "lucide-react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import Gallery from "./components/Gallery";
@@ -205,6 +205,11 @@ const ProjectsPage = ({ user }: { user: any }) => {
   const loading = projectsLoading || estimatesLoading;
   const isProspectNotBooked = user?.tier === 'prospect' && !user?.assessmentBooked;
 
+  const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] = useState(false);
+  const [projectIdToDelete, setProjectIdToDelete] = useState<string | null>(null);
+  const [isDeleteEstimateDialogOpen, setIsDeleteEstimateDialogOpen] = useState(false);
+  const [estimateIdToDelete, setEstimateIdToDelete] = useState<string | null>(null);
+
   const handleCreate = async () => {
     if (!newName) return;
     if (!isAdmin) {
@@ -373,9 +378,8 @@ const ProjectsPage = ({ user }: { user: any }) => {
                     {isAdmin && (
                       <Button variant="ghost" size="icon" className="h-10 w-10 text-neutral-300 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => {
                         e.stopPropagation();
-                        if (window.confirm("Hapus proyek ini secara permanen?")) {
-                          deleteProject(project.id);
-                        }
+                        setProjectIdToDelete(project.id);
+                        setIsDeleteProjectDialogOpen(true);
                       }}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -471,7 +475,7 @@ const ProjectsPage = ({ user }: { user: any }) => {
                        <Clock className="w-3 h-3" /> {new Date(est.createdAt).toLocaleDateString()}
                     </div>
                   </div>
-                  <Button variant="ghost" className="w-full text-[10px] font-black uppercase-soft border border-transparent group-hover/est:border-accent/10 group-hover/est:bg-accent/5">
+                  <Button variant="ghost" className="w-full text-[10px] font-black uppercase-soft border border-transparent group-hover/est:border-accent/10 group-hover/est:bg-accent/5" onClick={() => navigate(`/rab?load=${est.id}`)}>
                     Continue Refining &rarr; 
                   </Button>
                 </div>
@@ -479,6 +483,49 @@ const ProjectsPage = ({ user }: { user: any }) => {
             ))}
           </div>
         </div>
+
+        {/* Global Confirmation Dialogs */}
+        <Dialog open={isDeleteProjectDialogOpen} onOpenChange={setIsDeleteProjectDialogOpen}>
+          <DialogContent className="border-2 border-black rounded-3xl">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Konfirmasi Hapus Proyek</DialogTitle>
+              <DialogDescription className="uppercase-soft">
+                Tindakan ini permanen. Semua data RAB, progress, dan media terkait proyek ini akan ikut terhapus.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" className="rounded-xl uppercase-soft h-12" onClick={() => setIsDeleteProjectDialogOpen(false)}>Batal</Button>
+              <Button variant="destructive" className="rounded-xl uppercase-soft h-12 bg-red-600 font-bold" onClick={() => {
+                if (projectIdToDelete) {
+                  deleteProject(projectIdToDelete);
+                  setProjectIdToDelete(null);
+                  setIsDeleteProjectDialogOpen(false);
+                }
+              }}>Hapus Permanen</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isDeleteEstimateDialogOpen} onOpenChange={setIsDeleteEstimateDialogOpen}>
+          <DialogContent className="border-2 border-black rounded-3xl">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Konfirmasi Hapus Draft</DialogTitle>
+              <DialogDescription className="uppercase-soft">
+                Hapus draf estimasi AI ini dari arsip Anda?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" className="rounded-xl uppercase-soft h-12" onClick={() => setIsDeleteEstimateDialogOpen(false)}>Batal</Button>
+              <Button variant="destructive" className="rounded-xl uppercase-soft h-12 bg-red-600 font-bold" onClick={() => {
+                if (estimateIdToDelete) {
+                  deleteEstimate(estimateIdToDelete);
+                  setEstimateIdToDelete(null);
+                  setIsDeleteEstimateDialogOpen(false);
+                }
+              }}>Hapus Draft</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
@@ -616,10 +663,57 @@ const ProjectDetail = () => {
   };
 
   const totalWeight = items.reduce((sum, i) => sum + (i.totalPrice / (project.totalBudget || 1)) * 100, 0);
-  const [activeTab, setActiveTab] = useState<"overview" | "rab" | "timeline" | "photos" | "finance" | "procurement">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "rab" | "timeline" | "photos" | "finance" | "procurement" | "live" | "docs">("overview");
   const [showRABActions, setShowRABActions] = useState(false);
 
   const currentProgress = items.reduce((sum, i) => sum + ((i.progress || 0) * (i.totalPrice / (project.totalBudget || 1))), 0);
+
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const isIdentityComplete = user?.formalName && user?.nik && user?.whatsapp && user?.address;
+
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<BudgetItem | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<BudgetCategory | null>(null);
+  const [photoToDelete, setPhotoToDelete] = useState<{id: string, name: string} | null>(null);
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.size === 0) return;
+    const loadingToast = toast.loading(`Menghapus ${selectedItems.size} item...`);
+    try {
+      const itemIds = Array.from(selectedItems);
+      for (const itemId of itemIds) {
+        const item = items.find(i => i.id === itemId);
+        if (item) {
+          await deleteItem(itemId, item.totalPrice);
+        }
+      }
+      setSelectedItems(new Set());
+      toast.success(`${itemIds.length} item berhasil dihapus.`, { id: loadingToast });
+      setIsBulkDeleteDialogOpen(false);
+    } catch (error) {
+      toast.error("Gagal menghapus beberapa item.", { id: loadingToast });
+    }
+  };
+
+  const toggleSelectItem = (id: string) => {
+    const next = new Set(selectedItems);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedItems(next);
+  };
+
+  const toggleSelectAll = (catId?: string) => {
+    const next = new Set(selectedItems);
+    const catItems = catId ? items.filter(i => i.categoryId === catId) : items;
+    const allInCatSelected = catItems.length > 0 && catItems.every(i => next.has(i.id));
+
+    if (allInCatSelected) {
+      catItems.forEach(i => next.delete(i.id));
+    } else {
+      catItems.forEach(i => next.add(i.id));
+    }
+    setSelectedItems(next);
+  };
 
   const canEdit = user?.role === "admin" || user?.role === "pm" || 
     (user?.uid === project?.pmId);
@@ -678,6 +772,8 @@ const ProjectDetail = () => {
             <option value="finance">Finance</option>
             <option value="procurement">Material</option>
             <option value="timeline">Timeline</option>
+            <option value="live">Live Site</option>
+            <option value="docs">Docs</option>
             <option value="photos">Media</option>
           </select>
         </div>
@@ -689,7 +785,9 @@ const ProjectDetail = () => {
             { id: "finance", label: "Finance", icon: DollarSign },
             { id: "procurement", label: "Material", icon: Package },
             { id: "timeline", label: "Timeline", icon: Clock },
-            { id: "photos", label: "Media", icon: Camera },
+            { id: "live", label: "Live Site", icon: Camera },
+            { id: "docs", label: "Docs", icon: FileCheck },
+            { id: "photos", label: "Media", icon: ImageIcon },
           ].map(tab => (
             <Button
               key={tab.id}
@@ -732,6 +830,50 @@ const ProjectDetail = () => {
                   </div>
                </Card>
             </div>
+
+            {!isIdentityComplete && (
+               <Card className="border-4 border-accent rounded-[1.5rem] bg-accent/5 p-6 mb-8 animate-in zoom-in duration-500">
+                  <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+                     <AlertCircle className="w-8 h-8 text-accent shrink-0" />
+                     <div className="flex-1 space-y-1">
+                        <p className="font-black text-sm uppercase tracking-tighter">Profil Belum Lengkap</p>
+                        <p className="text-[10px] font-bold text-neutral-500 uppercase-soft">Mohon lengkapi NIK dan Alamat Anda untuk verifikasi kontrak digital.</p>
+                     </div>
+                     <Link to="/profile">
+                        <Button size="sm" className="btn-accent h-10 px-4 text-[10px] font-black uppercase">Lengkapi &rarr;</Button>
+                     </Link>
+                  </div>
+               </Card>
+            )}
+
+            <Card className="border-2 border-black rounded-[1.5rem] bg-neutral-50/50 p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+               <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Project Action Logs</h4>
+                  <Badge variant="outline" className="text-[8px] font-black border-black/10">SECURITY VERIFIED</Badge>
+               </div>
+               <div className="space-y-3">
+                  {project.contractHistory && project.contractHistory.length > 0 ? (
+                    project.contractHistory.slice(-5).reverse().map((log: any, i: number) => (
+                        <div key={i} className="flex items-start gap-3 bg-white p-3 rounded-xl border border-black/5">
+                           <div className="w-8 h-8 rounded-lg bg-neutral-900 flex items-center justify-center shrink-0">
+                              <ShieldCheck className="w-4 h-4 text-accent" />
+                           </div>
+                           <div className="space-y-0.5">
+                              <p className="text-[10px] font-black uppercase tracking-tight">{log.action}</p>
+                              <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-tighter">
+                                 {log.user} ({log.role}) &bull; {new Date(log.time).toLocaleDateString()}
+                              </p>
+                           </div>
+                        </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 space-y-2 border-2 border-dashed border-black/5 rounded-2xl">
+                       <History className="w-8 h-8 text-neutral-200 mx-auto" />
+                       <p className="text-[10px] font-black text-neutral-300 uppercase">Proyek Baru: Menunggu Aktivitas Log</p>
+                    </div>
+                  )}
+               </div>
+            </Card>
 
             <Card className="border-2 border-black rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] md:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <CardHeader className="bg-neutral-50 border-b-2 border-black flex flex-col sm:flex-row items-center justify-between gap-4 p-4 md:p-6">
@@ -895,6 +1037,167 @@ const ProjectDetail = () => {
         </div>
       )}
 
+      {activeTab === "live" && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-3xl font-black uppercase tracking-tighter">Live Construction Site</h3>
+              <p className="text-neutral-500 uppercase font-bold text-[10px] tracking-widest leading-loose">Monitoring pengerjaan proyek secara real-time</p>
+            </div>
+            <Badge className="bg-red-500 text-white animate-pulse">LIVE STREAMING</Badge>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {project.cctvUrls?.map((stream, idx) => (
+              <Card key={idx} className="border-2 border-black rounded-[2.5rem] overflow-hidden bg-black aspect-video relative group">
+                <iframe 
+                  src={stream.url} 
+                  className="w-full h-full border-none" 
+                  allow="autoplay; fullscreen" 
+                  title={stream.name}
+                />
+                <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 to-transparent translate-y-full group-hover:translate-y-0 transition-transform">
+                   <p className="text-white font-black uppercase tracking-widest text-[10px] flex items-center gap-2">
+                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /> {stream.name}
+                   </p>
+                </div>
+              </Card>
+            ))}
+            {(!project.cctvUrls || project.cctvUrls.length === 0) && (
+              <Card className="col-span-full border-2 border-dashed border-black/10 rounded-[2.5rem] p-20 flex flex-col items-center justify-center text-center space-y-4">
+                 <div className="w-20 h-20 bg-neutral-100 rounded-full flex items-center justify-center">
+                    <Camera className="w-10 h-10 text-neutral-400" />
+                 </div>
+                 <div className="space-y-2">
+                    <p className="font-black uppercase tracking-tighter text-xl italic">Kamera Belum Terhubung</p>
+                    <p className="text-xs font-medium text-neutral-400 max-w-sm mx-auto">Tim kami sedang melakukan instalasi perangkat monitoring di lokasi proyek. Silakan cek kembali nanti.</p>
+                 </div>
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "docs" && (
+        <div className="space-y-8">
+           <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-3xl font-black uppercase tracking-tighter">Digital Contract & Docs</h3>
+              <p className="text-neutral-500 uppercase font-bold text-[10px] tracking-widest leading-loose">Dokumen legalitas dan kontrak kerjasama proyek</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+             <Card className="md:col-span-2 border-2 border-black rounded-[2.5rem] overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-white">
+                <div className="bg-neutral-900 p-8 text-white flex justify-between items-center border-b-2 border-black">
+                   <div className="space-y-1">
+                      <h4 className="text-xl font-black uppercase tracking-tighter italic">Kontrak Pembangunan Proyek</h4>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-white/50">TBJ Constech Digital Agreement v2.0</p>
+                   </div>
+                   {project.contractSignedAt ? (
+                     <Badge className="bg-green-500 text-white font-black px-4 py-1.5 rounded-full flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4" /> SIGNED
+                     </Badge>
+                   ) : (
+                     <Badge className="bg-yellow-500 text-black font-black px-4 py-1.5 rounded-full flex items-center gap-2">
+                        <Clock className="w-4 h-4" /> PENDING
+                     </Badge>
+                   )}
+                </div>
+                <CardContent className="p-10 space-y-8">
+                   <div className="grid grid-cols-2 gap-8 border-b-2 border-black/5 pb-8">
+                      <div className="space-y-2">
+                         <p className="text-[10px] font-black uppercase text-neutral-400">Pihak Pertama</p>
+                         <p className="font-black text-sm uppercase">{project.contractParty1 || "PT. TBJ Constech Indonesia"}</p>
+                      </div>
+                      <div className="space-y-2">
+                         <p className="text-[10px] font-black uppercase text-neutral-400">Pihak Kedua</p>
+                         <p className="font-black text-sm uppercase">{project.contractParty2 || project.clientName || "Klien Terdaftar"}</p>
+                      </div>
+                   </div>
+
+                   <div className="prose prose-sm max-w-none">
+                      <div className="bg-neutral-50 p-8 rounded-2xl border-2 border-black/5 text-sm font-medium leading-relaxed font-sans text-neutral-600 whitespace-pre-wrap">
+                         {project.contractDraft || "Admin sedang menyiapkan draf kontrak untuk proyek ini. Silakan hubungi tim Admin untuk informasi lebih lanjut."}
+                      </div>
+                   </div>
+
+                   {!project.clientSignedAt && project.contractDraft && (project.ownerId === user?.uid || project.clientEmail === user?.email) && (
+                     <div className="pt-8 border-t-2 border-black/5 flex flex-col items-center gap-6">
+                        <div className="flex items-start gap-4 max-w-md">
+                           <Checkbox id="accept-contract" className="mt-1 border-2 border-black" />
+                           <Label htmlFor="accept-contract" className="text-xs font-bold leading-relaxed text-neutral-500 uppercase cursor-pointer">
+                              Dengan mencentang ini, saya setuju dengan seluruh pasal dan persyaratan dalam kontrak digital ini secara sadar dan tanpa paksaan.
+                           </Label>
+                        </div>
+                        <Button 
+                          className="btn-accent h-16 px-12 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-accent/20 flex items-center gap-3 active:scale-95 transition-all"
+                          onClick={async () => {
+                            const check = document.getElementById('accept-contract') as HTMLInputElement;
+                            if (!check?.checked) {
+                              toast.error("Mohon centang persetujuan kontrak terlebih dahulu.");
+                              return;
+                            }
+                            await updateProject(project.id, { 
+                               clientSignedAt: new Date().toISOString(),
+                               contractSignedAt: new Date().toISOString(),
+                               contractHistory: [
+                                  ...(project.contractHistory || []),
+                                  { time: new Date().toISOString(), action: "Client Signed Contract", user: user?.displayName || "Client", role: "user" }
+                               ]
+                            });
+                            toast.success("Kontrak Digital Berhasil Ditandatangani!");
+                          }}
+                        >
+                           <Zap className="w-5 h-5" /> Tanda Tangani Kontrak Digital
+                        </Button>
+                     </div>
+                   )}
+
+                   {project.contractSignedAt && (
+                     <div className="pt-8 border-t-2 border-black/5 flex flex-col items-center text-center space-y-4">
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                           <Fingerprint className="w-8 h-8 text-green-600" />
+                        </div>
+                        <div className="space-y-1">
+                           <p className="font-black uppercase tracking-tighter text-lg">Verified Digital Signature</p>
+                           <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Signed on {new Date(project.contractSignedAt).toLocaleString()}</p>
+                        </div>
+                     </div>
+                   )}
+                </CardContent>
+             </Card>
+
+             <Card className="border-2 border-black rounded-[2.5rem] p-8 space-y-6 self-start bg-neutral-900 text-white shadow-[8px_8px_0px_0px_#FF6B00]">
+                <h4 className="text-xl font-black uppercase tracking-tighter italic">Doc Archives</h4>
+                <div className="space-y-3">
+                   <Button variant="outline" className="w-full h-14 rounded-xl border-2 border-white/20 bg-white/5 hover:bg-white/10 hover:border-white text-white justify-between px-6" onClick={() => generateRABPDF(project.name, categories, items, undefined, { name: project.name, location: project.location || "", client: project.clientName || "" }, { discount: project.discount, taxPercentage: project.taxPercentage, assessmentDeposit: project.assessmentDeposit })}>
+                      <div className="flex items-center gap-3">
+                         <FileText className="w-4 h-4 text-accent" />
+                         <span className="text-[10px] font-black uppercase">RAB Proyek (.PDF)</span>
+                      </div>
+                      <Download className="w-4 h-4" />
+                   </Button>
+                   {project.contractUrl && (
+                     <Button variant="outline" className="w-full h-14 rounded-xl border-2 border-white/20 bg-white/5 hover:bg-white/10 hover:border-white text-white justify-between px-6" onClick={() => window.open(project.contractUrl, "_blank")}>
+                        <div className="flex items-center gap-3">
+                           <ExternalLink className="w-4 h-4 text-accent" />
+                           <span className="text-[10px] font-black uppercase">Official Contract (.PDF)</span>
+                        </div>
+                        <Download className="w-4 h-4" />
+                     </Button>
+                   )}
+                </div>
+                <div className="pt-4 space-y-4">
+                   <div className="p-6 bg-white/5 border-2 border-white/5 rounded-2xl space-y-2">
+                       <p className="text-[10px] font-black uppercase text-white/40">Keamanan Dokumen</p>
+                       <p className="text-xs font-medium leading-relaxed text-white/70 italic">Semua dokumen dienkripsi dan disimpan dalam TBJ Secure Cloud Architecture.</p>
+                   </div>
+                </div>
+             </Card>
+          </div>
+        </div>
+      )}
       {activeTab === "timeline" && (
         <Card className="border-2 border-black rounded-2xl p-6 bg-neutral-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
           <div className="flex items-center justify-between mb-8">
@@ -1146,21 +1449,21 @@ const ProjectDetail = () => {
                  <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-black/5 rounded-full" />
                  <h4 className="font-black uppercase tracking-tighter text-xl mb-6 relative z-10">Structure Payment</h4>
                  <div className="space-y-4 relative z-10">
-                    {[
-                      { label: 'Booking Fee', pct: 0, status: 'released' },
-                      { label: 'Termin I (DP)', pct: 30, status: 'released' },
-                      { label: 'Termin II (Mid)', pct: 40, status: 'locked' },
-                      { label: 'Termin III (Final)', pct: 30, status: 'locked' },
-                    ].map((m, idx) => (
+                    {(project.paymentMilestones && project.paymentMilestones.length > 0 ? project.paymentMilestones : [
+                      { id: 'booking', label: 'Booking Fee', pct: 0, status: 'released' },
+                      { id: 'dp', label: 'Termin I (DP)', pct: 30, status: 'locked' },
+                      { id: 'mid', label: 'Termin II (Mid)', pct: 40, status: 'locked' },
+                      { id: 'final', label: 'Termin III (Final)', pct: 30, status: 'locked' },
+                    ]).map((m: any, idx: number) => (
                       <div key={idx} className={cn(
                         "flex justify-between items-center p-4 rounded-2xl border-2 transition-all",
-                        m.status === 'released' ? "bg-white/10 border-white/20" : "bg-black/10 border-black/5 opacity-50"
+                        m.status === 'released' || m.status === 'paid' ? "bg-white/10 border-white/20" : "bg-black/10 border-black/5 opacity-50"
                       )}>
                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-tighter">{m.label} ({m.pct}%)</p>
-                            <p className="text-sm font-black italic">Rp {(project.totalBudget * (m.pct/100) || 0).toLocaleString('id-ID')}</p>
+                            <p className="text-[10px] font-black uppercase tracking-tighter">{m.label} ({m.percentage || m.pct || 0}%)</p>
+                            <p className="text-sm font-black italic">Rp {(m.amount || (project.totalBudget * ((m.percentage || m.pct || 0)/100)) || 0).toLocaleString('id-ID')}</p>
                          </div>
-                         {m.status === 'released' ? (
+                         {m.status === 'released' || m.status === 'paid' ? (
                            <CheckCircle2 className="w-5 h-5 text-white" />
                          ) : (
                            <Lock className="w-5 h-5 text-black/40" />
@@ -1368,7 +1671,7 @@ const ProjectDetail = () => {
                       <Button variant="ghost" size="icon" className="h-7 w-7 bg-white/20 text-white hover:bg-white hover:text-black rounded-full" onClick={() => window.open(asset.url, '_blank')}>
                         <ExternalLink className="w-3 h-3" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-full" onClick={() => { if(confirm('Hapus foto ini?')) deleteMedia(asset.id); }}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white rounded-full" onClick={() => setPhotoToDelete({ id: asset.id, name: asset.name })}>
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
@@ -1524,6 +1827,16 @@ const ProjectDetail = () => {
                       }}>
                         <Download className="w-4 h-4" /> Export RAB PDF
                       </Button>
+
+                      {selectedItems.size > 0 && canEditRAB && (
+                        <Button 
+                          variant="destructive" 
+                          className="h-12 px-6 border-2 border-red-600 rounded-2xl gap-2 font-black uppercase text-[10px] shadow-[4px_4px_0px_0px_rgba(220,38,38,1)] hover:bg-red-700" 
+                          onClick={() => setIsBulkDeleteDialogOpen(true)}
+                        >
+                          <Trash2 className="w-4 h-4" /> Hapus Terpilih ({selectedItems.size})
+                        </Button>
+                      )}
                       
                       {canEditRAB && (
                         <div className="flex gap-3">
@@ -1683,7 +1996,7 @@ const ProjectDetail = () => {
                       {canEdit && (
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-400 hover:text-black rounded-full" onClick={() => { setEditingCategory(category); setEditCatName(category.name); }}><Edit2 className="w-4 h-4" /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-neutral-100 rounded-full" onClick={() => { if(confirm(`Hapus kategori "${category.name}"?`)) deleteCategory(category.id); }}><Trash2 className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-neutral-100 rounded-full" onClick={() => setCategoryToDelete(category)}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                       )}
                     </div>
@@ -1697,6 +2010,12 @@ const ProjectDetail = () => {
                   <Table className="min-w-[900px]">
                     <TableHeader>
                       <TableRow className="bg-neutral-50 hover:bg-neutral-50 border-b-2 border-black">
+                        <TableHead className="w-[40px] px-4">
+                          <Checkbox 
+                            checked={items.filter(i => i.categoryId === category.id).length > 0 && items.filter(i => i.categoryId === category.id).every(i => selectedItems.has(i.id))}
+                            onCheckedChange={() => toggleSelectAll(category.id)}
+                          />
+                        </TableHead>
                         <TableHead className="w-[300px] uppercase font-black text-[10px] tracking-tight">Deskripsi Pekerjaan</TableHead>
                         <TableHead className="text-center uppercase font-black text-[10px] tracking-tight">Prioritas</TableHead>
                         <TableHead className="text-center uppercase font-black text-[10px] tracking-tight">Deadline</TableHead>
@@ -1710,6 +2029,12 @@ const ProjectDetail = () => {
                     <TableBody>
                       {items.filter(i => i.categoryId === category.id).map(item => (
                         <TableRow key={item.id} className="group/row hover:bg-neutral-50 border-b border-black/5 last:border-0 transition-colors">
+                          <TableCell className="px-4">
+                            <Checkbox 
+                              checked={selectedItems.has(item.id)}
+                              onCheckedChange={() => toggleSelectItem(item.id)}
+                            />
+                          </TableCell>
                           <TableCell className="py-6">
                             <div className="space-y-1">
                               <div className="flex items-center gap-3">
@@ -1761,7 +2086,9 @@ const ProjectDetail = () => {
                           </TableCell>
                           <TableCell>
                              {canEdit && (
-                               <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-200 hover:text-red-500 rounded-full" onClick={() => { if(confirm(`Hapus item?`)) deleteItem(item.id, item.totalPrice); }}><Trash2 className="w-4 h-4" /></Button>
+                               <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-200 hover:text-red-500 rounded-full" onClick={() => setItemToDelete(item)}>
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
                              )}
                           </TableCell>
                         </TableRow>
@@ -2009,6 +2336,86 @@ const ProjectDetail = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Item & Category Deletion Dialogs */}
+      <Dialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+        <DialogContent className="border-2 border-black rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Hapus Item Pekerjaan</DialogTitle>
+            <DialogDescription className="uppercase-soft">
+              Hapus item "{itemToDelete?.name}"? Tindakan ini akan mengurangi total RAB secara otomatis.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="rounded-xl uppercase-soft h-12" onClick={() => setItemToDelete(null)}>Batal</Button>
+            <Button variant="destructive" className="rounded-xl uppercase-soft h-12 bg-red-600 font-bold" onClick={async () => {
+              if (itemToDelete) {
+                await deleteItem(itemToDelete.id, itemToDelete.totalPrice);
+                toast.success("Item berhasil dihapus.");
+                setItemToDelete(null);
+              }
+            }}>Hapus Item</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!categoryToDelete} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
+        <DialogContent className="border-2 border-black rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Hapus Kategori</DialogTitle>
+            <DialogDescription className="uppercase-soft">
+              Hapus kategori "{categoryToDelete?.name}" beserta seluruh item di dalamnya?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="rounded-xl uppercase-soft h-12" onClick={() => setCategoryToDelete(null)}>Batal</Button>
+            <Button variant="destructive" className="rounded-xl uppercase-soft h-12 bg-red-600 font-bold" onClick={async () => {
+              if (categoryToDelete) {
+                await deleteCategory(categoryToDelete.id);
+                toast.success("Kategori berhasil dihapus.");
+                setCategoryToDelete(null);
+              }
+            }}>Hapus Kategori</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!photoToDelete} onOpenChange={(open) => !open && setPhotoToDelete(null)}>
+        <DialogContent className="border-2 border-black rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Konfirmasi Hapus Foto</DialogTitle>
+            <DialogDescription className="uppercase-soft">
+              Hapus foto "{photoToDelete?.name}" dari galeri progress proyek?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="rounded-xl uppercase-soft h-12" onClick={() => setPhotoToDelete(null)}>Batal</Button>
+            <Button variant="destructive" className="rounded-xl uppercase-soft h-12 bg-red-600 font-bold" onClick={async () => {
+              if (photoToDelete) {
+                const mediaId = photoToDelete.id;
+                await deleteMedia(mediaId);
+                toast.success("Foto berhasil dihapus.");
+                setPhotoToDelete(null);
+              }
+            }}>Hapus Foto</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <DialogContent className="border-2 border-black rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Hapus Item Terpilih</DialogTitle>
+            <DialogDescription className="uppercase-soft font-bold text-red-600">
+               ⚠️ Konfirmasi: Anda akan menghapus {selectedItems.size} item sekaligus.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="rounded-xl uppercase-soft h-12" onClick={() => setIsBulkDeleteDialogOpen(false)}>Batal</Button>
+            <Button variant="destructive" className="rounded-xl uppercase-soft h-12 bg-red-600 font-bold" onClick={handleBulkDelete}>Hapus {selectedItems.size} Item</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -2141,11 +2548,11 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
         return;
       }
 
-      // Tier 1 AI Analysis Limit Check
+      // Tiered AI Analysis Limit Check
       const isStaff = user?.role === "admin" || user?.role === "pm";
-      const isPro = user?.tier === "survey" || user?.tier === "deal";
-      // Limit 5x if waVerified, else 1x (or following systemConfig if exists)
-      const freeLimit = user?.waVerified ? (systemConfig?.aiVerifiedLimit || 5) : (systemConfig?.aiFreeLimit || 1);
+      const isTier3 = user?.tier === "deal";
+      // Tier 1: Email (5), Tier 2: WA verified (10), Tier 3: Deal (Unlimited)
+      const freeLimit = user?.waVerified ? 10 : 5;
       
       setIsAnalyzing(true);
       const loadingToast = toast.loading("AI sedang menganalisa data proyek Anda...");
@@ -2171,7 +2578,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
         const result = await getAIEstimation(prompt, projectData.type, masterData, user?.role, systemConfig?.globalMarkup);
         setAiEstimation(result);
         
-        if (!isStaff && !isPro && (user?.aiUsageCount || 0) >= freeLimit) {
+        if (!isStaff && !isTier3 && (user?.aiUsageCount || 0) >= freeLimit) {
           toast.dismiss(loadingToast);
           toast.info("Limit Analisa AI Tercapai.", { description: "Silakan hubungi Admin atau booking survey untuk melanjutkan." });
           setStep(6); 
@@ -4642,12 +5049,13 @@ export default function App() {
                     {isAdmin && <Route path="/admin" element={<AdminPanel />} />}
                     <Route path="/pm" element={<PMDashboard />} />
                     <Route path="/ai-agent" element={<AIAgent />} />
+                    <Route path="/projects/:id" element={<ProjectDetail />} />
                   </>
                 )}
                 
-                <Route path="/projects" element={<ProjectsPage user={user} />} />
-                <Route path="/projects/:id" element={<ProjectDetail />} />
-
+                <Route path="/projects" element={isClient ? <Profile /> : <ProjectsPage user={user} />} />
+                {!isClient && <Route path="/projects/:id" element={<ProjectDetail />} />}
+                
                 {isAdmin && (
                    <>
                     <Route path="/master" element={<AdminMasterPage />} />
@@ -4664,13 +5072,14 @@ export default function App() {
                 <Route path="/ai-agent" element={<AIAgent />} />
                 
                 {/* Default Redirect */}
-                <Route path="/" element={user?.role === "admin" ? <AdminPanel /> : user?.role === "pm" ? <PMDashboard /> : <Profile />} />
+                <Route path="/" element={user?.role === "admin" ? <AdminPanel /> : user?.role === "pm" ? <PMDashboard /> : <VirtualAssistant user={user} updateProfile={updateProfile} />} />
                 <Route path="*" element={<NotFoundRedirect />} />
               </>
             )}
           </Routes>
         </Layout>
-        <Toaster />
+        <Toaster position="top-right" expand={false} richColors />
+        
         <div>
           {isCommandCenterOpen && (
             <div

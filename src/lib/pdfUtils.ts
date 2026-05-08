@@ -72,15 +72,19 @@ export const generateRABPDF = async (
 
   const addRABFooter = (doc: jsPDF, pageNumber: number) => {
     const pageHeight = doc.internal.pageSize.height;
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    
     doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(orange[0], orange[1], orange[2]);
+    doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
+    
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(150);
+    doc.setTextColor(100);
+    doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
+    doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
     
-    const now = new Date();
-    const timestamp = now.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
-    
-    doc.text(`Printed: ${timestamp}`, 10, pageHeight - 10);
-    doc.text(`${pageNumber}`, 200, pageHeight - 10, { align: 'right' });
+    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 200, pageHeight - 10, { align: 'right' });
   };
 
   // Header will use headerY starting from 55
@@ -157,7 +161,7 @@ export const generateRABPDF = async (
   });
 
   // Summary Calculations
-  const subtotal = items.reduce((acc, i) => acc + i.totalPrice, 0);
+  const subtotal = Math.round(items.reduce((acc, i) => acc + i.totalPrice, 0));
   const discount = finance?.discount || 0;
   const deposit = finance?.assessmentDeposit || 0;
   const taxRate = (finance?.taxPercentage || 0) / 100;
@@ -165,48 +169,56 @@ export const generateRABPDF = async (
   const taxAmount = beforeTax * taxRate;
   const totalBudget = roundToRibuan(beforeTax + taxAmount);
   
-  if (currentY > 210) {
+  if (currentY > 200) { // Slightly lower threshold to be safe
     doc.addPage();
     drawRABHeader(doc, (doc as any).internal.getNumberOfPages());
     currentY = 55;
   }
   
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(100);
+  doc.setTextColor(80);
   
-  doc.text('SUBTOTAL PEKERJAAN:', 130, currentY + 5);
-  doc.text(`Rp ${subtotal.toLocaleString('id-ID')}`, 200, currentY + 5, { align: 'right' });
+  const labelX = 100; // Moved further left to allow more space for long labels like "PENGURANGAN DEPOSIT SURVEY"
+  const valueX = 200;
+  const lineSpacing = 8; // Increased from 7 for better breathing room
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(80);
+
+  doc.text('SUBTOTAL PEKERJAAN:', labelX, currentY + 5);
+  doc.text(`Rp ${subtotal.toLocaleString('id-ID')}`, valueX, currentY + 5, { align: 'right' });
   
   if (discount > 0) {
-    currentY += 6;
-    doc.text('POTONGAN HARGA (DISKON):', 130, currentY + 5);
-    doc.text(`- Rp ${discount.toLocaleString('id-ID')}`, 200, currentY + 5, { align: 'right' });
+    currentY += lineSpacing;
+    doc.text('POTONGAN HARGA (DISKON):', labelX, currentY + 5);
+    doc.text(`- Rp ${discount.toLocaleString('id-ID')}`, valueX, currentY + 5, { align: 'right' });
   }
 
   if (deposit > 0) {
-    currentY += 6;
-    doc.text('PENGURANGAN DEPOSIT SURVEY:', 130, currentY + 5);
-    doc.text(`- Rp ${deposit.toLocaleString('id-ID')}`, 200, currentY + 5, { align: 'right' });
+    currentY += lineSpacing;
+    doc.text('PENGURANGAN DEPOSIT SURVEY:', labelX, currentY + 5);
+    doc.text(`- Rp ${deposit.toLocaleString('id-ID')}`, valueX, currentY + 5, { align: 'right' });
   }
 
   if (taxAmount > 0) {
-    currentY += 6;
-    doc.text(`PAJAK (${finance?.taxPercentage}%):`, 130, currentY + 5);
-    doc.text(`Rp ${taxAmount.toLocaleString('id-ID')}`, 200, currentY + 5, { align: 'right' });
+    currentY += lineSpacing;
+    doc.text(`PAJAK (${finance?.taxPercentage}%):`, labelX, currentY + 5);
+    doc.text(`Rp ${Math.round(taxAmount).toLocaleString('id-ID')}`, valueX, currentY + 5, { align: 'right' });
   }
 
-  currentY += 12;
-  doc.setDrawColor(0);
-  doc.setLineWidth(0.5);
-  doc.line(130, currentY, 200, currentY);
+  currentY += lineSpacing + 4;
+  doc.setDrawColor(200);
+  doc.setLineWidth(0.3); // Slightly thicker separator
+  doc.line(labelX, currentY, valueX, currentY);
   
-  doc.setFontSize(14);
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0);
-  doc.text('GRAND TOTAL:', 130, currentY + 10);
+  doc.text('GRAND TOTAL:', labelX, currentY + 10);
   doc.setTextColor(orange[0], orange[1], orange[2]);
-  doc.text(`Rp ${totalBudget.toLocaleString('id-ID')}`, 200, currentY + 10, { align: 'right' });
+  doc.text(`Rp ${totalBudget.toLocaleString('id-ID')}`, valueX, currentY + 10, { align: 'right' });
 
   // Signature
   currentY += 30;
@@ -240,15 +252,16 @@ export const generatePOPDF = async (request: any, vendor: any, customLogoUrl?: s
   const addFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
     const pageHeight = doc.internal.pageSize.height;
     doc.setFontSize(8);
-    doc.setTextColor(100);
-    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(orange[0], orange[1], orange[2]);
     doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
+    
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
     doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
     doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
+    
+    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 200, pageHeight - 10, { align: 'right' });
   };
 
   try {
@@ -383,15 +396,16 @@ export const generateInvoicePDF = async (
   const addFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
     const pageHeight = doc.internal.pageSize.height;
     doc.setFontSize(8);
-    doc.setTextColor(100);
-    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(orange[0], orange[1], orange[2]);
     doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
+    
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
     doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
     doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
+    
+    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 200, pageHeight - 10, { align: 'right' });
   };
 
   // Header
@@ -518,15 +532,16 @@ export const generateReceiptPDF = async (
   const addFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
     const pageHeight = doc.internal.pageSize.height;
     doc.setFontSize(8);
-    doc.setTextColor(100);
-    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(orange[0], orange[1], orange[2]);
     doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
+    
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
     doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
     doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
+    
+    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 200, pageHeight - 10, { align: 'right' });
   };
 
   // Header
@@ -637,15 +652,16 @@ export const generateAIPDF = async (projectName: string, estimation: AIEstimateR
   const addFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
     const pageHeight = doc.internal.pageSize.height;
     doc.setFontSize(8);
-    doc.setTextColor(100);
-    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 105, pageHeight - 10, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(orange[0], orange[1], orange[2]);
     doc.text('Tukang Bangunan Jakarta - Professional Renovation & AI Data-Driven Estimation', 10, pageHeight - 20);
+    
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
     doc.text('Instagram: @tukang.bangunan.jakarta | Find us on Google Maps: Tukang Bangunan Jakarta', 10, pageHeight - 15);
     doc.text('Contact: 081213496672 | www.tbjconstech.com', 10, pageHeight - 10);
+    
+    doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 200, pageHeight - 10, { align: 'right' });
   };
 
   // Header

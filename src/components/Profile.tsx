@@ -10,9 +10,11 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, LayoutDashboard, FileText, Clock, CheckCircle2, TrendingUp, Calendar, MapPin, Plus, Camera, CreditCard, ShieldCheck, AlertCircle, ChevronRight, Check, MessageSquare, User, Zap, Lock, Users, Phone, Briefcase, ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 export default function Profile() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, updateProfile } = useAuth();
   const { config: sysConfig } = useSystemConfig();
   const { id } = useParams();
   const { user: profileUser, loading: userLoading } = useUser(id);
@@ -20,6 +22,14 @@ export default function Profile() {
   const { projects, loading: projectsLoading } = useProjects(user?.uid);
   const { workforce } = useWorkforce(currentUser?.role, currentUser?.tier);
   const navigate = useNavigate();
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileFormData, setProfileFormData] = useState({
+    formalName: user?.formalName || "",
+    nik: user?.nik || "",
+    whatsapp: user?.whatsapp || "",
+    address: user?.address || ""
+  });
 
   const loading = userLoading || projectsLoading;
 
@@ -60,6 +70,18 @@ export default function Profile() {
     );
   }
 
+  const isIdentityComplete = user?.formalName && user?.nik && user?.whatsapp && user?.address;
+
+  const handleSaveProfile = async () => {
+    try {
+      await (updateProfile as any)(profileFormData);
+      setIsEditingProfile(false);
+      toast.success("Identity updated successfully!");
+    } catch (error) {
+      toast.error("Failed to update profile.");
+    }
+  };
+
   return (
     <div className="space-y-12 py-8">
       {id && (
@@ -67,6 +89,7 @@ export default function Profile() {
           <ArrowLeft className="w-4 h-4" /> Back to Admin Panel
         </Button>
       )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b-2 border-black pb-8 gap-4 px-4 md:px-0">
         <div className="space-y-2">
           <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter">{id ? "Client View" : "Client Dashboard"}</h1>
@@ -74,10 +97,73 @@ export default function Profile() {
             {id ? `Viewing dashboard for ${user?.displayName}` : `Selamat datang, ${user?.displayName}. Pantau progres proyek Anda secara real-time.`}
           </p>
         </div>
-        <div className="w-full md:w-auto text-right md:text-right">
+        <div className="flex flex-col items-end gap-2">
           <Badge className="bg-accent text-white rounded-md px-4 py-1 uppercase-soft">Tier {(user?.tier as string) === 'prospect' ? '1' : user?.tier === 'survey' ? '2' : '3'}</Badge>
+          {!id && (
+            <Button variant="outline" size="sm" onClick={() => {
+              setProfileFormData({
+                formalName: user?.formalName || "",
+                nik: user?.nik || "",
+                whatsapp: user?.whatsapp || "",
+                address: user?.address || ""
+              });
+              setIsEditingProfile(true);
+            }} className="h-8 rounded-xl border-black text-[10px] font-black uppercase">
+              Update Identity
+            </Button>
+          )}
         </div>
       </div>
+
+      <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
+        <DialogContent className="border-4 border-black rounded-[2.5rem] max-w-lg p-8">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic text-accent">Identity Verification Form</DialogTitle>
+            <DialogDescription className="uppercase-soft">Data ini digunakan untuk otentikasi kontrak digital TBJ.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 pt-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Nama Lengkap (Sesuai KTP)</Label>
+              <Input 
+                value={profileFormData.formalName} 
+                onChange={e => setProfileFormData({...profileFormData, formalName: e.target.value})}
+                placeholder="CONTOH: BUDI SANTOSO"
+                className="h-12 border-2 border-black rounded-xl font-black uppercase"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Nomor KTP (NIK)</Label>
+              <Input 
+                value={profileFormData.nik} 
+                onChange={e => setProfileFormData({...profileFormData, nik: e.target.value})}
+                placeholder="16 DIGIT NIK"
+                className="h-12 border-2 border-black rounded-xl font-mono font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">WhatsApp Aktif</Label>
+              <Input 
+                value={profileFormData.whatsapp} 
+                onChange={e => setProfileFormData({...profileFormData, whatsapp: e.target.value})}
+                placeholder="081234567890"
+                className="h-12 border-2 border-black rounded-xl font-bold font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Alamat Domisili / Korespondensi</Label>
+              <Textarea 
+                value={profileFormData.address} 
+                onChange={e => setProfileFormData({...profileFormData, address: e.target.value})}
+                placeholder="Alamat Lengkap..."
+                className="border-2 border-black rounded-xl min-h-[100px] font-medium"
+              />
+            </div>
+            <Button onClick={handleSaveProfile} className="w-full h-14 bg-black text-white hover:bg-neutral-800 rounded-2xl font-black uppercase tracking-widest shadow-xl">
+               Save Identity Details &rarr;
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 px-4 md:px-0">
         <Card className="border-2 border-black rounded-2xl">
@@ -157,6 +243,8 @@ export default function Profile() {
               navigate={navigate} 
               sysConfig={sysConfig}
               currentUser={currentUser}
+              setIsEditingProfile={setIsEditingProfile}
+              setProfileFormData={setProfileFormData}
             />
           ))}          {projects.length === 0 && (
             <div className="py-20 text-center border-2 border-dashed border-black/5 rounded-3xl">
@@ -210,14 +298,16 @@ export default function Profile() {
   );
 }
 
-function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser }: { project: any, navigate: any, sysConfig: any, currentUser: any }) {
-  const { items, project: liveProject } = useProjectDetails(initialProject.id);
+function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser, setIsEditingProfile, setProfileFormData }: { project: any, navigate: any, sysConfig: any, currentUser: any, setIsEditingProfile: any, setProfileFormData: any }) {
+  const { items, project: liveProject, releaseMilestone, updateProjectMetadata: updateProject } = useProjectDetails(initialProject.id);
   const project = liveProject || initialProject;
+  const [showContract, setShowContract] = useState(false);
+  const [acceptedContract, setAcceptedContract] = useState(false);
 
+  // Client activities context - strictly on dashboard
   return (
     <div 
-      className="space-y-6 cursor-pointer group/project"
-      onClick={() => navigate(`/projects/${project.id}`)}
+      className="space-y-6 group/project"
     >
       <Card className="border-2 border-black rounded-3xl overflow-hidden hover:shadow-xl transition-all duration-500 group-hover/project:border-accent">
         <div className="grid md:grid-cols-4">
@@ -225,6 +315,23 @@ function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <h3 className="text-3xl font-black uppercase tracking-tighter">{project.name}</h3>
+                {!currentUser?.formalName && (
+                  <button 
+                    onClick={() => {
+                      setProfileFormData({
+                        formalName: currentUser?.formalName || "",
+                        nik: currentUser?.nik || "",
+                        whatsapp: currentUser?.whatsapp || "",
+                        address: currentUser?.address || ""
+                      });
+                      setIsEditingProfile(true);
+                    }}
+                    className="flex items-center gap-2 bg-orange-500 text-white px-3 py-1 rounded-md animate-pulse hover:bg-orange-600 transition-colors"
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                    <span className="text-[8px] font-black italic">LENGKAPI IDENTITAS</span>
+                  </button>
+                )}
                 <Badge className={cn(
                   "rounded-md uppercase-soft px-3 py-1",
                   project.status === 'active' ? "bg-green-100 text-green-700" : 
@@ -330,7 +437,27 @@ function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser
                 <h4 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
                   <Camera className="w-4 h-4 text-accent" /> Laporan Progress Harian
                 </h4>
-                <Button variant="link" className="text-[10px] uppercase font-black p-0 h-auto">Lihat Semua</Button>
+                <Dialog>
+                   <DialogTrigger render={
+                      <Button variant="link" className="text-[10px] uppercase font-black p-0 h-auto">Lihat Semua</Button>
+                   } />
+                   <DialogContent className="max-w-5xl border-2 border-black rounded-[2rem] overflow-hidden p-6">
+                      <DialogHeader>
+                         <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Timeline Foto Proyek</DialogTitle>
+                         <DialogDescription className="uppercase-soft">Arsip lengkap dokumentasi harian dari lokasi proyek.</DialogDescription>
+                      </DialogHeader>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
+                         {[...Array(12)].map((_, i) => (
+                            <div key={i} className="space-y-2 group">
+                               <div className="aspect-square rounded-xl border border-black/5 overflow-hidden bg-neutral-100">
+                                  <img src={`https://picsum.photos/seed/prog${i}/400/400`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                               </div>
+                               <p className="text-[8px] font-black uppercase text-neutral-400">Progress Log #{12-i}</p>
+                            </div>
+                         ))}
+                      </div>
+                   </DialogContent>
+                </Dialog>
               </div>
               <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
                 {[
@@ -358,29 +485,171 @@ function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser
                         </div>
                       </DialogContent>
                     </Dialog>
-                    <p className="text-[9px] font-bold uppercase tracking-tight leading-tight text-neutral-600 px-1">{report.desc}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-tight leading-tight text-neutral-600 px-1">{report.desc} ({report.date})</p>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-          <div className="bg-neutral-900 p-8 text-white flex flex-col justify-center items-center text-center space-y-4">
-            <div className="space-y-1">
-              <p className="uppercase-soft text-white/40">Total Nilai Kontrak</p>
-              <p className="text-2xl font-black tracking-tighter">
-                {formatRupiah(project.totalBudget || 0)}
-              </p>
+
+            {/* Request Tambahan */}
+            <div className="space-y-4 border-t border-black/5 pt-6">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-accent" /> Request Tambahan & Perubahan
+                </h4>
+                <Dialog>
+                  <DialogTrigger render={
+                    <Button variant="outline" size="sm" className="h-8 rounded-xl border-black text-[9px] font-black uppercase">
+                      <Plus className="w-3 h-3 mr-1" /> New Request
+                    </Button>
+                  } />
+                  <DialogContent className="border-2 border-black rounded-[2rem]">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-black uppercase tracking-tighter">Ajukan Request Baru</DialogTitle>
+                      <DialogDescription className="uppercase-soft text-[10px]">Perubahan spesifikasi atau tambahan item pekerjaan baru.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                       <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase">Nama Item / Pekerjaan</Label>
+                          <Input className="input-sleek" placeholder="Contoh: Tambah Titik Lampu" />
+                       </div>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                             <Label className="text-[10px] font-black uppercase">Volume</Label>
+                             <Input className="input-sleek" type="number" placeholder="1" />
+                          </div>
+                          <div className="space-y-1">
+                             <Label className="text-[10px] font-black uppercase">Satuan</Label>
+                             <Input className="input-sleek" placeholder="Titik" />
+                          </div>
+                       </div>
+                       <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase">Alasan Request</Label>
+                          <Textarea className="input-sleek" placeholder="Jelaskan kebutuhan Anda..." />
+                       </div>
+                    </div>
+                    <DialogFooter>
+                       <Button className="w-full btn-orange font-black uppercase text-xs rounded-xl" onClick={() => toast.success("Request Anda telah dikirim dan akan segera direview Admin.")}>
+                          Kirim Request &rarr;
+                       </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              
+              <div className="grid gap-2">
+                {project.requests && project.requests.length > 0 ? (
+                  project.requests.map((req: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center p-3 bg-neutral-50 rounded-xl border border-black/5">
+                       <div className="space-y-0.5">
+                          <p className="text-[10px] font-black uppercase">{req.name}</p>
+                          <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">{req.status}</p>
+                       </div>
+                       <Badge className="text-[8px] font-black uppercase bg-neutral-200 text-neutral-600">Reviewing</Badge>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 bg-neutral-50 rounded-xl border border-dashed border-neutral-200 text-center">
+                    <p className="text-[10px] font-bold uppercase text-neutral-300">Belum ada request tambahan aktif.</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="w-full h-px bg-white/10" />
-            <div className="space-y-1">
-              <p className="uppercase-soft text-white/40">Dana Terbayar</p>
-              <p className="text-xl font-black text-green-400">
-                {formatRupiah((project.totalBudget || 0) * 0.3)}
-              </p>
-            </div>
-            <Button variant="outline" className="w-full rounded-xl uppercase-soft border-white/20 text-white hover:bg-white hover:text-black">Detail Keuangan</Button>
           </div>
-        </div>
+            <div className="space-y-4 bg-neutral-900 p-8 text-white flex flex-col justify-center items-center text-center">
+              <div className="space-y-1">
+                <p className="uppercase-soft text-white/40">Total Nilai Kontrak</p>
+                <p className="text-2xl font-black tracking-tighter">
+                  {formatRupiah(project.totalBudget || 0)}
+                </p>
+              </div>
+              <div className="w-full h-px bg-white/10 my-4" />
+              <div className="space-y-1">
+                <p className="uppercase-soft text-white/40">Dana Terbayar</p>
+                <p className="text-xl font-black text-green-400">
+                  {formatRupiah(project.releasedAmount || 0)}
+                </p>
+              </div>
+              
+              <div className="pt-6 w-full space-y-2">
+                 <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30 text-left px-2">Project Documents</h4>
+                 <Button 
+                   onClick={() => setShowContract(!showContract)}
+                   variant="outline" 
+                   className={cn(
+                     "w-full rounded-xl uppercase-soft h-12 text-[10px] border-white/20 text-white font-black hover:bg-white hover:text-black",
+                     project.contractSignedAt ? "bg-green-500/20 border-green-500/50" : "bg-orange-500/20 border-orange-500/50"
+                   )}
+                 >
+                   <FileText className="w-4 h-4 mr-2" /> 
+                   {project.contractSignedAt ? "Review Signed Contract" : "Contract Ready for Sign"}
+                 </Button>
+              </div>
+            </div>
+          </div>
+
+          {showContract && (
+            <div className="border-t-2 border-black p-8 bg-neutral-50 animate-in slide-in-from-top-4 duration-500">
+               <div className="max-w-4xl mx-auto space-y-8">
+                  <div className="flex items-center justify-between">
+                     <h3 className="text-2xl font-black uppercase tracking-tighter italic text-black">Digital Contract Platform</h3>
+                     <Badge className="rounded-full px-4 border-black font-black text-black bg-white">
+                        {project.contractSignedAt ? "LAWFUL & VERIFIED" : "PENDING SIGNATURE"}
+                     </Badge>
+                  </div>
+                  
+                  <div className="p-8 bg-white border-2 border-black/10 rounded-[2rem] font-serif text-sm leading-relaxed whitespace-pre-wrap min-h-[400px] shadow-inner text-black">
+                    {project.contractDraft || "Contract is being prepared by the legal team..."}
+                  </div>
+
+                  {!project.clientSignedAt && project.contractDraft && (
+                    <div className="pt-8 border-t-2 border-black/5 flex flex-col items-center gap-6">
+                        <div className="flex items-start gap-4 max-w-md">
+                           <input type="checkbox" id="accept" checked={acceptedContract} onChange={e => setAcceptedContract(e.target.checked)} className="mt-1 w-5 h-5 border-2 border-black rounded" />
+                           <label htmlFor="accept" className="text-[10px] font-black uppercase text-neutral-400 leading-tight">
+                              SAYA SETUJU DENGAN SELURUH KLAUSUL KONTRAK DI ATAS DAN MENJADIKAN TANDA TANGAN DIGITAL INI SAH SECARA HUKUM.
+                           </label>
+                        </div>
+                        <Button 
+                          className="w-full sm:w-auto bg-black text-white h-14 px-12 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl"
+                          disabled={!acceptedContract}
+                          onClick={async () => {
+                             const now = new Date().toISOString();
+                             await updateProject({ 
+                                clientSignedAt: now,
+                                contractSignedAt: now,
+                                contractHistory: [
+                                   ...(project.contractHistory || []),
+                                   { time: now, action: "Client Signed Contract", user: currentUser?.displayName || "Client", role: "user" }
+                                ]
+                             });
+                             toast.success("Kontrak Digital Berhasil Ditandatangani!");
+                          }}
+                        >
+                          Sign Contract Now &rarr;
+                        </Button>
+                    </div>
+                  )}
+
+                  {project.contractHistory && project.contractHistory.length > 0 && (
+                     <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase text-neutral-400">Security & Sign Logs</h4>
+                        <div className="grid sm:grid-cols-2 gap-4">
+                           {project.contractHistory.map((log: any, i: number) => (
+                              <div key={i} className="bg-white p-3 rounded-xl border border-black/5 flex items-center gap-3">
+                                 <ShieldCheck className="w-4 h-4 text-green-500" />
+                                 <div className="space-y-0.5">
+                                    <p className="text-[10px] font-black uppercase text-black">{log.action}</p>
+                                    <p className="text-[8px] font-bold text-neutral-400">{new Date(log.time).toLocaleString()} &bull; {log.user}</p>
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     </div>
+                  )}
+               </div>
+            </div>
+          )}
       </Card>
 
       {/* Payment & Milestone Tracking */}
@@ -395,31 +664,31 @@ function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser
           
           <div className="space-y-6 relative">
             <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-neutral-100" />
-            {[
-              { label: "DP (Down Payment) - 30%", amount: (project.totalBudget || 0) * 0.3, status: "paid", date: "15 Mar 2026", progress: 0 },
-              { label: "Termin 1 - Progress 40%", amount: (project.totalBudget || 0) * 0.3, status: "pending", date: "12 Apr 2026", progress: 40 },
-              { label: "Termin 2 - Progress 80%", amount: (project.totalBudget || 0) * 0.3, status: "locked", date: "10 May 2026", progress: 80 },
-              { label: "Pelunasan & Serah Terima", amount: (project.totalBudget || 0) * 0.1, status: "locked", date: "15 Jun 2026", progress: 100 },
-            ].map((t, i) => (
+            {(project.paymentMilestones || [
+              { id: "dp", label: "DP (Down Payment) - 30%", amount: (project.totalBudget || 0) * 0.3, status: "pending", date: "TBA", requiredProgress: 0 },
+              { id: "progress1", label: "Termin 1 - Progress 40%", amount: (project.totalBudget || 0) * 0.3, status: "locked", date: "TBA", requiredProgress: 40 },
+              { id: "progress2", label: "Termin 2 - Progress 80%", amount: (project.totalBudget || 0) * 0.3, status: "locked", date: "TBA", requiredProgress: 80 },
+              { id: "final", label: "Pelunasan & Serah Terima", amount: (project.totalBudget || 0) * 0.1, status: "locked", date: "TBA", requiredProgress: 100 },
+            ]).map((t: any, i: number) => (
               <div key={i} className="flex gap-6 relative">
                 <div className={cn(
                   "w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 z-10",
-                  t.status === 'paid' ? "bg-green-500 border-green-500 text-white" : 
-                  t.status === 'pending' ? "bg-white border-accent text-accent animate-pulse" : 
+                  t.status === 'released' || t.status === 'paid' ? "bg-green-500 border-green-500 text-white" : 
+                  t.status === 'pending' || t.status === 'active' ? "bg-white border-accent text-accent animate-pulse" : 
                   "bg-white border-neutral-200 text-neutral-300"
                 )}>
-                  {t.status === 'paid' ? <Check className="w-4 h-4" /> : <span className="text-[10px] font-black">{i + 1}</span>}
+                  {t.status === 'released' || t.status === 'paid' ? <Check className="w-4 h-4" /> : <span className="text-[10px] font-black">{i + 1}</span>}
                 </div>
                 <div className="flex-grow space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
                       <p className={cn("text-xs font-black uppercase tracking-widest", t.status === 'locked' ? "text-neutral-400" : "text-black")}>{t.label}</p>
-                      <p className="text-[10px] text-neutral-400 uppercase-soft">{t.date}</p>
+                      <p className="text-[10px] text-neutral-400 uppercase-soft">{t.releaseDate ? new Date(t.releaseDate).toLocaleDateString('id-ID') : t.date || 'Belum Dijadwalkan'}</p>
                     </div>
-                    <p className="text-xs font-black">Rp {t.amount.toLocaleString('id-ID')}</p>
+                    <p className="text-xs font-black">Rp {(t.amount || 0).toLocaleString('id-ID')}</p>
                   </div>
                   
-                  {t.status === 'pending' && (
+                  {(t.status === 'pending' || t.status === 'active') && project.progress >= t.requiredProgress && (
                     <div className="pt-2">
                       <Dialog>
                         <DialogTrigger nativeButton={false} render={
@@ -431,7 +700,7 @@ function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser
                           <DialogHeader>
                             <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Konfirmasi Pencairan Dana (Fund Reduction)</DialogTitle>
                             <DialogDescription className="uppercase-soft">
-                              Termin 1 senilai Rp {t.amount.toLocaleString('id-ID')} akan dicairkan dari Escrow ke Kontraktor.
+                              {t.label} senilai Rp {(t.amount || 0).toLocaleString('id-ID')} akan dicairkan dari Escrow ke Kontraktor.
                             </DialogDescription>
                           </DialogHeader>
                           <div className="py-6 space-y-4">
@@ -452,8 +721,8 @@ function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser
                             </div>
                           </div>
                           <DialogFooter>
-                            <Button variant="outline" className="rounded-xl uppercase-soft">Batal</Button>
-                            <Button className="btn-orange rounded-xl uppercase-soft">Setujui & Cairkan</Button>
+                            <Button variant="outline" className="rounded-xl uppercase-soft" onClick={() => {}}>Batal</Button>
+                            <Button className="btn-orange rounded-xl uppercase-soft" onClick={() => releaseMilestone(t.id)}>Setujui & Cairkan</Button>
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>
@@ -465,73 +734,74 @@ function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser
           </div>
         </Card>
 
+        <Card className="border-2 border-black rounded-3xl p-8 space-y-6 bg-black text-white overflow-hidden relative">
+          <div className="absolute top-4 right-4 animate-pulse flex items-center gap-2">
+             <div className="w-2 h-2 rounded-full bg-red-500" />
+             <span className="text-[8px] font-black uppercase tracking-widest text-white/60">LIVE STREAMING</span>
+          </div>
+          <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
+            <Camera className="w-5 h-5 text-accent" /> Site Monitoring (CCTV)
+          </h3>
+          <div className="aspect-video bg-neutral-800 rounded-xl flex flex-col items-center justify-center border border-white/10 group cursor-pointer overflow-hidden">
+             <div className="text-center group-hover:scale-110 transition-transform duration-500">
+                <Zap className="w-12 h-12 text-accent mx-auto mb-4" />
+                <p className="text-xs font-black uppercase tracking-widest text-white/80">Connect to Site Camera</p>
+                <p className="text-[8px] text-white/40 mt-1 uppercase">Ready for Proyect: {project.name}</p>
+             </div>
+             <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Badge className="bg-green-500 text-white text-[8px] border-none uppercase">Signal Strong</Badge>
+                <span className="text-[8px] text-white/60">CAM-01: FRONT ENTRANCE</span>
+             </div>
+          </div>
+        </Card>
+
         <Card className="border-2 border-black rounded-3xl p-8 space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-accent" /> Catatan & Request Tambahan
+              <MessageSquare className="w-5 h-5 text-accent" /> Komplain & Resolusi
             </h3>
-            <Dialog>
-              <DialogTrigger nativeButton={false} render={
-                <div className="rounded-xl uppercase-soft h-8 text-[9px] gap-2 border-2 border-black px-3 flex items-center justify-center cursor-pointer hover:bg-neutral-50 transition-colors">
-                  <Plus className="w-3 h-3" /> New Request
-                </div>
-              } />
-              <DialogContent className="max-w-md border-2 border-black rounded-3xl">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Tambah Request Baru</DialogTitle>
-                  <DialogDescription className="uppercase-soft">Tambahkan item pekerjaan tambahan atau perubahan spesifikasi.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-1">
-                    <label className="uppercase-soft text-neutral-400">Item Pekerjaan</label>
-                    <Input placeholder="Contoh: Tambah Stop Kontak" className="input-sleek" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="uppercase-soft text-neutral-400">Volume</label>
-                      <Input type="number" placeholder="0" className="input-sleek" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="uppercase-soft text-neutral-400">Satuan</label>
-                      <Input placeholder="m2 / titik / lot" className="input-sleek" />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="uppercase-soft text-neutral-400">Estimasi Harga Satuan</label>
-                    <Input type="number" placeholder="Rp" className="input-sleek" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="uppercase-soft text-neutral-400">Upload Foto Pendukung</label>
-                    <div className="w-full h-24 border-2 border-dashed border-neutral-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-black transition-colors">
-                      <Camera className="w-6 h-6 text-neutral-400" />
-                      <span className="text-[8px] font-black uppercase mt-1">Upload Image</span>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button className="w-full btn-orange rounded-xl uppercase-soft">Kirim Request</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Badge className="rounded-md uppercase-soft bg-neutral-100 text-neutral-500 h-6 px-2 text-[8px]">Resolusi: 24 Jam</Badge>
           </div>
-          
           <div className="space-y-4">
-            {project.requests && project.requests.length > 0 ? (
-              project.requests.map((req: any, idx: number) => (
-                <div key={idx} className="p-4 bg-neutral-50 rounded-2xl border border-black/5 flex justify-between items-center group">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest">{req.item}</p>
-                    <p className="text-[9px] text-neutral-400 uppercase font-bold">{req.volume} {req.unit} @ {formatRupiah(req.price)}</p>
-                  </div>
-                  <Badge className="bg-amber-100 text-amber-700 border-none uppercase-soft text-[8px] h-5">Reviewing</Badge>
-                </div>
-              ))
-            ) : (
-              <div className="py-12 border-2 border-dashed border-black/5 rounded-2xl text-center">
-                <MessageSquare className="w-6 h-6 text-neutral-200 mx-auto mb-2" />
-                <p className="text-[9px] font-bold uppercase text-neutral-400 tracking-widest">Belum ada request tambahan.</p>
-              </div>
-            )}
+             <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl space-y-2">
+                <p className="text-[10px] font-black uppercase text-orange-700 items-center flex gap-2">
+                  <ShieldCheck className="w-4 h-4" /> Quality Guarantee
+                </p>
+                <p className="text-[9px] font-bold text-orange-900 italic">"Seluruh pekerjaan di TBJ Constech dijamin sesuai spesifikasi. Jika ada ketidaksesuaian, silakan ajukan komplain melalui panel ini."</p>
+             </div>
+             
+             <Dialog>
+                <DialogTrigger render={
+                   <Button variant="outline" className="w-full h-12 rounded-xl border-2 border-black border-dashed font-black uppercase text-[10px] hover:bg-neutral-50">
+                     <Plus className="w-4 h-4 mr-2" /> Ajukan Komplain Baru
+                   </Button>
+                } />
+                <DialogContent className="border-2 border-black rounded-[2rem]">
+                   <DialogHeader>
+                      <DialogTitle className="text-xl font-black uppercase tracking-tighter">Form Komplain & Keluhan</DialogTitle>
+                      <DialogDescription className="uppercase-soft text-[10px]">Laporkan kendala atau ketidaksesuaian pekerjaan di lokasi.</DialogDescription>
+                   </DialogHeader>
+                   <div className="space-y-4 py-4">
+                      <div className="space-y-1">
+                         <Label className="text-[10px] font-black uppercase">Judul Kendala</Label>
+                         <Input className="input-sleek" placeholder="Contoh: Retak Rambut Dinding Depan" />
+                      </div>
+                      <div className="space-y-1">
+                         <Label className="text-[10px] font-black uppercase">Deskripsi Detail</Label>
+                         <Textarea className="input-sleek" placeholder="Ceritakan detail kendala yang dialami..." />
+                      </div>
+                      <div className="space-y-1">
+                         <Label className="text-[10px] font-black uppercase">Foto Bukti (G-Drive / Link)</Label>
+                         <Input className="input-sleek" placeholder="Masukkan link foto penemuan" />
+                      </div>
+                   </div>
+                   <DialogFooter>
+                      <Button className="w-full bg-red-600 text-white font-black uppercase text-xs rounded-xl hover:bg-red-700" onClick={() => toast.success("Laporan komplain Anda telah diterima. PM akan segera menghubungi Anda.")}>
+                         Kirim Laporan Komplain &rarr;
+                      </Button>
+                   </DialogFooter>
+                </DialogContent>
+             </Dialog>
           </div>
         </Card>
       </div>
