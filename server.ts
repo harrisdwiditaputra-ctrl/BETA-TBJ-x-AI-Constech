@@ -26,17 +26,34 @@ async function startServer() {
   // Vite integration
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        host: "0.0.0.0",
+        port: 3000
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.use(express.static(distPath, { index: false }));
+    app.get("*", (req, res, next) => {
+      // Skip API routes
+      if (req.path.startsWith("/api/")) {
+        return next();
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // Final catch-all for any unhandled requests to avoid raw 404s
+  app.use((req, res) => {
+    if (process.env.NODE_ENV === "production") {
+      res.sendFile(path.join(process.cwd(), "dist", "index.html"));
+    } else {
+      res.status(404).send("Not Found - TBJ OS Engine");
+    }
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`TBJ Constech OS running on http://localhost:${PORT}`);

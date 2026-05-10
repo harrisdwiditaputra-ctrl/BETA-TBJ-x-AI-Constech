@@ -372,3 +372,15 @@ export interface MasterDataVersion {
   createdBy: string;
   notes?: string;
 }
+
+export interface TechnicalDrawing {
+  id: string;
+  name: string;
+  description?: string;
+  type: "2D" | "3D";
+  url: string;
+  thumbnailUrl?: string;
+  uploadedBy: string;
+  uploadedByName?: string;
+  createdAt: string;
+}

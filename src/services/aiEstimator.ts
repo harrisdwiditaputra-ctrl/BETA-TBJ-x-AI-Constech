@@ -1,12 +1,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIEstimateResponse } from "../types";
+import { calculateAdminPrice, calculateClientPrice, roundToRatusan } from "../lib/utils";
 
 export async function getAIEstimation(userProblem: string, category: string, masterData?: any[], userRole: string = 'user', globalMarkup: number = 20): Promise<AIEstimateResponse> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     
     const masterDataString = (masterData || []).map((item: any) => {
-      return `- [${item.code || 'N/A'}] ${item.name} (${item.unit}): Rp ${item.price?.toLocaleString('id-ID')}`;
+      // Apply internal markup (20%) + client profit (10%) based on instructions
+      const displayPrice = userRole === 'admin' || userRole === 'pm'
+        ? calculateAdminPrice(item.price || 0, globalMarkup)
+        : calculateClientPrice(item.price || 0, globalMarkup);
+        
+      return `- [${item.code || 'N/A'}] ${item.name} (${item.unit}): Rp ${displayPrice.toLocaleString('id-ID')}`;
     }).join('\n');
 
     const promptText = `
@@ -62,19 +68,29 @@ export async function getAIEstimation(userProblem: string, category: string, mas
 
     const data = JSON.parse(result.text || "{}");
     
-    return {
-      analysis: data.summary,
-      items: (data.items || []).map((item: any) => ({
+    // Safety check and final rounding for all items returned by AI
+    const items = (data.items || []).map((item: any) => {
+      const pricePerUnit = roundToRatusan(item.price || 0);
+      const totalPrice = roundToRatusan(pricePerUnit * (item.volume || 0));
+      
+      return {
         name: item.name,
         quantity: item.volume,
         unit: item.unit,
-        pricePerUnit: item.price,
-        totalPrice: item.total,
+        pricePerUnit,
+        totalPrice,
         reasoning: item.reasoning || "Estimasi AI standar TBJ",
         priority: item.priority || "Medium",
         code: item.code || "GEN-001"
-      })),
-      totalEstimatedCost: data.total
+      };
+    });
+
+    const totalEstimatedCost = items.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    
+    return {
+      analysis: data.summary,
+      items,
+      totalEstimatedCost
     };
   } catch (error: any) {
     console.error("AI Estimation Service Error:", error);

@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, Link } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, Link, useSearchParams } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import ErrorBoundary from "@/components/ErrorBoundary.tsx";
 import Layout from "@/components/Layout.tsx";
 import { useState, useEffect, useMemo } from "react";
-import { useAuth, useProjects, useProjectDetails, useProperties, useMasterData, useCMSConfig, useSystemConfig, useMediaAssets, useCampaigns, useSavedEstimates as useEstimations, incrementAIUsage, useLeads, useFinance, useProjectMaterialRequests } from "@/lib/hooks";
+import { useAuth, useProjects, useProjectDetails, useProperties, useMasterData, useCMSConfig, useSystemConfig, useMediaAssets, useCampaigns, useSavedEstimates as useEstimations, incrementAIUsage, useLeads, useFinance, useProjectMaterialRequests, useTechnicalDrawings } from "@/lib/hooks";
 import { WORK_ITEMS_MASTER, QRIS_IMAGE, TBJ_LOGO } from "@/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,11 +21,12 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { WorkItemMaster, Property, AIEstimateResponse, BudgetItem, TimelineEvent, BudgetCategory } from "@/types";
-import { cn, getDriveImageUrl, calculateAdminPrice, calculateClientPrice, formatRupiah, roundToRibuan } from "@/lib/utils";
+import { WorkItemMaster, Property, AIEstimateResponse, BudgetItem, TimelineEvent, BudgetCategory, TechnicalDrawing } from "@/types";
+import propertyPlaceholder from "@/assets/images/regenerated_image_1778396640970.png";
+import { cn, getDriveImageUrl, calculateAdminPrice, calculateClientPrice, formatRupiah, roundToRatusan } from "@/lib/utils";
 import { getAIEstimation } from "./services/aiEstimator";
 import { generateAIPDF, generateRABPDF, generateInvoicePDF, generateReceiptPDF } from "@/lib/pdfUtils";
-import { Plus, Trash2, ChevronRight, ChevronLeft, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles, AlertCircle, Minus, Brain, Quote, Zap, LayoutDashboard, DollarSign, Edit2, ArrowRight, UserPlus, Fingerprint, History, Package, Terminal, X, Briefcase, FileEdit } from "lucide-react";
+import { Plus, Trash2, ChevronRight, ChevronLeft, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, Info, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles, AlertCircle, Minus, Brain, Quote, Zap, LayoutDashboard, DollarSign, Edit2, ArrowRight, UserPlus, Fingerprint, History, Package, Terminal, X, Briefcase, FileEdit } from "lucide-react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import Gallery from "./components/Gallery";
@@ -533,6 +534,7 @@ const ProjectsPage = ({ user }: { user: any }) => {
 
 const ProjectDetail = () => {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { config: sysConfig } = useSystemConfig();
@@ -559,7 +561,7 @@ const ProjectDetail = () => {
       const taxableAmount = subtotal - discount - deposit;
       const taxAmount = taxableAmount * taxRate;
       const final = taxableAmount + taxAmount;
-      const roundedTotal = roundToRibuan(final);
+      const roundedTotal = roundToRatusan(final);
       
       if (project.totalBudget !== roundedTotal) {
         updateProject(project.id, { totalBudget: roundedTotal });
@@ -588,6 +590,7 @@ const ProjectDetail = () => {
   }
   
   const { assets: projectMedia, addAsset: addMedia, deleteAsset: deleteMedia } = useMediaAssets(undefined, id);
+  const { drawings, addDrawing, deleteDrawing } = useTechnicalDrawings(id);
   const { requests: materialRequests, addRequest: addMaterialRequest } = useProjectMaterialRequests(id);
   const { transactions } = useFinance(id);
   
@@ -601,6 +604,10 @@ const ProjectDetail = () => {
   
   const [newMediaUrl, setNewMediaUrl] = useState("");
   const [newMediaName, setNewMediaName] = useState("");
+  const [newDrawingName, setNewDrawingName] = useState("");
+  const [newDrawingUrl, setNewDrawingUrl] = useState("");
+  const [newDrawingType, setNewDrawingType] = useState<"2D" | "3D">("2D");
+  const [newDrawingDesc, setNewDrawingDesc] = useState("");
   const [newCatName, setNewCatName] = useState("");
   const [newItemName, setNewItemName] = useState("");
   const [newItemSpecs, setNewItemSpecs] = useState("");
@@ -663,7 +670,28 @@ const ProjectDetail = () => {
   };
 
   const totalWeight = items.reduce((sum, i) => sum + (i.totalPrice / (project.totalBudget || 1)) * 100, 0);
-  const [activeTab, setActiveTab] = useState<"overview" | "rab" | "timeline" | "photos" | "finance" | "procurement" | "live" | "docs">("overview");
+  const isDrawingsOnly = searchParams.get("view") === "drawings_only";
+  const initialTab = (searchParams.get("tab") as any) || "overview";
+  const [activeTab, setActiveTab] = useState<"overview" | "rab" | "timeline" | "photos" | "finance" | "procurement" | "live" | "docs" | "drawings">(initialTab);
+
+  // Sync tab with URL search params
+  useEffect(() => {
+    if (isDrawingsOnly) {
+      setActiveTab("drawings");
+      return;
+    }
+    const tab = searchParams.get("tab");
+    if (tab && ["overview", "rab", "finance", "procurement", "timeline", "live", "docs", "drawings", "photos"].includes(tab)) {
+      setActiveTab(tab as any);
+    }
+  }, [searchParams, isDrawingsOnly]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab as any);
+    setSearchParams({ tab });
+  };
+  const [is3DViewerOpen, setIs3DViewerOpen] = useState(false);
+  const [selectedDrawing, setSelectedDrawing] = useState<TechnicalDrawing | null>(null);
   const [showRABActions, setShowRABActions] = useState(false);
 
   const currentProgress = items.reduce((sum, i) => sum + ((i.progress || 0) * (i.totalPrice / (project.totalBudget || 1))), 0);
@@ -748,64 +776,83 @@ const ProjectDetail = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="space-y-1 w-full overflow-hidden">
-          <div className="flex items-center gap-3">
-            <Link to="/projects">
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full border border-black/5 shrink-0">
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-            </Link>
-            <h1 className="text-xl md:text-4xl font-black tracking-tighter uppercase leading-tight truncate">{project.name}</h1>
+      {isDrawingsOnly ? (
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-2xl border-2 border-black animate-in fade-in slide-in-from-top-4 duration-500">
+             <div className="flex items-center gap-4">
+                <Button variant="outline" size="sm" className="h-10 rounded-xl font-black uppercase text-[10px] gap-2 border-2 border-black hover:bg-black hover:text-white transition-colors" onClick={() => navigate("/")}>
+                   <ChevronLeft className="w-4 h-4" /> Back to Dashboard
+                </Button>
+                <div className="space-y-0.5">
+                   <h1 className="text-xl font-black tracking-tighter uppercase leading-none">{project.name}</h1>
+                   <div className="flex items-center gap-2">
+                     <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest italic tracking-tighter">Design Workspace & Technical Hub</p>
+                   </div>
+                </div>
+             </div>
+             <div className="hidden md:block px-4 py-2 bg-neutral-50 rounded-xl border border-black/5">
+                <p className="text-[8px] font-black uppercase text-neutral-400 tracking-[0.2em]">Viewing Mode: Restricted (Drawings Only)</p>
+             </div>
+         </div>
+      ) : (
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="space-y-1 w-full overflow-hidden">
+            <div className="flex items-center gap-3">
+              <Link to={(user?.role === "admin" || user?.role === "pm") ? "/projects" : "/"}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full border border-black/5 shrink-0">
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+              </Link>
+              <h1 className="text-xl md:text-4xl font-black tracking-tighter uppercase leading-tight truncate">{project.name}</h1>
+            </div>
+            <p className="text-neutral-500 uppercase font-bold text-[8px] md:text-[10px] tracking-widest ml-11 line-clamp-1">{project.description}</p>
           </div>
-          <p className="text-neutral-500 uppercase font-bold text-[8px] md:text-[10px] tracking-widest ml-11 line-clamp-1">{project.description}</p>
-        </div>
-        
-        <div className="md:hidden w-full">
-          <select 
-            className="w-full h-12 bg-white border-2 border-black rounded-xl px-4 font-black uppercase text-xs tracking-widest outline-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
-            value={activeTab}
-            onChange={(e) => setActiveTab(e.target.value as any)}
-          >
-            <option value="overview">Overview</option>
-            <option value="rab">RAB Teknik</option>
-            <option value="finance">Finance</option>
-            <option value="procurement">Material</option>
-            <option value="timeline">Timeline</option>
-            <option value="live">Live Site</option>
-            <option value="docs">Docs</option>
-            <option value="photos">Media</option>
-          </select>
-        </div>
-        
-        <div className="hidden md:flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-4 md:pb-0 scrollbar-hide px-2 -mx-2">
-          {[
-            { id: "overview", label: "Overview", icon: LayoutDashboard },
-            { id: "rab", label: "RAB Teknik", icon: FileText },
-            { id: "finance", label: "Finance", icon: DollarSign },
-            { id: "procurement", label: "Material", icon: Package },
-            { id: "timeline", label: "Timeline", icon: Clock },
-            { id: "live", label: "Live Site", icon: Camera },
-            { id: "docs", label: "Docs", icon: FileCheck },
-            { id: "photos", label: "Media", icon: ImageIcon },
-          ].map(tab => (
-            <Button
-              key={tab.id}
-              variant={activeTab === tab.id ? "default" : "outline"}
-              className={cn(
-                "h-10 px-4 md:px-6 rounded-xl uppercase font-black text-[10px] gap-2 transition-all shrink-0",
-                activeTab === tab.id ? "bg-black text-accent shadow-[4px_4px_0px_0px_#FF6B00]" : "border-2 border-black/5 hover:border-black"
-              )}
-              onClick={() => setActiveTab(tab.id as any)}
+          
+          <div className="md:hidden w-full">
+            <select 
+              className="w-full h-12 bg-accent text-white border-2 border-black rounded-xl px-4 font-black uppercase text-xs tracking-widest outline-none hover:bg-black transition-colors"
+              value={activeTab}
+              onChange={(e) => handleTabChange(e.target.value)}
             >
-              <tab.icon className="w-3 h-3" />
-              {tab.label}
-            </Button>
-          ))}
+              <option value="overview">Overview</option>
+              <option value="rab">RAB Teknik</option>
+              <option value="finance">Finance</option>
+              <option value="procurement">Material</option>
+              <option value="timeline">Timeline</option>
+              <option value="live">Live Site</option>
+              <option value="docs">Docs</option>
+              <option value="drawings">Technical Drawings</option>
+              <option value="photos">Media</option>
+            </select>
+          </div>
+          
+          <div className="hidden md:flex items-center gap-2 w-full md:w-auto px-2 -mx-2">
+            <select 
+              className="h-12 bg-accent text-white border-2 border-black rounded-2xl px-6 font-black uppercase text-sm tracking-[0.2em] outline-none transition-all cursor-pointer appearance-none min-w-[280px] text-center hover:bg-black transition-colors"
+              value={activeTab}
+              onChange={(e) => handleTabChange(e.target.value)}
+            >
+              {[
+                { id: "overview", label: "Overview", icon: LayoutDashboard },
+                { id: "rab", label: "RAB Teknik", icon: FileText },
+                { id: "finance", label: "Finance", icon: DollarSign },
+                { id: "procurement", label: "Material", icon: Package },
+                { id: "timeline", label: "Timeline", icon: Clock },
+                { id: "live", label: "Live Site", icon: Camera },
+                { id: "docs", label: "Docs", icon: FileCheck },
+                { id: "drawings", label: "Drawings", icon: Ruler },
+                { id: "photos", label: "Media", icon: ImageIcon },
+              ].map(tab => (
+                <option key={tab.id} value={tab.id} className="bg-white text-black font-bold py-2">
+                  {tab.id.toUpperCase()} — {tab.label.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
+      )}
 
-      {activeTab === "overview" && (
+      {activeTab === "overview" && !isDrawingsOnly && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           <div className="md:col-span-2 space-y-6 md:space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1011,6 +1058,27 @@ const ProjectDetail = () => {
                 })}
               </div>
             </Card>
+            
+            {drawings.some(d => d.type === "3D") && (
+              <Card className="border-2 border-black rounded-3xl p-6 bg-neutral-900 text-white shadow-[4px_4px_0px_1px_#FF6B00] overflow-hidden relative group">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Layers className="w-24 h-24" />
+                </div>
+                <div className="relative z-10 space-y-4">
+                  <div>
+                    <Badge className="bg-accent text-white text-[8px] font-black uppercase mb-2">3D Feature Active</Badge>
+                    <h3 className="text-xl font-black uppercase tracking-tighter leading-none">Explore Property in 3D</h3>
+                    <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mt-2 leading-relaxed">Visualisasi interaktif properti Anda siap untuk dijelajahi.</p>
+                  </div>
+                  <Button 
+                    className="w-full h-12 bg-white text-black border-2 border-black rounded-2xl font-black uppercase text-[10px] gap-2 shadow-[4px_4px_0px_0px_rgba(255,107,0,1)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all"
+                    onClick={() => setActiveTab("drawings")}
+                  >
+                    <Star className="w-3.5 h-3.5 text-accent animate-spin" /> Open 3D Workspace
+                  </Button>
+                </div>
+              </Card>
+            )}
 
             <Card className="border-2 border-black rounded-3xl p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <h3 className="text-xl font-black uppercase tracking-tighter mb-4">Quick Links</h3>
@@ -1031,13 +1099,17 @@ const ProjectDetail = () => {
                   <Camera className="w-5 h-5 text-accent" />
                   <span className="text-[8px] uppercase font-black tracking-widest">Photos</span>
                 </Button>
+                <Button variant="outline" className="h-20 flex-col border-2 border-black rounded-2xl gap-2 hover:bg-neutral-50" onClick={() => setActiveTab("drawings")}>
+                  <Ruler className="w-5 h-5 text-accent" />
+                  <span className="text-[8px] uppercase font-black tracking-widest">Drawings</span>
+                </Button>
               </div>
             </Card>
           </div>
         </div>
       )}
 
-      {activeTab === "live" && (
+      {activeTab === "live" && !isDrawingsOnly && (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
@@ -1078,7 +1150,7 @@ const ProjectDetail = () => {
         </div>
       )}
 
-      {activeTab === "docs" && (
+      {activeTab === "docs" && !isDrawingsOnly && (
         <div className="space-y-8">
            <div className="flex justify-between items-center">
             <div>
@@ -1198,7 +1270,7 @@ const ProjectDetail = () => {
           </div>
         </div>
       )}
-      {activeTab === "timeline" && (
+      {activeTab === "timeline" && !isDrawingsOnly && (
         <Card className="border-2 border-black rounded-2xl p-6 bg-neutral-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
           <div className="flex items-center justify-between mb-8">
              <div>
@@ -1258,7 +1330,7 @@ const ProjectDetail = () => {
         </Card>
       )}
 
-      {activeTab === "procurement" && (
+      {activeTab === "procurement" && !isDrawingsOnly && (
         <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-white animate-in slide-in-from-bottom-4 duration-500">
           <CardHeader className="bg-neutral-50 border-b-2 border-black flex flex-row items-center justify-between">
             <div>
@@ -1365,7 +1437,7 @@ const ProjectDetail = () => {
         </Card>
       )}
 
-      {activeTab === "finance" && (
+      {activeTab === "finance" && !isDrawingsOnly && (
         <div className="grid md:grid-cols-3 gap-8">
            <div className="md:col-span-2 space-y-6">
               <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
@@ -1586,7 +1658,214 @@ const ProjectDetail = () => {
       )}
 
 
-      {activeTab === "photos" && (
+      {activeTab === "drawings" && (
+        <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-white animate-in slide-in-from-bottom-4 duration-500">
+          <CardHeader className="bg-neutral-50 border-b-2 border-black flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-xl font-black uppercase tracking-tighter">Technical Drawings (2D/3D)</CardTitle>
+              <CardDescription className="uppercase-soft">Blueprint, Render, dan Gambar Teknis Proyek</CardDescription>
+            </div>
+            {(user?.role === "admin" || user?.role === "pm") && (
+              <Dialog>
+                <DialogTrigger render={
+                  <Button size="sm" className="btn-sleek h-9 px-4 rounded-xl">
+                    <Plus className="w-3 h-3 mr-2" /> Add Drawing
+                  </Button>
+                } />
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="font-black uppercase tracking-tighter">Add Technical Drawing</DialogTitle>
+                    <DialogDescription>Tambahkan gambar teknis (2D) atau link model (3D).</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label className="uppercase-soft text-[10px]">Drawing Name</Label>
+                      <Input placeholder="e.g. Denah Lantai 1" value={newDrawingName} onChange={e => setNewDrawingName(e.target.value)} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="uppercase-soft text-[10px]">Type</Label>
+                        <select className="flex h-10 w-full rounded-md border-2 border-black bg-white px-3 py-2 text-xs font-black uppercase focus:outline-none" value={newDrawingType} onChange={e => setNewDrawingType(e.target.value as "2D" | "3D")}>
+                          <option value="2D">2D (Image/Blueprint)</option>
+                          <option value="3D">3D (Model/Render)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="uppercase-soft text-[10px]">Asset URL</Label>
+                        <Input placeholder="URL Gambar atau Model" value={newDrawingUrl} onChange={e => setNewDrawingUrl(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="uppercase-soft text-[10px]">Description</Label>
+                      <Textarea placeholder="Catatan teknis..." value={newDrawingDesc} onChange={e => setNewDrawingDesc(e.target.value)} />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button 
+                      className="btn-sleek w-full" 
+                      onClick={async () => {
+                        if (newDrawingUrl && newDrawingName) {
+                          await addDrawing({
+                            name: newDrawingName,
+                            url: newDrawingUrl,
+                            type: newDrawingType,
+                            description: newDrawingDesc,
+                            createdAt: new Date().toISOString(),
+                            uploadedBy: user?.uid || 'system',
+                            uploadedByName: user?.displayName || 'Admin'
+                          });
+                          setNewDrawingUrl("");
+                          setNewDrawingName("");
+                          setNewDrawingDesc("");
+                          toast.success("Drawing added to project!");
+                        }
+                      }}
+                    >
+                      Save Drawing
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </CardHeader>
+          <CardContent className="p-6">
+            {drawings.length === 0 ? (
+              <div className="py-20 text-center bg-neutral-50 rounded-3xl border-2 border-dashed border-neutral-200">
+                <Ruler className="w-12 h-12 mx-auto text-neutral-300 mb-4" />
+                <p className="text-sm font-black uppercase text-neutral-400">No technical drawings available yet.</p>
+                <p className="text-[10px] text-neutral-400 uppercase mt-2">Gambar teknis akan diupload oleh tim TBJ Constech.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {drawings.map(drawing => (
+                  <div key={drawing.id} className="group relative border-2 border-black rounded-[2rem] overflow-hidden bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all">
+                    {drawing.type === "2D" ? (
+                      <div className="aspect-[16/10] bg-neutral-100 border-b-2 border-black overflow-hidden pointer-events-none sm:pointer-events-auto">
+                        <img 
+                          src={getDriveImageUrl(drawing.url)} 
+                          alt={drawing.name}
+                          className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    ) : (
+                      <div className="aspect-[16/10] bg-neutral-900 border-b-2 border-black flex flex-col items-center justify-center p-8 text-center gap-4">
+                        <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center animate-pulse">
+                          <Layers className="w-8 h-8 text-accent shadow-[0_0_15px_rgba(255,107,0,0.5)]" />
+                        </div>
+                        <div className="space-y-1">
+                          <Badge className="bg-accent text-white text-[9px] font-black uppercase">3D MODEL / RENDER</Badge>
+                          <p className="text-white/50 text-[9px] font-black uppercase tracking-widest">Interactive View Available</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="p-6 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <h4 className="font-black uppercase text-sm tracking-tight leading-none">{drawing.name}</h4>
+                          <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">{drawing.uploadedByName} • {new Date(drawing.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        <Badge variant="outline" className="border-black font-black uppercase text-[8px] px-2 py-0">
+                          {drawing.type}
+                        </Badge>
+                      </div>
+                      
+                      {drawing.description && (
+                        <p className="text-[11px] text-neutral-600 font-medium leading-relaxed bg-neutral-50 p-3 rounded-xl border border-black/5">{drawing.description}</p>
+                      )}
+                      
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                          {drawing.type === "3D" ? (
+                            <Button 
+                              className="h-10 bg-accent text-white border-2 border-black rounded-xl font-black uppercase text-[10px] gap-2 hover:bg-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                              onClick={() => {
+                                setSelectedDrawing(drawing);
+                                setIs3DViewerOpen(true);
+                              }}
+                            >
+                              <Layers className="w-3.5 h-3.5" /> Open 3D
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="outline" 
+                              className="h-10 border-2 border-black rounded-xl font-black uppercase text-[10px] gap-2 hover:bg-black hover:text-white"
+                              onClick={() => window.open(drawing.url, '_blank')}
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" /> View
+                            </Button>
+                          )}
+                          {(user?.role === "admin" || user?.role === "pm") && (
+                            <Button 
+                              variant="ghost" 
+                              className="h-10 border-2 border-red-500/10 text-red-500 rounded-xl font-black uppercase text-[10px] gap-2 hover:bg-red-500 hover:text-white"
+                              onClick={() => deleteDrawing(drawing.id)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Remove
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 3D Viewer Modal */}
+        <Dialog open={is3DViewerOpen} onOpenChange={setIs3DViewerOpen}>
+          <DialogContent className="max-w-6xl h-[85vh] p-0 overflow-hidden border-4 border-black rounded-[2.5rem] bg-white shadow-[15px_15px_0px_0px_rgba(0,0,0,1)]">
+            <DialogHeader className="p-6 bg-neutral-900 text-white flex flex-row items-center justify-between border-b-4 border-black">
+              <div>
+                <DialogTitle className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
+                  <Layers className="w-6 h-6 text-accent" />
+                  {selectedDrawing?.name}
+                </DialogTitle>
+                <DialogDescription className="text-white/60 font-bold uppercase text-[10px] tracking-widest mt-1">
+                  Interactive 3D Workspace • {selectedDrawing?.description || "Visualisasi Proyek TBJ Constech"}
+                </DialogDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                className="text-white hover:bg-white/10 rounded-full h-12 w-12"
+                onClick={() => setIs3DViewerOpen(false)}
+              >
+                <X className="w-6 h-6" />
+              </Button>
+            </DialogHeader>
+            <div className="flex-1 bg-neutral-100 relative h-full">
+              {selectedDrawing?.url && (
+                <iframe 
+                  src={selectedDrawing.url} 
+                  className="w-full h-full border-none"
+                  title="3D Viewer"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                  allowFullScreen
+                />
+              )}
+              
+              {/* Toolbar Hint */}
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4">
+                <div className="bg-black/80 backdrop-blur-md px-6 py-3 rounded-full border-2 border-white/20 flex items-center gap-6 shadow-2xl">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                    <span className="text-[10px] text-white font-black uppercase tracking-widest leading-none">Interactive Mode Active</span>
+                  </div>
+                  <div className="w-px h-4 bg-white/20" />
+                  <div className="flex gap-4 text-white/50 text-[9px] font-bold uppercase tracking-wider">
+                    <span>Left Click: Rotate</span>
+                    <span>Scroll: Zoom</span>
+                    <span>Right Click: Pan</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+      {activeTab === "photos" && !isDrawingsOnly && (
         <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-white animate-in slide-in-from-bottom-4 duration-500">
         <CardHeader className="bg-neutral-50 border-b-2 border-black flex flex-row items-center justify-between">
           <div>
@@ -1684,7 +1963,7 @@ const ProjectDetail = () => {
       </Card>
       )}
 
-      {activeTab === "rab" && (
+      {activeTab === "rab" && !isDrawingsOnly && (
         <div className="space-y-8">
           <div className="bg-neutral-50 p-4 md:p-6 rounded-[2rem] border-2 border-black/5 space-y-4">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -2455,6 +2734,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
   const [isVerifying, setIsVerifying] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false); // New state for registration
   const [showOtpDialog, setShowOtpDialog] = useState(false);
+  const [showTokenInfo, setShowTokenInfo] = useState(false);
   const [expandedRenovasi, setExpandedRenovasi] = useState(false);
   const [leadData, setLeadData] = useState({
     whatsapp: user.whatsapp || "",
@@ -2596,6 +2876,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
         // If already verified, go straight to result (Step 5), else go to verification (Step 4)
         if (user?.waVerified) {
           setStep(5);
+          setTimeout(() => setShowTokenInfo(true), 1500);
         } else {
           setStep(4);
         }
@@ -2648,6 +2929,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
         tier: user?.tier === "prospect" ? "prospect" : user?.tier
       });
       setStep(5); // <-- INI KRUSIAL: Memaksa tampilan pindah ke hasil
+      setTimeout(() => setShowTokenInfo(true), 1500);
       setShowOtpDialog(false);
       console.log("Estimasi Berhasil Diambil");
     } else {
@@ -4288,7 +4570,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                     <Card key={p.id} className="border border-neutral-200 rounded-2xl md:rounded-3xl overflow-hidden group hover:shadow-xl transition-all duration-500 bg-white">
                       <div className="h-40 md:h-48 relative overflow-hidden">
                         <img 
-                          src={getDriveImageUrl(p.photos[0]) || "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=800"} 
+                          src={getDriveImageUrl(p.photos[0]) || propertyPlaceholder} 
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                           referrerPolicy="no-referrer" 
                         />
@@ -4418,6 +4700,71 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showTokenInfo} onOpenChange={setShowTokenInfo}>
+        <DialogContent className="max-w-md border-4 border-black rounded-[2.5rem] bg-white overflow-hidden p-0">
+          <div className="bg-accent p-6 text-white text-center space-y-2">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2 border-2 border-white/30 backdrop-blur-sm">
+              <Zap className="w-8 h-8 text-white fill-white" />
+            </div>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">AI Analysis Berhasil!</DialogTitle>
+            <p className="text-xs font-bold uppercase tracking-widest text-[#FFE0CC]">Status Penggunaan TBJ AI Agent</p>
+          </div>
+          
+          <div className="p-8 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-neutral-50 border-2 border-black/5 flex flex-col items-center justify-center text-center">
+                <p className="text-[10px] font-black uppercase text-neutral-400 mb-1">Digunakan</p>
+                <p className="text-2xl font-black text-black">1 <span className="text-sm font-bold text-neutral-400">Token</span></p>
+              </div>
+              <div className="p-4 rounded-2xl bg-neutral-50 border-2 border-black/5 flex flex-col items-center justify-center text-center">
+                <p className="text-[10px] font-black uppercase text-neutral-400 mb-1">Sisa Token</p>
+                <p className="text-2xl font-black text-[#FF6B00]">
+                  {user?.waVerified ? (
+                    Math.max(0, (systemConfig?.aiVerifiedLimit || 10) - (user?.aiUsageCount || 0))
+                  ) : (
+                    Math.max(0, (systemConfig?.aiFreeLimit || 5) - (user?.aiUsageCount || 0))
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3 bg-blue-50 border-2 border-blue-100 rounded-xl">
+                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <p className="text-[10px] leading-tight font-bold text-blue-900 uppercase tracking-tight">
+                  Tahukah Anda? User dengan WhatsApp terverifikasi mendapatkan kuota 10x Lipat lebih banyak.
+                </p>
+              </div>
+              
+              <div className="bg-neutral-900 rounded-2xl p-6 text-white space-y-4 shadow-xl border-2 border-black">
+                <div className="space-y-1">
+                  <h4 className="text-sm font-black uppercase flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#FF6B00]" /> Unlimited Access?
+                  </h4>
+                  <p className="text-[10px] text-neutral-400 font-medium">Bantu kami meningkatkan kualitas layanan dengan mengisi survey singkat dan dapatkan akses AI tanpa batas!</p>
+                </div>
+                <Button 
+                  className="w-full btn-orange h-10 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2"
+                  onClick={() => window.open("https://forms.gle/placeholder", "_blank")}
+                >
+                  Isi Survey Sekarang <ExternalLink className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="p-6 bg-neutral-50 border-t-2 border-black/5 flex sm:justify-center">
+            <Button 
+              variant="outline" 
+              className="w-full sm:w-auto border-2 border-black rounded-xl font-black uppercase text-xs h-12 px-8 hover:bg-black hover:text-white transition-all"
+              onClick={() => setShowTokenInfo(false)}
+            >
+              Lihat Hasil Estimasi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -4505,9 +4852,24 @@ const ClientDashboard = ({ user }: { user: any }) => {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-2xl font-black uppercase">Progress Pekerjaan</CardTitle>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <FileCheck className="w-4 h-4" /> Kontrak Digital
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-2 border-2 border-black rounded-xl font-black uppercase text-[10px]"
+                      onClick={() => navigate(`/projects/${project.id}?tab=docs`)}
+                    >
+                      <FileCheck className="w-4 h-4" /> Kontrak Digital
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-2 border-2 border-black rounded-xl font-black uppercase text-[10px] bg-accent text-white"
+                      onClick={() => navigate(`/projects/${project.id}?tab=drawings`)}
+                    >
+                      <Ruler className="w-4 h-4" /> Drawings
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">

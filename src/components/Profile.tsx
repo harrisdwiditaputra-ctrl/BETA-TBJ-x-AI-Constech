@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, LayoutDashboard, FileText, Clock, CheckCircle2, TrendingUp, Calendar, MapPin, Plus, Camera, CreditCard, ShieldCheck, AlertCircle, ChevronRight, Check, MessageSquare, User, Zap, Lock, Users, Phone, Briefcase, ArrowLeft } from "lucide-react";
+import { Loader2, LayoutDashboard, FileText, Clock, CheckCircle2, TrendingUp, Calendar, MapPin, Plus, Camera, CreditCard, ShieldCheck, AlertCircle, ChevronRight, Check, MessageSquare, User, Zap, Lock, Users, Phone, Briefcase, ArrowLeft, Ruler, Layers } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -802,6 +802,29 @@ function ProjectCard({ project: initialProject, navigate, sysConfig, currentUser
                    </DialogFooter>
                 </DialogContent>
              </Dialog>
+          </div>
+        </Card>
+
+        <Card className="border-2 border-black rounded-3xl p-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
+              <Ruler className="w-5 h-5 text-accent" /> Technical Drawings & 3D
+            </h3>
+            <Badge className="rounded-md uppercase-soft bg-blue-100 text-blue-700 h-6 px-2 text-[8px]">Design Hub</Badge>
+          </div>
+          <div className="space-y-4">
+             <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-2">
+                <p className="text-[10px] font-black uppercase text-blue-700 items-center flex gap-2">
+                  <Layers className="w-4 h-4" /> Architectural Plans
+                </p>
+                <p className="text-[9px] font-bold text-blue-900 italic">"Akses Blueprint resmi, gambar kerja, dan visualisasi 3D proyek Anda secara digital di sini."</p>
+             </div>
+             <Button 
+               onClick={() => navigate(`/projects/${project.id}?tab=drawings&view=drawings_only`)}
+               className="w-full h-12 rounded-xl bg-accent text-white font-black uppercase text-[10px] shadow-sm hover:bg-black transition-colors"
+             >
+               Explore Design Workspace &rarr;
+             </Button>
           </div>
         </Card>
       </div>

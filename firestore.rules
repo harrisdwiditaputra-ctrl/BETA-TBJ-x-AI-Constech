@@ -90,6 +90,15 @@ service cloud.firestore {
              data.status in ['draft', 'awaiting', 'assessment', 'survey', 'active', 'completed', 'deal', 'pending', 'rejected'];
     }
 
+    function isValidDrawing(data) {
+      return data.keys().hasAll(['name', 'type', 'url', 'uploadedBy', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.type in ['2D', '3D'] &&
+             data.url is string && data.url.size() > 0 &&
+             data.uploadedBy is string && isValidId(data.uploadedBy) &&
+             (data.get('description', '') is string);
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -110,6 +119,13 @@ service cloud.firestore {
       allow create: if isSignedIn() && isEmailVerified() && isValidProject(incoming());
       allow update: if (isOwner(existing().ownerId) || isStaff()) && isValidProject(incoming());
       allow delete: if isAdmin();
+
+      match /drawings/{drawingId} {
+        allow read: if isOwner(get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId) || isStaff();
+        allow create: if isVerifiedStaff() && isValidDrawing(incoming());
+        allow update: if isVerifiedStaff() && isValidDrawing(incoming());
+        allow delete: if isAdmin();
+      }
 
       match /{allSubcollections=**} {
         allow read: if isOwner(get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId) || isStaff();

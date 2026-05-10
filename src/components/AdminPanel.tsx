@@ -8,7 +8,7 @@ import {
   useFinance, useWorkerWages, useMasterCategories, 
   usePMs, useMediaAssets, useSavedEstimates, 
   saveImageToGudang, useMaterialSuggestions,
-  useProjectDetails, useLeads
+  useProjectDetails, useLeads, useTechnicalDrawings
 } from "@/lib/hooks";
 import { ProjectAIHealth } from "./ProjectAIHealth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -2399,11 +2399,6 @@ export default function AdminPanel() {
                     />
                   </div>
                   <Dialog open={showAddProject} onOpenChange={setShowAddProject}>
-                    <DialogTrigger render={
-                      <Button className="btn-accent h-12 px-6 rounded-2xl w-full lg:w-auto text-[10px] sm:text-xs">
-                        <Plus className="w-4 h-4 mr-2" /> Tambah Proyek
-                      </Button>
-                    } />
                     <DialogContent className="max-w-2xl rounded-[2.5rem] border-4 border-black p-8">
                       <DialogHeader>
                         <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Manual Project Initiation</DialogTitle>
@@ -2484,16 +2479,15 @@ export default function AdminPanel() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
-                  <div className="flex flex-col gap-2 w-full lg:w-48">
+                  <div className="flex flex-col gap-3 w-full lg:w-48">
                     <Button 
-                      className="bg-black text-white h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-neutral-800"
+                      className="btn-accent h-12 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-transform w-full"
                       onClick={() => setShowAddProject(true)}
                     >
                       <Plus className="w-4 h-4 mr-2" /> Tambah Proyek
                     </Button>
                     <Button 
-                      variant="outline"
-                      className="border-2 border-black h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-50" 
+                      className="btn-sleek h-12 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg w-full" 
                       onClick={() => navigate("/pm")}
                     >
                       <LayoutDashboard className="w-4 h-4 mr-2" /> PM Dashboard

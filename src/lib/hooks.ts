@@ -3,8 +3,9 @@ import { auth, db, storage, handleFirestoreError, OperationType } from "@/lib/fi
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from "firebase/auth";
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy, addDoc, updateDoc, deleteDoc, getDocs, writeBatch, limit } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { Project, BudgetCategory, BudgetItem, UserProfile, Property, WorkItemMaster, Workforce, Attendance, MaterialRequest, CMSConfig, Campaign, SystemConfig, Vendor, GalleryItem, TimelineEvent, MediaAsset, MediaCategory, MasterDataVersion, FinancialTransaction, WorkerWage } from "@/types";
+import { Project, BudgetCategory, BudgetItem, UserProfile, Property, WorkItemMaster, Workforce, Attendance, MaterialRequest, CMSConfig, Campaign, SystemConfig, Vendor, GalleryItem, TimelineEvent, MediaAsset, MediaCategory, MasterDataVersion, FinancialTransaction, WorkerWage, TechnicalDrawing } from "@/types";
 import { WORK_ITEMS_MASTER } from "@/constants";
+import { roundToRatusan } from "./utils";
 import { nuclearWipe } from "./database";
 import { toast } from "sonner";
 
@@ -330,6 +331,57 @@ export function useLeads() {
   return { leads, loading, addLead, updateLead, deleteLead };
 }
 
+export function useTechnicalDrawings(projectId?: string) {
+  const [drawings, setDrawings] = useState<TechnicalDrawing[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!projectId) {
+      setDrawings([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "projects", projectId, "drawings"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as TechnicalDrawing[];
+      setDrawings(data);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `projects/${projectId}/drawings`);
+    });
+
+    return () => unsubscribe();
+  }, [projectId]);
+
+  const addDrawing = async (drawing: Omit<TechnicalDrawing, "id">) => {
+    if (!projectId) return;
+    try {
+      await addDoc(collection(db, "projects", projectId, "drawings"), drawing);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `projects/${projectId}/drawings`);
+    }
+  };
+
+  const deleteDrawing = async (drawingId: string) => {
+    if (!projectId) return;
+    try {
+      await deleteDoc(doc(db, "projects", projectId, "drawings", drawingId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `projects/${projectId}/drawings/${drawingId}`);
+    }
+  };
+
+  return { drawings, loading, addDrawing, deleteDrawing };
+}
+
 export function useProjectDetails(projectId: string | undefined) {
   const [project, setProject] = useState<Project | null>(null);
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
@@ -395,7 +447,8 @@ export function useProjectDetails(projectId: string | undefined) {
   const addItem = async (categoryId: string, name: string, quantity: number, unit: string, pricePerUnit: number, technicalSpecs?: string, priority?: BudgetItem["priority"], progress: number = 0, endDate?: string, isAHSP: boolean = false) => {
     if (!projectId) return;
     try {
-      const totalPrice = quantity * pricePerUnit;
+      const roundedPrice = roundToRatusan(pricePerUnit);
+      const totalPrice = roundToRatusan(quantity * roundedPrice);
       await addDoc(collection(db, "projects", projectId, "items"), {
         projectId,
         categoryId,
@@ -403,7 +456,7 @@ export function useProjectDetails(projectId: string | undefined) {
         technicalSpecs: technicalSpecs || "",
         quantity,
         unit,
-        pricePerUnit,
+        pricePerUnit: roundedPrice,
         totalPrice,
         progress: progress || 0,
         priority: priority || "Medium",
@@ -480,7 +533,23 @@ export function useProjectDetails(projectId: string | undefined) {
   const updateItem = async (itemId: string, data: Partial<BudgetItem>) => {
     if (!projectId) return;
     try {
-      await updateDoc(doc(db, "projects", projectId, "items", itemId), data);
+      let finalData = { ...data };
+      
+      // If updating quantity or price, recalculate and round totalPrice
+      if (data.quantity !== undefined || data.pricePerUnit !== undefined) {
+        const itemToUpdate = items.find(i => i.id === itemId);
+        if (itemToUpdate) {
+          const qty = data.quantity !== undefined ? data.quantity : itemToUpdate.quantity;
+          const price = data.pricePerUnit !== undefined ? roundToRatusan(data.pricePerUnit) : itemToUpdate.pricePerUnit;
+          
+          finalData.pricePerUnit = price;
+          finalData.totalPrice = roundToRatusan(qty * price);
+        }
+      } else if (data.totalPrice !== undefined) {
+        finalData.totalPrice = roundToRatusan(data.totalPrice);
+      }
+
+      await updateDoc(doc(db, "projects", projectId, "items", itemId), finalData);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}/items/${itemId}`);
     }

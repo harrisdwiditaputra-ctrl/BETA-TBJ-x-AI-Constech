@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { TBJ_LOGO } from '../constants';
 import { AIEstimateResponse } from '../types';
-import { roundToRibuan } from './utils';
+import { roundToRatusan } from './utils';
 
 // Helper to convert image URL to Base64
 const imageUrlToBase64 = async (url: string): Promise<string> => {
@@ -167,7 +167,7 @@ export const generateRABPDF = async (
   const taxRate = (finance?.taxPercentage || 0) / 100;
   const beforeTax = subtotal - discount - deposit;
   const taxAmount = beforeTax * taxRate;
-  const totalBudget = roundToRibuan(beforeTax + taxAmount);
+  const totalBudget = roundToRatusan(beforeTax + taxAmount);
   
   if (currentY > 200) { // Slightly lower threshold to be safe
     doc.addPage();

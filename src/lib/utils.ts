@@ -17,21 +17,23 @@ export function formatRupiah(amount: number) {
 export function calculateAdminPrice(basePrice: number, globalMarkup: number = 20, skipMarkup: boolean = false) {
   if (skipMarkup) return basePrice;
   const markupFactor = 1 + (globalMarkup / 100);
-  return basePrice * markupFactor;
+  const rawPrice = basePrice * markupFactor;
+  return roundToRatusan(rawPrice);
 }
 
 export function calculateClientPrice(basePrice: number, globalMarkup: number = 20, skipMarkup: boolean = false) {
   if (skipMarkup) return basePrice; 
   const markupFactor = 1 + (globalMarkup / 100);
   // Base + Markup + 10% Profit Margin as per instructions
-  return basePrice * markupFactor * 1.1;
+  const rawPrice = basePrice * markupFactor * 1.1;
+  return roundToRatusan(rawPrice);
 }
 
 /**
- * Rounds a number to the nearest 1000 (Rupiah standard for professional look)
+ * Rounds a number to the nearest 100 (Rupiah standard requested for TBJ)
  */
-export function roundToRibuan(amount: number) {
-  return Math.ceil(amount / 1000) * 1000;
+export function roundToRatusan(amount: number) {
+  return Math.ceil(amount / 100) * 100;
 }
 
 export function getDriveImageUrl(url: string) {

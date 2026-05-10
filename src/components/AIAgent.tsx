@@ -1,12 +1,20 @@
 import { useState, useRef, useEffect } from "react";
 import { GoogleGenAI, Type } from "@google/genai";
-import { useAuth, useMasterData } from "@/lib/hooks";
+import { useAuth, useMasterData, useSystemConfig } from "@/lib/hooks";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Send, Image as ImageIcon, Loader2, User, Bot, Sparkles, X, ChevronRight } from "lucide-react";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription, 
+  DialogFooter 
+} from "@/components/ui/dialog";
+import { MessageSquare, Send, Image as ImageIcon, Loader2, User, Bot, Sparkles, X, ChevronRight, Zap, Info, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { TBJ_LOGO } from "@/constants";
@@ -18,8 +26,9 @@ interface Message {
 }
 
 export default function AIAgent() {
-  const { user } = useAuth();
+  const { user, incrementAIUsage } = useAuth();
   const { masterData } = useMasterData();
+  const { config: sysConfig } = useSystemConfig();
   const assistantLogo = TBJ_LOGO;
 
   const [messages, setMessages] = useState<Message[]>([
@@ -28,6 +37,7 @@ export default function AIAgent() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const [showTokenInfo, setShowTokenInfo] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scrollToTop = () => {
@@ -129,11 +139,13 @@ export default function AIAgent() {
       setMessages(prev => [...prev, { role: "model", parts: [{ text: responseText }] }]);
       
       if (user && user.uid && !user.uid.startsWith("guest-")) {
-        const { updateDoc, doc } = await import("firebase/firestore");
-        const { db } = await import("@/lib/firebase");
-        await updateDoc(doc(db, "users", user.uid), {
-          aiUsageCount: (user.aiUsageCount || 0) + 1
-        });
+        const isStaff = user.role === "admin" || user.role === "pm";
+        if (!isStaff) {
+          await incrementAIUsage();
+        }
+        
+        // Show token notification after a short delay
+        setTimeout(() => setShowTokenInfo(true), 1500);
       }
     } catch (error: any) {
       console.error("AI Agent Error:", error);
@@ -271,6 +283,71 @@ export default function AIAgent() {
           </p>
         </div>
       </Card>
+
+      <Dialog open={showTokenInfo} onOpenChange={setShowTokenInfo}>
+        <DialogContent className="max-w-md border-4 border-black rounded-[2.5rem] bg-white overflow-hidden p-0">
+          <div className="bg-accent p-6 text-white text-center space-y-2">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2 border-2 border-white/30 backdrop-blur-sm">
+              <Zap className="w-8 h-8 text-white fill-white" />
+            </div>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">AI Analysis Berhasil!</DialogTitle>
+            <p className="text-xs font-bold uppercase tracking-widest text-[#FFE0CC]">Status Penggunaan TBJ AI Agent</p>
+          </div>
+          
+          <div className="p-8 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-neutral-50 border-2 border-black/5 flex flex-col items-center justify-center text-center">
+                <p className="text-[10px] font-black uppercase text-neutral-400 mb-1">Digunakan</p>
+                <p className="text-2xl font-black text-black">1 <span className="text-sm font-bold text-neutral-400">Token</span></p>
+              </div>
+              <div className="p-4 rounded-2xl bg-neutral-50 border-2 border-black/5 flex flex-col items-center justify-center text-center">
+                <p className="text-[10px] font-black uppercase text-neutral-400 mb-1">Sisa Token</p>
+                <p className="text-2xl font-black text-[#FF6B00]">
+                  {user?.waVerified ? (
+                    Math.max(0, (sysConfig?.aiVerifiedLimit || 10) - (user?.aiUsageCount || 0))
+                  ) : (
+                    Math.max(0, (sysConfig?.aiFreeLimit || 5) - (user?.aiUsageCount || 0))
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3 bg-blue-50 border-2 border-blue-100 rounded-xl">
+                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <p className="text-[10px] leading-tight font-bold text-blue-900 uppercase tracking-tight">
+                  Tahukah Anda? User dengan WhatsApp terverifikasi mendapatkan kuota 10x Lipat lebih banyak.
+                </p>
+              </div>
+              
+              <div className="bg-neutral-900 rounded-2xl p-6 text-white space-y-4 shadow-xl border-2 border-black">
+                <div className="space-y-1">
+                  <h4 className="text-sm font-black uppercase flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#FF6B00]" /> Unlimited Access?
+                  </h4>
+                  <p className="text-[10px] text-neutral-400 font-medium">Bantu kami meningkatkan kualitas layanan dengan mengisi survey singkat dan dapatkan akses AI tanpa batas!</p>
+                </div>
+                <Button 
+                  className="w-full btn-orange h-10 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2"
+                  onClick={() => window.open("https://forms.gle/placeholder", "_blank")}
+                >
+                  Isi Survey Sekarang <ExternalLink className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="p-6 bg-neutral-50 border-t-2 border-black/5 flex sm:justify-center">
+            <Button 
+              variant="outline" 
+              className="w-full sm:w-auto border-2 border-black rounded-xl font-black uppercase text-xs h-12 px-8 hover:bg-black hover:text-white transition-all"
+              onClick={() => setShowTokenInfo(false)}
+            >
+              Lanjutkan Konsultasi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -187,6 +187,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "whatsapp", "status", "createdAt"]
+    },
+    "TechnicalDrawing": {
+      "title": "TechnicalDrawing",
+      "description": "Gambar teknis 2D atau 3D proyek",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Nama gambar/dokumen" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["2D", "3D"] },
+        "url": { "type": "string", "description": "URL file (gambar/PDF/SketchUp link)" },
+        "thumbnailUrl": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "type", "url", "uploadedBy", "createdAt"]
     }
   },
   "firestore": {
@@ -201,6 +216,10 @@
     "/projects/{projectId}/items/{itemId}": {
       "schema": "BudgetItem",
       "description": "Item anggaran dalam proyek"
+    },
+    "/projects/{projectId}/drawings/{drawingId}": {
+      "schema": "TechnicalDrawing",
+      "description": "Gambar teknis 2D/3D proyek"
     },
     "/users/{userId}": {
       "schema": "UserProfile",
