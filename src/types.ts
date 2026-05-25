@@ -119,6 +119,8 @@ export interface BudgetItem {
   endDate?: string;
   priority?: "Low" | "Medium" | "High" | "Urgent";
   isAHSP?: boolean; // Added to skip global markup calculation
+  code?: string; // AHSP or Master code
+  masterItemId?: string; // Link to master data for analytics
 }
 
 export interface Property {
@@ -197,6 +199,7 @@ export interface WorkItemMaster {
   status?: "visible" | "hidden" | "deleted";
   soldCount?: number;
   revenue?: number;
+  isAHSP?: boolean;
 }
 
 export interface UserProfile {
@@ -341,6 +344,7 @@ export interface FinancialTransaction {
   projectName?: string;
   type: "income" | "expense";
   category: "client_payment" | "material" | "labor" | "assessment" | "other";
+  subCategory?: string; // e.g. tol, bensin, makan, jajan
   amount: number;
   description: string;
   date: string;
@@ -350,6 +354,8 @@ export interface FinancialTransaction {
   referenceId?: string; // ID of the related object (e.g. material request ID, worker ID)
   status: "pending" | "completed";
   tags?: string[];
+  recordedBy?: string;
+  recordedRole?: "admin" | "pm" | "user";
 }
 
 export interface WorkerWage {

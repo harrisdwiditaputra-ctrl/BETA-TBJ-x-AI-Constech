@@ -27,15 +27,15 @@ import {
   ChevronRight, Download, Eye, EyeOff, Trash2, Image as ImageIcon, 
   LayoutDashboard, FileText, HardHat, Camera, BarChart3, Clock, Phone, User, Mail, Box,
   CheckCircle2, MapPin, Package, Brain, Zap, AlertCircle, Layers, History, Sparkles, Upload, X, HardDrive, Menu, ExternalLink, Calendar,
-  ArrowDownLeft, ArrowUpRight, Lock, Gavel, CreditCard, Truck, BarChart, FileEdit, Link2, BarChart2
+  ArrowDownLeft, ArrowUpRight, Lock, Gavel, CreditCard, Truck, BarChart, FileEdit, Link2, BarChart2, Check
 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, getDocs, limit, writeBatch, getDocsFromServer } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, limit, writeBatch, getDocsFromServer, onSnapshot } from "firebase/firestore";
 import PMDashboard from "./PMDashboard";
 import MediaWarehouse from "./MediaWarehouse";
 import { cn, getDriveImageUrl, formatRupiah, calculateAdminPrice, calculateClientPrice } from "@/lib/utils";
 import { toast } from "sonner";
-import { WorkItemMaster, UserProfile, Project, Workforce, MaterialRequest, Property, Campaign, SystemConfig, CMSConfig, Vendor, GalleryItem } from "@/types";
+import { WorkItemMaster, UserProfile, Project, Workforce, MaterialRequest, Property, Campaign, SystemConfig, CMSConfig, Vendor, GalleryItem, FinancialTransaction, BudgetItem } from "@/types";
 import { generateRABPDF, generatePOPDF, generateInvoicePDF, generateReceiptPDF } from "@/lib/pdfUtils";
 import { ImageUpload } from "@/components/ImageUpload";
 import { WORK_ITEMS_MASTER, TBJ_LOGO } from "@/constants";
@@ -97,6 +97,8 @@ export default function AdminPanel() {
     updateMasterItem, 
     deleteMasterItem, 
     addMasterCategory, 
+    updateMasterCategory,
+    deleteMasterCategory,
     resetDatabase, 
     clearMasterData,
     bulkAddMasterItems,
@@ -128,7 +130,194 @@ export default function AdminPanel() {
   const { attendance, loading: attendanceLoading } = useAttendance(user?.role);
   const { config: cmsConfig, updateConfig: updateCMS } = useCMSConfig();
   const { config: systemConfig, updateConfig: updateSystem } = useSystemConfig();
-  const { transactions, addTransaction } = useFinance();
+  const { transactions, addTransaction, updateTransaction, deleteTransaction } = useFinance();
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<FinancialTransaction>>({});
+  const [financeSearch, setFinanceSearch] = useState("");
+  const [financePage, setFinancePage] = useState(1);
+  const [financeCategoryFilter, setFinanceCategoryFilter] = useState<"all" | "income" | "material" | "labor" | "assessment" | "other">("all");
+  const [financeProjectFilter, setFinanceProjectFilter] = useState("all");
+  const financeLimit = 15;
+
+  const filteredFinance = useMemo(() => {
+    return transactions.filter(t => {
+      const matchesSearch = 
+        t.description.toLowerCase().includes(financeSearch.toLowerCase()) ||
+        t.projectName?.toLowerCase().includes(financeSearch.toLowerCase()) ||
+        t.category.toLowerCase().includes(financeSearch.toLowerCase()) ||
+        t.date.includes(financeSearch);
+
+      let matchesCategory = true;
+      if (financeCategoryFilter !== "all") {
+        if (financeCategoryFilter === "income") {
+          matchesCategory = t.type === "income";
+        } else {
+          matchesCategory = t.type === "expense" && t.category === financeCategoryFilter;
+        }
+      }
+
+      let matchesProject = true;
+      if (financeProjectFilter !== "all") {
+        matchesProject = t.projectId === financeProjectFilter;
+      }
+
+      return matchesSearch && matchesCategory && matchesProject;
+    });
+  }, [transactions, financeSearch, financeCategoryFilter, financeProjectFilter]);
+
+  const ledgerTxList = useMemo(() => {
+    if (financeProjectFilter === "all") return transactions;
+    return transactions.filter(t => t.projectId === financeProjectFilter);
+  }, [transactions, financeProjectFilter]);
+
+  const ledgerStats = useMemo(() => {
+    const totalIncome = ledgerTxList.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const totalExpense = ledgerTxList.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    const sisaDana = totalIncome - totalExpense;
+
+    const materialExpense = ledgerTxList.filter(t => t.type === 'expense' && t.category === 'material').reduce((sum, t) => sum + t.amount, 0);
+    const laborExpense = ledgerTxList.filter(t => t.type === 'expense' && t.category === 'labor').reduce((sum, t) => sum + t.amount, 0);
+    const assessmentExpense = ledgerTxList.filter(t => t.type === 'expense' && t.category === 'assessment').reduce((sum, t) => sum + t.amount, 0);
+    const otherExpense = ledgerTxList.filter(t => t.type === 'expense' && t.category === 'other').reduce((sum, t) => sum + t.amount, 0);
+
+    return {
+      totalIncome,
+      totalExpense,
+      sisaDana,
+      materialExpense,
+      laborExpense,
+      assessmentExpense,
+      otherExpense
+    };
+  }, [ledgerTxList]);
+
+  const contractRevenue = useMemo(() => projects.reduce((acc, p) => acc + (p.totalBudget || 0), 0), [projects]);
+  const incomingRevenue = useMemo(() => transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0), [transactions]);
+
+  const paginatedFinance = filteredFinance.slice((financePage - 1) * financeLimit, financePage * financeLimit);
+  const totalFinancePages = Math.ceil(filteredFinance.length / financeLimit);
+
+  const handleEditTransaction = (t: FinancialTransaction) => {
+    setEditingTransactionId(t.id);
+    setEditFormData({
+      description: t.description,
+      amount: t.amount,
+      category: t.category,
+      subCategory: t.subCategory || "",
+      method: t.method
+    });
+  };
+
+  const saveEditTransaction = async () => {
+    if (!editingTransactionId) return;
+    try {
+      await updateTransaction(editingTransactionId, {
+        ...editFormData,
+        recordedBy: user?.displayName || user?.email || "Admin",
+        recordedRole: "admin"
+      });
+      setEditingTransactionId(null);
+    } catch (error) {
+      toast.error("Failed to update transaction");
+    }
+  };
+
+  const [recapYear, setRecapYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonthForDetails, setSelectedMonthForDetails] = useState<number | null>(null);
+
+  const periodicRecap = useMemo(() => {
+    const grouped: {
+      [year: number]: {
+        totalIncome: number;
+        totalExpense: number;
+        netProfit: number;
+        months: {
+          [monthNum: number]: {
+            monthName: string;
+            totalIncome: number;
+            totalExpense: number;
+            netProfit: number;
+            categories: { [cat: string]: number };
+            subCategories: { [subCat: string]: number };
+            transactionsCount: number;
+          }
+        }
+      }
+    } = {};
+
+    const monthNames = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+
+    transactions.forEach(t => {
+      const d = new Date(t.date);
+      const year = d.getFullYear() || 2026;
+      const monthNum = d.getMonth(); // 0-11
+
+      if (!grouped[year]) {
+        grouped[year] = {
+          totalIncome: 0,
+          totalExpense: 0,
+          netProfit: 0,
+          months: {}
+        };
+      }
+
+      if (!grouped[year].months[monthNum]) {
+        grouped[year].months[monthNum] = {
+          monthName: monthNames[monthNum],
+          totalIncome: 0,
+          totalExpense: 0,
+          netProfit: 0,
+          categories: { material: 0, labor: 0, assessment: 0, other: 0 },
+          subCategories: { tol: 0, bensin: 0, makan: 0, jajan: 0, atk: 0, operasional: 0, darurat: 0, lainnya: 0 },
+          transactionsCount: 0
+        };
+      }
+
+      grouped[year].months[monthNum].transactionsCount++;
+
+      if (t.type === "income") {
+        grouped[year].totalIncome += t.amount;
+        grouped[year].months[monthNum].totalIncome += t.amount;
+      } else {
+        grouped[year].totalExpense += t.amount;
+        grouped[year].months[monthNum].totalExpense += t.amount;
+
+        // Category breakdown
+        const cat = t.category || "other";
+        if (grouped[year].months[monthNum].categories[cat] !== undefined) {
+          grouped[year].months[monthNum].categories[cat] += t.amount;
+        } else {
+          grouped[year].months[monthNum].categories[cat] = t.amount;
+        }
+
+        // Subcategory breakdown
+        if (t.subCategory) {
+          const sub = t.subCategory;
+          if (grouped[year].months[monthNum].subCategories[sub] !== undefined) {
+            grouped[year].months[monthNum].subCategories[sub] += t.amount;
+          } else {
+            grouped[year].months[monthNum].subCategories[sub] = t.amount;
+          }
+        }
+      }
+    });
+
+    // Compute net profits
+    Object.keys(grouped).forEach(yrStr => {
+      const yr = Number(yrStr);
+      grouped[yr].netProfit = grouped[yr].totalIncome - grouped[yr].totalExpense;
+      Object.keys(grouped[yr].months).forEach(monStr => {
+        const mon = Number(monStr);
+        grouped[yr].months[mon].netProfit = grouped[yr].months[mon].totalIncome - grouped[yr].months[mon].totalExpense;
+      });
+    });
+
+    return grouped;
+  }, [transactions]);
+
   const { wages, updateWageStatus } = useWorkerWages();
   const { pms } = usePMs();
   const { estimates: savedEstimates, deleteEstimate } = useSavedEstimates(undefined, true);
@@ -214,6 +403,80 @@ export default function AdminPanel() {
   const [selectedMasterCategory, setSelectedMasterCategory] = useState<string>("");
   const [selectedUnit, setSelectedUnit] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [projectItems, setProjectItems] = useState<{ [projectId: string]: BudgetItem[] }>({});
+
+  useEffect(() => {
+    if (projectsLoading || projects.length === 0) return;
+
+    const unsubscribes: (() => void)[] = [];
+
+    projects.forEach((proj) => {
+      const q = collection(db, "projects", proj.id, "items");
+      const unsub = onSnapshot(q, (snapshot) => {
+        const itemsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as BudgetItem[];
+        setProjectItems((prev) => ({
+          ...prev,
+          [proj.id]: itemsList
+        }));
+      }, (error) => {
+        console.error(`Error loading items for project ${proj.id}:`, error);
+      });
+      unsubscribes.push(unsub);
+    });
+
+    return () => {
+      unsubscribes.forEach((unsub) => unsub());
+    };
+  }, [projects, projectsLoading]);
+
+  const masterDataWithStats = useMemo(() => {
+    return masterData.map((masterItem) => {
+      let activeVolume = 0;
+      let activeRevenue = 0;
+      let activeProjectsCount = 0;
+      let completedVolume = 0;
+      let completedRevenue = 0;
+      let completedProjectsCount = 0;
+
+      projects.forEach((proj) => {
+        const items = projectItems[proj.id] || [];
+        const matchingItems = items.filter((bItem) => {
+          if (bItem.masterItemId && bItem.masterItemId === masterItem.id) return true;
+          if (bItem.code && masterItem.code && bItem.code.trim().toUpperCase() === masterItem.code.trim().toUpperCase()) return true;
+          if (bItem.name.trim().toLowerCase() === masterItem.name.trim().toLowerCase()) return true;
+          return false;
+        });
+
+        if (matchingItems.length > 0) {
+          const projectVol = matchingItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+          const projectRev = matchingItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+
+          if (proj.status === "active") {
+            activeVolume += projectVol;
+            activeRevenue += projectRev;
+            activeProjectsCount++;
+          } else if (proj.status === "completed") {
+            completedVolume += projectVol;
+            completedRevenue += projectRev;
+            completedProjectsCount++;
+          }
+        }
+      });
+
+      return {
+        ...masterItem,
+        activeVolume,
+        activeRevenue,
+        activeProjectsCount,
+        completedVolume,
+        completedRevenue,
+        completedProjectsCount,
+        totalUsageCount: activeProjectsCount + completedProjectsCount,
+        totalVolume: activeVolume + completedVolume,
+        totalRevenue: activeRevenue + completedRevenue
+      };
+    });
+  }, [masterData, projects, projectItems]);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [expandedNavSections, setExpandedNavSections] = useState<string[]>(["Operational Hub"]);
 
@@ -330,6 +593,15 @@ export default function AdminPanel() {
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [versionForm, setVersionForm] = useState({ name: "", notes: "" });
   const [editingMasterSpecs, setEditingMasterSpecs] = useState<{id: string, name: string, specs: string} | any>(null);
+  const [editingWorkerData, setEditingWorkerData] = useState<Workforce | null>(null);
+  const handleEditWorker = (w: Workforce) => setEditingWorkerData(w);
+  const handleSaveWorkerEdit = async () => {
+    if (editingWorkerData) {
+      await updateWorkforce(editingWorkerData.id, editingWorkerData);
+      setEditingWorkerData(null);
+      toast.success("Data pekerja diperbarui");
+    }
+  };
   const [selectedProjectAI, setSelectedProjectAI] = useState<Project | any>({});
   const [selectedProjectFinance, setSelectedProjectFinance] = useState<Project | any>({});
   const [editingMilestoneIndex, setEditingMilestoneIndex] = useState<number | null>(null);
@@ -423,6 +695,20 @@ export default function AdminPanel() {
     }
   };
 
+  const [editingProjectData, setEditingProjectData] = useState<Project | null>(null);
+
+  const handleEditProject = (p: Project) => {
+    setEditingProjectData(p);
+  };
+
+  const handleSaveProjectEdit = async () => {
+    if (editingProjectData) {
+      await updateProject(editingProjectData.id, editingProjectData);
+      setEditingProjectData(null);
+      toast.success("Data proyek berhasil diperbarui");
+    }
+  };
+
   const executeDeleteWorker = async () => {
     if (workerToDelete) {
       await deleteWorkforce(workerToDelete.id);
@@ -473,6 +759,7 @@ export default function AdminPanel() {
     amount: 0,
     description: "",
     category: "material" as any,
+    subCategory: "",
     method: "Cash" as any,
     receiptUrl: "",
     itemId: ""
@@ -515,7 +802,9 @@ export default function AdminPanel() {
         description: paymentForm.description,
         method: paymentForm.method,
         date: new Date().toISOString(),
-        status: "completed"
+        status: "completed",
+        recordedBy: user?.displayName || user?.email || "Admin",
+        recordedRole: "admin"
       });
 
       setShowRecordPayment(false);
@@ -544,13 +833,16 @@ export default function AdminPanel() {
         projectName: projectName,
         type: "expense",
         category: expenseForm.category as any,
+        subCategory: expenseForm.subCategory || "",
         amount: expenseForm.amount,
         description: expenseForm.description,
         method: expenseForm.method as any,
         receiptUrl: expenseForm.receiptUrl,
-        itemId: expenseForm.itemId || undefined,
+        itemId: expenseForm.itemId || "",
         date: new Date().toISOString(),
-        status: "completed"
+        status: "completed",
+        recordedBy: user?.displayName || user?.email || "Admin",
+        recordedRole: "admin"
       });
 
       // If it's a labor expense (wage), we might want to check if it's tied to useWorkerWages, 
@@ -562,6 +854,7 @@ export default function AdminPanel() {
         amount: 0,
         description: "",
         category: "material",
+        subCategory: "",
         method: "Cash",
         receiptUrl: "",
         itemId: ""
@@ -741,7 +1034,7 @@ export default function AdminPanel() {
   }, [masterData, standardizedCategories]);
 
   const filteredMaster = useMemo(() => {
-    let data = masterData;
+    let data = masterDataWithStats;
     if (selectedMasterCategory) {
       data = data.filter(item => item.category === selectedMasterCategory);
     }
@@ -756,8 +1049,32 @@ export default function AdminPanel() {
         (item.category && item.category.toLowerCase().includes(s))
       );
     }
-    return data;
-  }, [masterData, search, selectedMasterCategory, selectedUnit]);
+
+    // Sort: items with totalUsageCount > 0 come first (and highest use is positioned first)
+    return [...data].sort((a, b) => {
+      const aUsed = a.totalUsageCount > 0;
+      const bUsed = b.totalUsageCount > 0;
+
+      if (aUsed && !bUsed) return -1;
+      if (!aUsed && bUsed) return 1;
+
+      if (aUsed && bUsed) {
+        // Both used, sort by totalUsageCount DESC
+        const usageDiff = b.totalUsageCount - a.totalUsageCount;
+        if (usageDiff !== 0) return usageDiff;
+        // Then by totalRevenue DESC
+        const revDiff = b.totalRevenue - a.totalRevenue;
+        if (revDiff !== 0) return revDiff;
+      }
+
+      // Unused/fallback comparison: categorized, then code order
+      const catComp = (a.category || "").localeCompare(b.category || "");
+      if (catComp !== 0) return catComp;
+      const codeComp = (a.code || "").localeCompare(b.code || "");
+      if (codeComp !== 0) return codeComp;
+      return a.name.localeCompare(b.name);
+    });
+  }, [masterDataWithStats, search, selectedMasterCategory, selectedUnit]);
 
   // Reset pagination on filter change
   useEffect(() => {
@@ -787,13 +1104,16 @@ export default function AdminPanel() {
 
   const handleExportMasterRAB = () => {
     const cats = masterCategories.length > 0 ? masterCategories : Array.from(new Set(masterData.map(i => i.category))).map(c => ({ id: c, name: c }));
-    generateRABPDF("MASTER RAB TBJ HUB", cats, masterData.map(item => ({
-      ...item,
-      quantity: 1,
-      pricePerUnit: item.price,
-      totalPrice: item.price
-    })), pdfLogo);
-    toast.success("Master RAB PDF exported successfully");
+    generateRABPDF("MASTER RAB TBJ HUB", cats, masterData.map(item => {
+      const finalPrice = calculateAdminPrice(item.price, systemConfig?.globalMarkup, false);
+      return {
+        ...item,
+        quantity: 1,
+        pricePerUnit: finalPrice,
+        totalPrice: finalPrice
+      };
+    }), pdfLogo);
+    toast.success("Master RAB PDF exported with Admin Price Architecture");
   };
 
   const toggleCategory = (cat: string) => {
@@ -1116,14 +1436,23 @@ export default function AdminPanel() {
             {activeTab === "dashboard" && (
             <div className="space-y-8">
               <div className="grid md:grid-cols-4 gap-6">
-                <Card className="border-2 border-black rounded-2xl shadow-sm">
+                <Card className="border-2 border-black rounded-2xl shadow-sm bg-gradient-to-br from-emerald-50/40 to-white">
                   <CardHeader className="pb-2">
-                    <CardDescription className="uppercase-soft">Total Revenue</CardDescription>
-                    <CardTitle className="text-3xl font-black">Rp {(projects.reduce((acc, p) => acc + (p.totalBudget || 0), 0) / 1000000000).toFixed(2)}B</CardTitle>
+                    <CardDescription className="uppercase-soft text-[#FF6B00] font-black flex items-center gap-1">💰 Total Revenue</CardDescription>
+                    <div className="space-y-1 mt-1.5">
+                      <div>
+                        <span className="text-[9px] font-black uppercase text-neutral-400 block leading-none">Nilai Kontrak (RAB)</span>
+                        <span className="text-xl font-black text-neutral-900 leading-tight block">{formatRupiah(contractRevenue)}</span>
+                      </div>
+                      <div className="pt-1.5 border-t border-black/5 mt-1.5">
+                        <span className="text-[9px] font-black uppercase text-neutral-400 block leading-none">Pemasukan Riil</span>
+                        <span className="text-xl font-black text-green-600 leading-tight block">{formatRupiah(incomingRevenue)}</span>
+                      </div>
+                    </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-1 text-green-500 text-[10px] font-bold">
-                      <TrendingUp className="w-3 h-3" /> +{(Math.random() * 15).toFixed(1)}% vs last month
+                  <CardContent className="pt-1">
+                    <div className="flex items-center gap-1 text-green-600 text-[10px] font-black">
+                      <TrendingUp className="w-3.5 h-3.5" /> Realtime Live Sync
                     </div>
                   </CardContent>
                 </Card>
@@ -1533,17 +1862,78 @@ export default function AdminPanel() {
                     <option key={c.id} value={c.name}>{c.name}</option>
                   ))}
                 </select>
-                <select 
-                  className="h-10 rounded-xl border-2 border-black px-3 text-[10px] font-black uppercase tracking-widest bg-white"
-                  value={selectedUnit || ""}
-                  onChange={e => setSelectedUnit(e.target.value || null)}
-                >
-                  <option value="">All Units</option>
-                  {allUnits.map(unit => (
-                    <option key={unit} value={unit}>{unit}</option>
-                  ))}
-                </select>
-              </div>
+                  <select 
+                    className="h-10 rounded-xl border-2 border-black px-3 text-[10px] font-black uppercase tracking-widest bg-white"
+                    value={selectedUnit || ""}
+                    onChange={e => setSelectedUnit(e.target.value || null)}
+                  >
+                    <option value="">All Units</option>
+                    {allUnits.map(unit => (
+                      <option key={unit} value={unit}>{unit}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <Dialog>
+                      <DialogTrigger nativeButton={true} render={
+                        <Button className="h-10 w-full rounded-xl border-2 border-black bg-white text-[10px] font-black uppercase tracking-widest hover:bg-neutral-50 shadow-sm">
+                          <Settings className="w-3.5 h-3.5 mr-2" /> Manage Categories
+                        </Button>
+                      } />
+                      <DialogContent className="max-w-md rounded-3xl border-2 border-black p-6">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl font-black uppercase tracking-tighter italic">Master Categories</DialogTitle>
+                          <DialogDescription className="uppercase-soft text-[10px]">Edit or remove existing data segments.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1 thin-scrollbar">
+                          {masterCategories.length === 0 ? (
+                            <p className="text-center text-[10px] font-black uppercase text-neutral-400 py-10 tracking-[0.2em]">No categories defined.</p>
+                          ) : (
+                            masterCategories.map((cat) => (
+                              <div key={cat.id} className="flex items-center justify-between p-4 border-2 border-black/5 rounded-2xl bg-neutral-50 hover:border-black/10 transition-all group">
+                                <span className="text-[11px] font-black uppercase tracking-tight text-neutral-700">{cat.name}</span>
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Dialog>
+                                    <DialogTrigger nativeButton={true} render={
+                                      <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-500 hover:bg-blue-50 border border-blue-100">
+                                        <FileEdit className="w-3.5 h-3.5" />
+                                      </Button>
+                                    } />
+                                    <DialogContent className="max-w-sm rounded-3xl border-2 border-black p-6">
+                                      <DialogHeader>
+                                        <DialogTitle className="text-lg font-black uppercase tracking-tight">Rename Category</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="py-6">
+                                        <label className="uppercase-soft text-[9px] mb-2 block">New Segment Name</label>
+                                        <Input 
+                                          defaultValue={cat.name} 
+                                          placeholder="e.g. ARSITEKTUR" 
+                                          className="h-12 border-2 border-black rounded-xl font-black uppercase text-sm px-4"
+                                          id={`edit-cat-input-${cat.id}`}
+                                        />
+                                      </div>
+                                      <DialogFooter>
+                                        <Button className="btn-sleek w-full h-12 rounded-xl" onClick={async () => {
+                                          const input = document.getElementById(`edit-cat-input-${cat.id}`) as HTMLInputElement;
+                                          if (input && input.value && input.value !== cat.name) {
+                                            await updateMasterCategory(cat.id, input.value);
+                                            toast.success("Category renamed");
+                                          }
+                                        }}>Save Identification &rarr;</Button>
+                                      </DialogFooter>
+                                    </DialogContent>
+                                  </Dialog>
+                                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-50 border border-red-100" onClick={() => deleteMasterCategory(cat.id)}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
 
               {showAddMasterCategory && (
                 <Card className="border-2 border-black rounded-2xl p-6 bg-white animate-in slide-in-from-top-4">
@@ -1575,7 +1965,7 @@ export default function AdminPanel() {
                       <label className="uppercase-soft text-[10px]">Category</label>
                       <select 
                         className="w-full h-10 rounded-xl border-2 border-black px-3 text-xs font-bold uppercase bg-white"
-                        value={newProduct.category}
+                        value={newProduct.category || ""}
                         onChange={e => setNewProduct({...newProduct, category: e.target.value})}
                       >
                         <option value="">Select Category...</option>
@@ -1592,7 +1982,7 @@ export default function AdminPanel() {
                       <Input 
                         placeholder="e.g. P001" 
                         className="h-10 border-2 border-black/10 rounded-xl"
-                        value={newProduct.code}
+                        value={newProduct.code || ""}
                         onChange={e => setNewProduct({...newProduct, code: e.target.value})}
                       />
                     </div>
@@ -1601,7 +1991,7 @@ export default function AdminPanel() {
                       <Input 
                         placeholder="e.g. Galian Tanah" 
                         className="h-10 border-2 border-black/10 rounded-xl"
-                        value={newProduct.name}
+                        value={newProduct.name || ""}
                         onChange={e => setNewProduct({...newProduct, name: e.target.value})}
                       />
                     </div>
@@ -1610,7 +2000,7 @@ export default function AdminPanel() {
                       <Input 
                         placeholder="e.g. Semen Tiga Roda, Besi 12mm Full, dst." 
                         className="h-10 border-2 border-black/10 rounded-xl"
-                        value={newProduct.technicalSpecs}
+                        value={newProduct.technicalSpecs || ""}
                         onChange={e => setNewProduct({...newProduct, technicalSpecs: e.target.value})}
                       />
                     </div>
@@ -1619,7 +2009,7 @@ export default function AdminPanel() {
                       <Input 
                         placeholder="m3, m2, ls" 
                         className="h-10 border-2 border-black/10 rounded-xl"
-                        value={newProduct.unit}
+                        value={newProduct.unit || ""}
                         onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
                       />
                     </div>
@@ -1645,7 +2035,7 @@ export default function AdminPanel() {
                       <Input 
                         placeholder="Detailed description of the work item..." 
                         className="h-10 border-2 border-black/10 rounded-xl"
-                        value={newProduct.description}
+                        value={newProduct.description || ""}
                         onChange={e => setNewProduct({...newProduct, description: e.target.value})}
                       />
                     </div>
@@ -1867,24 +2257,50 @@ export default function AdminPanel() {
                                           )}
                                         </div>
                                       </div>
-                                      <div className="grid grid-cols-4 gap-8">
-                                        <div className="space-y-1">
-                                          <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-widest">Total Digunakan</h4>
-                                          <p className="text-xs font-black">{item.soldCount || 0} Proyek Aktif</p>
+                                      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                        <div className="space-y-1 bg-neutral-100/50 p-3 rounded-xl border border-black/5">
+                                          <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-widest">Total Digunakan (RAB)</h4>
+                                          <div className="space-y-1 text-xs">
+                                            <p className="font-bold flex justify-between">
+                                              <span className="text-neutral-500">Proyek Aktif:</span>
+                                              <span className="font-black text-amber-600">{item.activeProjectsCount || 0}x ({item.activeVolume || 0} {item.unit})</span>
+                                            </p>
+                                            <p className="font-bold flex justify-between">
+                                              <span className="text-neutral-500">Proyek Selesai:</span>
+                                              <span className="font-black text-green-600">{item.completedProjectsCount || 0}x ({item.completedVolume || 0} {item.unit})</span>
+                                            </p>
+                                            <p className="border-t border-black/5 pt-1 font-black flex justify-between mt-1 text-[11px]">
+                                              <span className="text-neutral-600">Total:</span>
+                                              <span>{item.totalUsageCount || 0}x ({item.totalVolume || 0} {item.unit})</span>
+                                            </p>
+                                          </div>
                                         </div>
-                                        <div className="space-y-1">
+                                        <div className="space-y-1 bg-neutral-100/50 p-3 rounded-xl border border-black/5">
+                                          <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-widest">Revenue Terkumpul</h4>
+                                          <div className="space-y-1 text-xs">
+                                            <p className="font-bold flex justify-between">
+                                              <span className="text-neutral-500">Proyek Aktif:</span>
+                                              <span className="font-black text-amber-600">{formatRupiah(item.activeRevenue || 0)}</span>
+                                            </p>
+                                            <p className="font-bold flex justify-between">
+                                              <span className="text-neutral-500">Proyek Selesai:</span>
+                                              <span className="font-black text-green-600">{formatRupiah(item.completedRevenue || 0)}</span>
+                                            </p>
+                                            <p className="border-t border-black/5 pt-1 font-black flex justify-between mt-1 text-[11px] text-black">
+                                              <span className="text-neutral-600">Total:</span>
+                                              <span>{formatRupiah(item.totalRevenue || 0)}</span>
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="space-y-1 p-3">
                                           <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-widest">Estimasi Margin</h4>
-                                          <p className="text-xs font-black text-green-600">20% (Adjusted)</p>
+                                          <p className="text-lg font-black text-green-600">20% <span className="text-[10px] text-neutral-400 font-bold uppercase">(System Markup)</span></p>
                                         </div>
-                                        <div className="space-y-1">
+                                        <div className="space-y-1 p-3">
                                           <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-widest">Status Katalog</h4>
-                                          <Badge className={cn("text-[9px] font-black uppercase", item.status === 'visible' ? "bg-green-500 text-white" : "bg-neutral-200 text-neutral-500")}>
+                                          <Badge className={cn("text-[9px] font-black uppercase tracking-wider px-2 py-1.5 mt-1", item.status === 'visible' ? "bg-green-500 hover:bg-green-600 text-white" : "bg-neutral-200 text-neutral-500")}>
                                             {item.status || 'visible'}
                                           </Badge>
-                                        </div>
-                                        <div className="space-y-1">
-                                          <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-widest">Revenue Terkumpul</h4>
-                                          <p className="text-xs font-black">Rp {(item.revenue || 0).toLocaleString('id-ID')}</p>
                                         </div>
                                       </div>
                                     </div>
@@ -2507,6 +2923,9 @@ export default function AdminPanel() {
                   return matchesSearch && matchesCategory && matchesStatus;
                 }).map(p => {
                   const projectExpenses = transactions.filter(t => t.projectId === p.id && t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+                  const projectIncome = transactions.filter(t => t.projectId === p.id && t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+                  const projectProfit = projectIncome - projectExpenses;
+                  const projectSisa = (p.totalBudget || 0) - projectExpenses;
                   const isOver = p.totalBudget && projectExpenses > p.totalBudget;
 
                   return (
@@ -2578,14 +2997,28 @@ export default function AdminPanel() {
                           <Progress value={p.totalBudget ? (projectExpenses / p.totalBudget) * 100 : 0} className={cn("h-1 md:h-1.5", isOver && "bg-red-100")} />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 text-[9px] md:text-[10px]">
+                         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[9px] md:text-[10px]">
                           <div className="space-y-0.5">
                             <p className="font-black uppercase text-neutral-400 tracking-tighter">Budget</p>
                             <p className="font-black text-black">{formatRupiah(p.totalBudget || 0)}</p>
                           </div>
                           <div className="space-y-0.5 text-right">
-                            <p className="font-black uppercase text-neutral-400 tracking-tighter">MetaProfit</p>
-                            <p className="font-black text-green-600">+{formatRupiah((p.totalBudget || 0) * 0.1)}</p>
+                            <p className="font-black uppercase text-neutral-400 tracking-tighter">Total Expense</p>
+                            <p className={cn("font-black", isOver ? "text-red-700 underline decoration-2" : "text-red-500")}>
+                               {formatRupiah(projectExpenses)}
+                            </p>
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="font-black uppercase text-neutral-400 tracking-tighter">Sisa Dana</p>
+                            <p className={cn("font-black", projectSisa < 0 ? "text-red-600" : "text-blue-600")}>
+                              {formatRupiah(projectSisa)}
+                            </p>
+                          </div>
+                          <div className="space-y-0.5 text-right">
+                            <p className="font-black uppercase text-neutral-400 tracking-tighter">Profit</p>
+                            <p className={cn("font-black", projectProfit < 0 ? "text-red-600" : "text-green-600")}>
+                              {projectProfit >= 0 ? "+" : ""}{formatRupiah(projectProfit)}
+                            </p>
                           </div>
                         </div>
 
@@ -2606,6 +3039,15 @@ export default function AdminPanel() {
                             }}
                           >
                             <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                          </Button>
+                          <Button 
+                            className="h-9 w-9 md:h-10 md:w-10 border-2 border-black bg-white text-black hover:bg-neutral-100 rounded-xl p-0 flex items-center justify-center"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditProject(p);
+                            }}
+                          >
+                             <FileEdit className="w-3.5 h-3.5 md:w-4 md:h-4 text-neutral-400" />
                           </Button>
                           <Button 
                             className="h-9 w-9 md:h-10 md:w-10 border-2 border-black bg-white text-black hover:bg-neutral-100 rounded-xl p-0 flex items-center justify-center"
@@ -2640,6 +3082,61 @@ export default function AdminPanel() {
                   );
                 })}
               </div>
+
+              {editingProjectData !== null && (
+                <Dialog open={editingProjectData !== null} onOpenChange={() => setEditingProjectData(null)}>
+                  <DialogContent className="max-w-2xl rounded-[2.5rem] border-4 border-black p-8">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">Edit Project Data</DialogTitle>
+                      <DialogDescription className="uppercase-soft text-[10px]">Update project identity and parameters.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase">Project Name</Label>
+                          <Input value={editingProjectData.name || ""} onChange={e => setEditingProjectData({...editingProjectData, name: e.target.value})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase">Category</Label>
+                          <select className="w-full h-12 border-2 border-black rounded-xl px-3 font-black text-[10px] uppercase" value={editingProjectData.category || "Renovasi"} onChange={e => setEditingProjectData({...editingProjectData, category: e.target.value})}>
+                             <option>Renovasi</option>
+                             <option>Bangun Baru</option>
+                             <option>Interior</option>
+                             <option>Landskap</option>
+                             <option>Arsitektur</option>
+                             <option>Other</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase">Client Name</Label>
+                           <Input value={editingProjectData.clientName || ""} onChange={e => setEditingProjectData({...editingProjectData, clientName: e.target.value})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase">WhatsApp</Label>
+                          <Input value={editingProjectData.clientPhone || ""} onChange={e => setEditingProjectData({...editingProjectData, clientPhone: e.target.value})} className="h-12 border-2 border-black rounded-xl font-mono" />
+                        </div>
+                        <div className="space-y-2 lg:col-span-2">
+                           <Label className="text-[10px] font-black uppercase">Location</Label>
+                           <Input value={editingProjectData.location || ""} onChange={e => setEditingProjectData({...editingProjectData, location: e.target.value})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase">Budget</Label>
+                           <Input type="number" value={editingProjectData.totalBudget || 0} onChange={e => setEditingProjectData({...editingProjectData, totalBudget: Number(e.target.value)})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase">Image URL (Optional)</Label>
+                          <Input value={editingProjectData.imageUrl || ""} onChange={e => setEditingProjectData({...editingProjectData, imageUrl: e.target.value})} className="h-12 border-2 border-black rounded-xl" placeholder="Drive URL or relative path" />
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter className="mt-4">
+                      <Button className="w-full bg-black text-white h-14 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl" onClick={handleSaveProjectEdit}>
+                        Update Project Dossier &rarr;
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
 
               {showManageTeam && selectedProjectTeam && (
                 <Dialog open={showManageTeam} onOpenChange={setShowManageTeam}>
@@ -2896,6 +3393,49 @@ export default function AdminPanel() {
                   </select>
               </div>
 
+              {editingWorkerData !== null && (
+                <Dialog open={editingWorkerData !== null} onOpenChange={() => setEditingWorkerData(null)}>
+                  <DialogContent className="max-w-2xl rounded-3xl border border-black p-0 overflow-hidden shadow-2xl">
+                    <div className="bg-neutral-900 p-8 text-white">
+                       <h2 className="text-2xl font-black uppercase tracking-tighter">Edit Personnel Data</h2>
+                       <p className="text-[10px] font-medium text-white/40 uppercase tracking-[0.2em]">Updating dossier for {editingWorkerData.name}</p>
+                    </div>
+                    <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto thin-scrollbar">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Personnel Name</label>
+                          <Input value={editingWorkerData.name || ""} onChange={e => setEditingWorkerData({...editingWorkerData, name: e.target.value})} className="h-12 border-2 border-black rounded-xl font-bold" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Professional Role</label>
+                          <select 
+                            className="w-full h-12 rounded-xl border-2 border-black px-4 font-bold uppercase text-xs" 
+                            value={editingWorkerData.role || "tukang"} 
+                            onChange={e => setEditingWorkerData({...editingWorkerData, role: e.target.value})}
+                          >
+                             {["pm", "designer", "drafter", "tukang", "mandor", "kenek"].map(r => (
+                              <option key={r} value={r}>{r.toUpperCase()}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">WhatsApp</label>
+                          <Input value={editingWorkerData.whatsapp || ""} onChange={e => setEditingWorkerData({...editingWorkerData, whatsapp: e.target.value})} className="h-12 border-2 border-black rounded-xl font-mono" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Core Skill</label>
+                          <Input value={editingWorkerData.skill || ""} onChange={e => setEditingWorkerData({...editingWorkerData, skill: e.target.value})} className="h-12 border-2 border-black rounded-xl" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-6 bg-neutral-50 border-t border-black/5 flex justify-end gap-3">
+                       <Button variant="ghost" onClick={() => setEditingWorkerData(null)} className="rounded-xl uppercase font-black text-xs h-12 px-8">Discard</Button>
+                       <Button onClick={handleSaveWorkerEdit} className="btn-sleek h-12 px-12 rounded-xl uppercase font-black text-xs">Update Dossier</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+
               {showAddWorker && (
                 <Card className="border border-neutral-200 rounded-2xl p-6 bg-white shadow-xl animate-in fade-in slide-in-from-top-4">
                   <div className="flex justify-between items-center mb-6">
@@ -2907,7 +3447,7 @@ export default function AdminPanel() {
                       <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Full Legal Name</label>
                       <Input 
                         placeholder="John Doe" 
-                        value={newWorker.name}
+                        value={newWorker.name || ""}
                         onChange={e => setNewWorker({...newWorker, name: e.target.value})}
                         className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
                       />
@@ -2916,7 +3456,7 @@ export default function AdminPanel() {
                       <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Professional Role</label>
                       <select 
                         className="w-full h-11 rounded-xl border border-neutral-200 px-4 text-xs font-bold outline-none focus:ring-accent/20"
-                        value={newWorker.role}
+                        value={newWorker.role || ""}
                         onChange={e => setNewWorker({...newWorker, role: e.target.value})}
                       >
                         {["pm", "designer", "drafter", "tukang", "mandor", "kenek"].map(r => (
@@ -2928,7 +3468,7 @@ export default function AdminPanel() {
                       <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">KTP / NIK Number</label>
                       <Input 
                         placeholder="16-digit ID" 
-                        value={newWorker.ktp}
+                        value={newWorker.ktp || ""}
                         onChange={e => setNewWorker({...newWorker, ktp: e.target.value})}
                         className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
                       />
@@ -2937,7 +3477,7 @@ export default function AdminPanel() {
                       <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">WhatsApp / Direct</label>
                       <Input 
                         placeholder="62812xxxx" 
-                        value={newWorker.whatsapp}
+                        value={newWorker.whatsapp || ""}
                         onChange={e => setNewWorker({...newWorker, whatsapp: e.target.value})}
                         className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
                       />
@@ -2946,7 +3486,7 @@ export default function AdminPanel() {
                       <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Specialized Core Skill</label>
                       <Input 
                         placeholder="e.g. Electrical, Carpentry" 
-                        value={newWorker.skill}
+                        value={newWorker.skill || ""}
                         onChange={e => setNewWorker({...newWorker, skill: e.target.value})}
                         className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
                       />
@@ -2964,7 +3504,7 @@ export default function AdminPanel() {
                       <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Direct WhatsApp</label>
                       <Input 
                         placeholder="0812..." 
-                        value={newWorker.whatsapp}
+                        value={newWorker.whatsapp || ""}
                         onChange={e => setNewWorker({...newWorker, whatsapp: e.target.value})}
                         className="h-11 border-neutral-200 rounded-xl text-xs font-bold"
                       />
@@ -3065,6 +3605,12 @@ export default function AdminPanel() {
                                     <option key={p.id} value={p.id}>{p.name.toUpperCase()}</option>
                                   ))}
                                 </select>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-neutral-300 hover:text-accent hover:bg-neutral-50 transition-all shrink-0" onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditWorker(worker);
+                                }}>
+                                  <FileEdit className="w-3.5 h-3.5" />
+                                </Button>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-neutral-300 hover:text-red-500 hover:bg-red-50 transition-all shrink-0" onClick={(e) => {
                                   e.stopPropagation();
                                   if(confirm(`Remove personnel ${worker.name} from database?`)) deleteWorkforce(worker.id);
@@ -3568,15 +4114,15 @@ export default function AdminPanel() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Method</Label>
-                        <select 
-                          className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-sm font-bold bg-neutral-50"
-                          value={paymentForm.method}
-                          onChange={e => setPaymentForm({...paymentForm, method: e.target.value as any})}
-                        >
-                          <option>Transfer</option>
-                          <option>Cash</option>
-                          <option>Digital Wallet</option>
-                        </select>
+                          <select 
+                            className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-sm font-bold bg-neutral-50"
+                            value={paymentForm.method}
+                            onChange={e => setPaymentForm({...paymentForm, method: e.target.value as any})}
+                          >
+                            <option value="Transfer">Bank Transfer</option>
+                            <option value="Cash">Cash / Tunai</option>
+                            <option value="Digital Wallet">E-Wallet (Digital)</option>
+                          </select>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -3619,12 +4165,33 @@ export default function AdminPanel() {
                         <select 
                           className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-sm font-bold bg-neutral-50"
                           value={expenseForm.category}
-                          onChange={e => setExpenseForm({...expenseForm, category: e.target.value as any})}
+                          onChange={e => {
+                            const cat = e.target.value;
+                            setExpenseForm({...expenseForm, category: cat as any, subCategory: ""});
+                          }}
                         >
-                          <option value="material">Material</option>
-                          <option value="labor">Labor/Upah</option>
-                          <option value="assessment">Survey/Assessment</option>
-                          <option value="other">Lain-lain</option>
+                          <option value="material">🧱 Material</option>
+                          <option value="labor">👷 Labor/Upah</option>
+                          <option value="assessment">📋 Survey/Assessment</option>
+                          <option value="other">⚙️ Lain-lain</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Sub-Kategori Detail</Label>
+                        <select 
+                          className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-sm font-bold bg-neutral-50"
+                          value={expenseForm.subCategory}
+                          onChange={e => setExpenseForm({...expenseForm, subCategory: e.target.value})}
+                        >
+                          <option value="">-- Tanpa Sub-Kategori / Umum --</option>
+                          <option value="tol">🚗 Tol, Parkir & Transportasi</option>
+                          <option value="bensin">⛽ Bensin & BBM</option>
+                          <option value="makan">🍲 Makan Tim & Konsumsi</option>
+                          <option value="jajan">💸 Uang Saku & Jajan</option>
+                          <option value="atk">📎 ATK & Brosur</option>
+                          <option value="operasional">🛠️ Alat Kerja & Operasional</option>
+                          <option value="darurat">🚨 Kebutuhan Darurat</option>
+                          <option value="lainnya">❓ Lain-lain</option>
                         </select>
                       </div>
                       <div className="space-y-2">
@@ -3638,15 +4205,15 @@ export default function AdminPanel() {
                       </div>
                       <div className="space-y-2">
                          <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Method</Label>
-                         <select 
-                           className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase"
-                           value={expenseForm.method}
-                           onChange={e => setExpenseForm({...expenseForm, method: e.target.value})}
-                         >
-                           <option value="transfer">Bank Transfer</option>
-                           <option value="cash">Cash / Petty Cash</option>
-                           <option value="card">Credit Card</option>
-                         </select>
+                        <select 
+                          className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50"
+                          value={expenseForm.method}
+                          onChange={e => setExpenseForm({...expenseForm, method: e.target.value as any})}
+                        >
+                          <option value="Transfer">Bank Transfer</option>
+                          <option value="Cash">Cash / Petty Cash</option>
+                          <option value="Digital Wallet">E-Wallet / Digital</option>
+                        </select>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -3696,7 +4263,7 @@ export default function AdminPanel() {
               </Dialog>
 
               <div className="grid md:grid-cols-4 gap-6">
-                <Card className="border-2 border-black rounded-[2rem] p-8 bg-black text-white shadow-[12px_12px_0px_rgba(0,0,0,0.1)] group hover:scale-105 transition-transform duration-500">
+                <Card className="bg-[#121212]/85 backdrop-blur-md border border-white/10 rounded-[2rem] p-8 text-white shadow-[8px_8px_20px_rgba(0,0,0,0.3),-4px_-4px_15px_rgba(255,255,255,0.02)] group hover:-translate-y-1 transition-all duration-300">
                   <div className="flex justify-between items-start mb-4">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Total Income</p>
                     <ArrowDownLeft className="w-6 h-6 text-green-400" />
@@ -3706,7 +4273,7 @@ export default function AdminPanel() {
                   </p>
                   <p className="text-[10px] text-neutral-500 font-bold">Total revenue recognized</p>
                 </Card>
-                <Card className="border-2 border-black rounded-[2rem] p-8 bg-white shadow-[12px_12px_0px_rgba(255,107,0,0.1)] group hover:scale-105 transition-transform duration-500 border-red-100">
+                <Card className="bg-white/70 backdrop-blur-md border border-white/40 rounded-[2rem] p-8 text-black shadow-[8px_8px_20px_#e2e8f0,-8px_-8px_20px_#ffffff] group hover:-translate-y-1 transition-all duration-300">
                   <div className="flex justify-between items-start mb-4">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">Operational Cost</p>
                     <ArrowUpRight className="w-6 h-6 text-red-400" />
@@ -3716,7 +4283,7 @@ export default function AdminPanel() {
                   </p>
                   <p className="text-[10px] text-neutral-400 font-bold">Total direct & indirect costs</p>
                 </Card>
-                <Card className="border-2 border-black rounded-[2rem] p-8 bg-white shadow-[12px_12px_0px_rgba(0,0,0,0.05)] group hover:scale-105 transition-transform duration-500">
+                <Card className="bg-white/70 backdrop-blur-md border border-white/40 rounded-[2rem] p-8 text-black shadow-[8px_8px_20px_#e2e8f0,-8px_-8px_20px_#ffffff] group hover:-translate-y-1 transition-all duration-300">
                   <div className="flex justify-between items-start mb-4">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Escrow Balance</p>
                     <Lock className="w-6 h-6 text-blue-400" />
@@ -3726,7 +4293,7 @@ export default function AdminPanel() {
                   </p>
                   <p className="text-[10px] text-neutral-400 font-bold">Client deposits on hold</p>
                 </Card>
-                <Card className="border-2 border-black rounded-[2rem] p-8 bg-accent text-white shadow-[12px_12px_0px_rgba(255,107,0,0.2)] group hover:scale-105 transition-transform duration-500">
+                <Card className="bg-gradient-to-br from-[#FF6B00]/90 to-[#FF6B00]/70 backdrop-blur-md border border-white/20 rounded-[2rem] p-8 text-white shadow-[8px_8px_20px_rgba(255,107,0,0.25),-4px_-4px_15px_rgba(255,255,255,0.05)] group hover:-translate-y-1 transition-all duration-300">
                   <div className="flex justify-between items-start mb-4">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Estimated Net</p>
                     <TrendingUp className="w-6 h-6 text-white" />
@@ -3739,9 +4306,217 @@ export default function AdminPanel() {
                 </Card>
               </div>
 
+              {/* PERIODIC MONTHLY & YEARLY RECAP MODULE */}
+              <Card className="border border-white/30 backdrop-blur-md bg-white/65 rounded-[2.5rem] overflow-hidden p-8 space-y-6 shadow-[10px_10px_25px_#cbd5e1,-10px_-10px_25px_#ffffff]">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b-2 border-black/10 pb-6 gap-4">
+                  <div className="space-y-1">
+                    <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                      <span>📊</span> REKAP FINANCIAL BULANAN & TAHUNAN
+                    </h3>
+                    <p className="text-xs font-mono font-bold uppercase text-neutral-400">
+                      Metrik performa finansial real-time & rincian biaya operasional.
+                    </p>
+                  </div>
+                  
+                  {/* Select Year */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-black uppercase tracking-widest text-[#FF6B00]">Pilih Tahun:</span>
+                    <div className="flex gap-1.5 bg-white/60 backdrop-blur-sm p-1.5 rounded-2xl border border-white/40 shadow-[inner_2px_2px_5px_#cbd5e1]">
+                      {(Object.keys(periodicRecap).length > 0 ? Object.keys(periodicRecap).map(Number).sort((a,b)=>b-a) : [new Date().getFullYear()]).map(yr => (
+                        <Button
+                          key={yr}
+                          variant={recapYear === yr ? "default" : "ghost"}
+                          className={cn(
+                            "h-10 px-4 rounded-xl font-black text-xs uppercase transition-all",
+                            recapYear === yr ? "bg-black text-white hover:bg-black/90 shadow-[2px_2px_5px_rgba(0,0,0,0.15)]" : "hover:bg-black/5 text-neutral-600"
+                          )}
+                          onClick={() => {
+                            setRecapYear(yr);
+                            setSelectedMonthForDetails(null);
+                          }}
+                        >
+                          {yr}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Selected Year Summary Cards */}
+                {periodicRecap[recapYear] ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="bg-green-50/50 border border-white/30 backdrop-blur-sm rounded-[2rem] p-6 shadow-[5px_5px_15px_#cbd5e1,-5px_-5px_15px_#ffffff] relative overflow-hidden">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-green-600">Total Income ({recapYear})</p>
+                        <p className="text-3xl font-black text-green-700 mt-2">{formatRupiah(periodicRecap[recapYear].totalIncome)}</p>
+                        <p className="text-[9px] font-bold text-neutral-400 uppercase mt-2">Seluruh Pemasukan yang Diakui</p>
+                      </div>
+                      
+                      <div className="bg-red-50/50 border border-white/30 backdrop-blur-sm rounded-[2rem] p-6 shadow-[5px_5px_15px_#cbd5e1,-5px_-5px_15px_#ffffff] relative overflow-hidden">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Total Expense ({recapYear})</p>
+                        <p className="text-3xl font-black text-red-700 mt-2">{formatRupiah(periodicRecap[recapYear].totalExpense)}</p>
+                        <p className="text-[9px] font-bold text-neutral-400 uppercase mt-2">Seluruh Pengeluaran Terbuang</p>
+                      </div>
+
+                      <div className={cn(
+                        "border border-white/30 backdrop-blur-sm rounded-[2rem] p-6 shadow-[5px_5px_15px_#cbd5e1,-5px_-5px_15px_#ffffff] relative overflow-hidden text-neutral-800",
+                        periodicRecap[recapYear].netProfit >= 0 ? "bg-emerald-50/35" : "bg-rose-50/35"
+                      )}>
+                        <p className={cn("text-[10px] font-black uppercase tracking-widest", periodicRecap[recapYear].netProfit >= 0 ? "text-emerald-600" : "text-rose-600")}>Net Profit / Margin ({recapYear})</p>
+                        <p className={cn("text-3xl font-black mt-2", periodicRecap[recapYear].netProfit >= 0 ? "text-emerald-700" : "text-rose-700")}>
+                          {periodicRecap[recapYear].netProfit >= 0 ? "+" : "-"} {formatRupiah(Math.abs(periodicRecap[recapYear].netProfit))}
+                        </p>
+                        <p className="text-[9px] font-bold text-neutral-400 uppercase mt-2">Selisih Bersih (Debit - Kredit)</p>
+                      </div>
+                    </div>
+
+                    {/* Month list grid */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-[#FF6B00]">Pemberhentian & Laporan Setiap Bulan</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {Array.from({ length: 12 }).map((_, monthIdx) => {
+                          const monthData = periodicRecap[recapYear]?.months[monthIdx];
+                          const hasData = !!monthData;
+                          const isSelected = selectedMonthForDetails === monthIdx;
+
+                          return (
+                            <div 
+                              key={monthIdx}
+                              onClick={() => {
+                                if (hasData) {
+                                  setSelectedMonthForDetails(isSelected ? null : monthIdx);
+                                }
+                              }}
+                              className={cn(
+                                "border rounded-[1.5rem] p-5 transition-all text-left relative overflow-hidden flex flex-col justify-between h-40",
+                                !hasData 
+                                  ? "bg-neutral-100/40 border-dashed border-neutral-300 opacity-40 cursor-not-allowed" 
+                                  : isSelected 
+                                    ? "bg-neutral-900 border border-white/10 text-white shadow-[inset_4px_4px_10px_rgba(0,0,0,0.8)] scale-[1.02] cursor-pointer"
+                                    : "bg-white/60 border border-white/40 hover:bg-white/80 hover:shadow-[5px_5px_12px_#cbd5e1,-5px_-5px_12px_#ffffff] shadow-[3px_3px_8px_#e2e8f0,-3px_-3px_8px_#ffffff] cursor-pointer"
+                              )}
+                            >
+                              <div>
+                                <div className="flex justify-between items-start">
+                                  <span className={cn("font-mono text-[10px] font-black uppercase", isSelected ? "text-white/60" : "text-neutral-400")}>BLN {String(monthIdx+1).padStart(2, '0')}</span>
+                                  {hasData && (
+                                    <Badge className={cn("text-[8px] font-black uppercase border-none", isSelected ? "bg-amber-500 text-black hover:bg-amber-600" : "bg-neutral-100 text-neutral-600")}>
+                                      {monthData.transactionsCount} Transaksi
+                                    </Badge>
+                                  )}
+                                </div>
+                                <h5 className={cn("font-black text-lg uppercase tracking-tight mt-1", isSelected ? "text-[#FF6B00]" : "text-neutral-900")}>
+                                  { [
+                                    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+                                    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+                                  ][monthIdx] }
+                                </h5>
+                              </div>
+
+                              {hasData ? (
+                                <div className={cn("space-y-0.5 border-t pt-2 mt-2", isSelected ? "border-white/10" : "border-black/5")}>
+                                  <div className="flex justify-between text-[10px] font-bold">
+                                    <span className={isSelected ? "text-white/60" : "text-neutral-400"}>Debit:</span>
+                                    <span className="font-mono font-black text-emerald-500">{formatRupiah(monthData.totalIncome)}</span>
+                                  </div>
+                                  <div className="flex justify-between text-[10px] font-bold">
+                                    <span className={isSelected ? "text-white/60" : "text-neutral-400"}>Kredit:</span>
+                                    <span className="font-mono font-black text-red-500">{formatRupiah(monthData.totalExpense)}</span>
+                                  </div>
+                                  <div className="flex justify-between text-[10px] font-black pt-1.5 mt-1 border-t border-dashed">
+                                    <span className={isSelected ? "text-white/60" : "text-neutral-400"}>Net:</span>
+                                    <span className={cn("font-mono font-black", monthData.netProfit >= 0 ? "text-green-500" : "text-[#FF6B00]")}>
+                                      {monthData.netProfit >= 0 ? "Profit" : "Loss"} ({formatRupiah(Math.abs(monthData.netProfit))})
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-[10px] font-black uppercase text-neutral-400 italic">Tidak ada transaksi</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Detailed Analysis Segment for Selected Month */}
+                    {selectedMonthForDetails !== null && periodicRecap[recapYear]?.months[selectedMonthForDetails] && (
+                      <div className="bg-white/40 backdrop-blur-md border border-white/40 p-6 rounded-[2rem] space-y-6 animate-in fade-in slide-in-from-top-4 duration-500 text-black shadow-[inset_2px_2px_5px_rgba(255,255,255,0.4)]">
+                        <div className="flex items-center justify-between border-b border-black/10 pb-3">
+                          <h4 className="text-lg font-black uppercase tracking-tight text-neutral-800">
+                            🔍 Rincian Analisis Biaya: {periodicRecap[recapYear].months[selectedMonthForDetails].monthName} {recapYear}
+                          </h4>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="border border-white/40 font-black text-[9px] uppercase bg-white/80 hover:bg-white backdrop-blur-sm shadow-[3px_3px_8px_#cbd5e1] hover:-translate-y-0.5 transition-all text-neutral-800"
+                            onClick={() => setSelectedMonthForDetails(null)}
+                          >
+                            Tutup Detail &times;
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          {/* Left column: Categories (Material, Labor, Assessment, Other) */}
+                          <div className="space-y-3 bg-white/60 backdrop-blur-sm p-6 rounded-2xl border border-white/40 shadow-[4px_4px_12px_rgba(0,0,0,0.04)]">
+                            <h5 className="text-xs font-black uppercase tracking-widest text-[#FF6B00] border-b border-black/5 pb-2">📂 Pengeluaran Berdasarkan Kategori</h5>
+                            <div className="space-y-2">
+                              {Object.entries(periodicRecap[recapYear].months[selectedMonthForDetails].categories).map(([catKey, total]) => (
+                                <div key={catKey} className="flex justify-between items-center text-xs font-bold border-b border-black/5 pb-2">
+                                  <span className="capitalize text-neutral-600">
+                                    {catKey === "material" ? "Brick & Material (🧱)" : 
+                                     catKey === "labor" ? "Upah Kerja (👷)" : 
+                                     catKey === "assessment" ? "Survey / Assessment (📋)" : "Lain-lain / Ops (⚙️)"}
+                                  </span>
+                                  <span className="font-mono font-black text-neutral-900">{formatRupiah(total)}</span>
+                                </div>
+                              ))}
+                              <div className="flex justify-between items-center text-sm font-black border-t border-black/10 pt-2 mt-4 text-red-600">
+                                <span>Total Kredit Bulan Ini:</span>
+                                <span className="font-mono">{formatRupiah(periodicRecap[recapYear].months[selectedMonthForDetails].totalExpense)}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right column: Specific Sub-Categories Detail (Tol, Bensin, Makan, Jajan, ATK, etc) */}
+                          <div className="space-y-3 bg-white/60 backdrop-blur-sm p-6 rounded-2xl border border-white/40 shadow-[4px_4px_12px_rgba(0,0,0,0.04)]">
+                            <h5 className="text-xs font-black uppercase tracking-widest text-[#FF6B00] border-b border-black/5 pb-2">🏷️ Rincian Sub-Kategori</h5>
+                            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-2">
+                              {Object.entries(periodicRecap[recapYear].months[selectedMonthForDetails].subCategories).map(([subKey, total]) => (
+                                <div key={subKey} className="flex justify-between items-center text-xs font-bold border-b border-black/5 pb-2">
+                                  <span className="capitalize text-neutral-600">
+                                    {subKey === "tol" ? "🚗 Tol & Transportasi" : 
+                                     subKey === "bensin" ? "⛽ Bensin & BBM" : 
+                                     subKey === "makan" ? "🍲 Makan Tim & Konsumsi" : 
+                                     subKey === "jajan" ? "💸 Uang Saku & Jajan" : 
+                                     subKey === "atk" ? "📎 ATK & Brosur" : 
+                                     subKey === "operasional" ? "🛠️ Alat & Ops" : 
+                                     subKey === "darurat" ? "🚨 Darurat" : "❓ Lainnya"}
+                                  </span>
+                                  <span className={cn("font-mono font-black", total > 0 ? "text-neutral-900" : "text-neutral-300")}>
+                                    {total > 0 ? formatRupiah(total) : "Rp 0"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-[9px] font-bold uppercase text-neutral-400 italic">
+                              Rincian ini ditarik secara otomatis dari isian kolom detail ketika record expense dilakukan.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center bg-neutral-50 rounded-2xl border-4 border-dashed border-black/10">
+                    <p className="font-bold text-neutral-400 uppercase text-xs">Belum ada rekap data finansial untuk tahun {recapYear}.</p>
+                  </div>
+                )}
+              </Card>
+
               <div className="grid md:grid-cols-3 gap-8">
-                <Card className="border-4 border-black rounded-[2.5rem] overflow-hidden shadow-2xl bg-white">
-                  <CardHeader className="bg-neutral-900 p-8 border-b-4 border-black flex flex-col md:flex-row items-center justify-between gap-6">
+                <Card className="border border-white/30 backdrop-blur-md bg-white/65 rounded-[2.5rem] overflow-hidden shadow-[10px_10px_25px_#cbd5e1,-10px_-10px_25px_#ffffff]">
+                  <CardHeader className="bg-neutral-900 p-8 border-b border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="space-y-1">
                       <CardTitle className="text-3xl font-black uppercase tracking-tighter text-white flex items-center gap-3">
                         <AlertCircle className="w-8 h-8 text-accent" /> Budget Tracker
@@ -3789,8 +4564,8 @@ export default function AdminPanel() {
                   </CardContent>
                 </Card>
 
-                <Card className="md:col-span-2 border-4 border-black rounded-[2.5rem] overflow-hidden shadow-2xl bg-white">
-                  <CardHeader className="bg-neutral-50 p-8 border-b-4 border-black flex flex-col md:flex-row items-center justify-between gap-6">
+                <Card className="md:col-span-2 border border-white/30 backdrop-blur-md bg-white/65 rounded-[2.5rem] overflow-hidden shadow-[10px_10px_25px_#cbd5e1,-10px_-10px_25px_#ffffff]">
+                  <CardHeader className="bg-neutral-50/50 p-8 border-b border-black/10 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="space-y-1">
                       <CardTitle className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
                         <Gavel className="w-8 h-8 text-black" /> Financial Ledger
@@ -3806,93 +4581,417 @@ export default function AdminPanel() {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-0 overflow-x-auto">
-                    <Table>
-                      <TableHeader className="bg-neutral-50">
-                        <TableRow className="border-b-4 border-black">
-                          <TableHead className="px-4 md:px-8 py-4 md:py-6 text-[10px] font-black uppercase tracking-widest text-neutral-400">Date & Ref</TableHead>
-                          <TableHead className="px-4 md:px-8 py-4 md:py-6 text-[10px] font-black uppercase tracking-widest text-neutral-400">Account Details</TableHead>
-                          <TableHead className="px-4 md:px-8 py-4 md:py-6 text-[10px] font-black uppercase tracking-widest text-neutral-400">Method & Evidence</TableHead>
-                          <TableHead className="px-4 md:px-8 py-4 md:py-6 text-[10px] font-black uppercase tracking-widest text-neutral-400 text-right">Debit/Credit</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {transactions.map((t) => (
-                          <TableRow key={t.id} className="group border-b border-black/5 hover:bg-neutral-50/50 transition-all duration-300">
-                            <TableCell className="px-4 md:px-8 py-4 md:py-6">
-                               <div className="space-y-1">
-                                 <p className="text-xs font-black font-mono text-black">{new Date(t.date).toLocaleDateString()}</p>
-                                 <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-tighter">ID: #{t.id.substring(0,6).toUpperCase()}</p>
-                               </div>
-                            </TableCell>
-                            <TableCell className="px-4 md:px-8 py-4 md:py-6">
-                              <div className="space-y-1">
-                                <p className="text-sm font-black uppercase text-black leading-tight">{t.description}</p>
-                                {t.projectName && (
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Badge className="bg-neutral-100 text-neutral-500 border-none text-[8px] font-black uppercase px-2 py-0.5">Project: {t.projectName}</Badge>
-                                    <Badge className={cn(
-                                      "text-[8px] font-black uppercase border-none px-2 py-0.5",
-                                      t.category === 'client_payment' ? "bg-green-100 text-green-600" :
-                                      t.category === 'material' ? "bg-blue-100 text-blue-600" :
-                                      t.category === 'labor' ? "bg-yellow-100 text-yellow-600" : "bg-neutral-100 text-neutral-500"
-                                    )}>{t.category}</Badge>
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="px-4 md:px-8 py-4 md:py-6">
-                              <div className="flex items-center gap-4">
-                                <Badge variant="outline" className="border-2 border-black/10 text-[9px] font-black uppercase tracking-widest">{t.method || "System"}</Badge>
-                                {t.receiptUrl && (
-                                  <Dialog>
-                                    <DialogTrigger render={
-                                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-neutral-100 hover:bg-black hover:text-white transition-all scale-110">
-                                        <Camera className="w-4 h-4" />
-                                      </Button>
-                                    } />
-                                    <DialogContent className="max-w-2xl bg-black border-none p-4">
-                                      <img src={t.receiptUrl} alt="Receipt Evidence" className="w-full h-auto rounded-xl shadow-2xl" />
-                                      <p className="text-center text-white/50 text-[10px] font-black uppercase tracking-[0.5em] mt-4">Evidence ID: #{t.id.toUpperCase()}</p>
-                                    </DialogContent>
-                                  </Dialog>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className={cn(
-                              "px-4 md:px-8 py-4 md:py-6 text-right font-mono font-black text-lg",
-                              t.type === 'income' ? "text-green-600" : "text-red-500"
-                            )}>
-                              {t.type === 'income' ? "+" : "-"} Rp {t.amount.toLocaleString()}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {transactions.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={4} className="p-24 text-center">
-                              <div className="w-20 h-20 bg-neutral-50 rounded-full flex items-center justify-center mx-auto mb-6 text-neutral-300">
-                                <DollarSign className="w-10 h-10" />
-                              </div>
-                              <p className="uppercase-soft font-black text-neutral-400 mb-2 text-lg">No Transactions Recorded</p>
-                              <p className="text-xs text-neutral-300 font-medium max-w-sm mx-auto">Start recording your project finances to see data here.</p>
-                            </TableCell>
-                          </TableRow>
+
+                  {/* DYNAMIC FINANCIAL LEDGER OVERVIEW AND QUICK FILTERS */}
+                  <div className="p-8 border-b border-black/5 bg-neutral-55/60 backdrop-blur-sm flex flex-col gap-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div className="space-y-1 w-full md:w-auto">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Filter Project Account</Label>
+                        <select 
+                          className="h-12 w-full md:w-64 rounded-xl border border-white/40 font-black uppercase text-xs px-4 bg-white/80 shadow-[3px_3px_8px_#cbd5e1,-3px_-3px_8px_#ffffff] focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
+                          value={financeProjectFilter}
+                          onChange={e => {
+                            setFinanceProjectFilter(e.target.value);
+                            setFinancePage(1);
+                          }}
+                        >
+                          <option value="all">📊 ALL PROJECTS Ledger</option>
+                          {projects.map(p => (
+                            <option key={p.id} value={p.id}>🏗️ {p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {financeCategoryFilter !== "all" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="border-2 border-black font-black text-[9px] uppercase bg-white hover:bg-neutral-50 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                            onClick={() => setFinanceCategoryFilter("all")}
+                          >
+                            Reset Filter: {financeCategoryFilter} &times;
+                          </Button>
                         )}
-                      </TableBody>
-                    </Table>
+                        {financeProjectFilter !== "all" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="border-2 border-black font-black text-[9px] uppercase bg-white hover:bg-neutral-50 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                            onClick={() => setFinanceProjectFilter("all")}
+                          >
+                            Reset Project &times;
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* MAIN METRIC CARD ROW */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Pemasukan (Income) Card */}
+                      <button
+                        onClick={() => setFinanceCategoryFilter(financeCategoryFilter === "income" ? "all" : "income")}
+                        style={{ contentVisibility: "auto" }}
+                        className={cn(
+                          "flex flex-col items-start p-6 rounded-2xl border border-white/40 transition-all text-left relative overflow-hidden group cursor-pointer",
+                          financeCategoryFilter === "income"
+                            ? "bg-green-600 text-white shadow-[3px_3px_8px_rgba(22,163,74,0.3)] -translate-y-0.5"
+                            : "bg-white/80 backdrop-blur-sm text-black hover:bg-white shadow-[3px_3px_8px_#cbd5e1,-3px_-3px_8px_#ffffff]"
+                        )}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-widest",
+                            financeCategoryFilter === "income" ? "text-white/80" : "text-neutral-500"
+                          )}>Total Pemasukan (Debit)</span>
+                          <span className="text-xl">💰</span>
+                        </div>
+                        <span className="text-2xl font-black mt-3">Rp {ledgerStats.totalIncome.toLocaleString()}</span>
+                        <span className={cn(
+                          "text-[8px] font-bold uppercase mt-1",
+                          financeCategoryFilter === "income" ? "text-white/60" : "text-neutral-400"
+                        )}>
+                          {financeCategoryFilter === "income" ? "🔴 Klik untuk tampil semua" : "🟢 Klik untuk filter tabel"}
+                        </span>
+                      </button>
+
+                      {/* Total Pengeluaran Card */}
+                      <div
+                        className="flex flex-col items-start p-6 rounded-2xl border border-white/40 bg-white/80 backdrop-blur-sm text-black shadow-[3px_3px_8px_#cbd5e1,-3px_-3px_8px_#ffffff] relative overflow-hidden group"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Total Pengeluaran (Kredit)</span>
+                          <span className="text-xl">📉</span>
+                        </div>
+                        <span className="text-2xl font-black text-red-600 mt-3">Rp {ledgerStats.totalExpense.toLocaleString()}</span>
+                        <span className="text-[8px] font-bold uppercase text-neutral-400 mt-1">Akumulasi seluruh pengeluaran</span>
+                      </div>
+
+                      {/* Sisa Dana / Net Balance Card */}
+                      <div
+                        className={cn(
+                          "flex flex-col items-start p-6 rounded-2xl border border-white/40 shadow-[3px_3px_8px_#cbd5e1] relative overflow-hidden group transition-all",
+                          ledgerStats.sisaDana >= 0 ? "bg-black text-white" : "bg-red-950 text-white"
+                        )}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-widest",
+                            ledgerStats.sisaDana >= 0 ? "text-neutral-400" : "text-red-300"
+                          )}>Sisa Saldo Kas Utama</span>
+                          <span className="text-xl">⚖️</span>
+                        </div>
+                        <span className={cn("text-2xl font-black mt-3", ledgerStats.sisaDana >= 0 ? "text-emerald-400" : "text-red-400")}>
+                          Rp {ledgerStats.sisaDana.toLocaleString()}
+                        </span>
+                        <span className="text-[8px] font-bold uppercase text-neutral-400 mt-1">Liquid reserve buffer</span>
+                      </div>
+                    </div>
+
+                    {/* EXPENSES PER CATEGORY ROWS */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Pengeluaran Per Kategori (Klik untuk Filter)</Label>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        {/* Material Card */}
+                        <button
+                          onClick={() => setFinanceCategoryFilter(financeCategoryFilter === 'material' ? 'all' : 'material')}
+                          className={cn(
+                            "flex flex-col items-start p-4 rounded-xl border-4 transition-all text-left w-full cursor-pointer",
+                            financeCategoryFilter === 'material' 
+                              ? "border-[#FF6B00] bg-orange-50/10 text-[#FF6B00] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] -translate-y-0.5" 
+                              : "border-black bg-white hover:border-[#FF6B00] text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm border-none">🧱</span>
+                            <span className="text-[9px] font-black uppercase tracking-tight">Material</span>
+                          </div>
+                          <span className="text-xs font-black mt-2">
+                            Rp {ledgerStats.materialExpense.toLocaleString()}
+                          </span>
+                        </button>
+
+                        {/* Labor Card */}
+                        <button
+                          onClick={() => setFinanceCategoryFilter(financeCategoryFilter === 'labor' ? 'all' : 'labor')}
+                          className={cn(
+                            "flex flex-col items-start p-4 rounded-xl border-4 transition-all text-left w-full cursor-pointer",
+                            financeCategoryFilter === 'labor' 
+                              ? "border-[#FF6B00] bg-orange-50/10 text-[#FF6B00] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] -translate-y-0.5" 
+                              : "border-black bg-white hover:border-[#FF6B00] text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm border-none">👷</span>
+                            <span className="text-[9px] font-black uppercase tracking-tight">Tenaga Kerja</span>
+                          </div>
+                          <span className="text-xs font-black mt-2">
+                            Rp {ledgerStats.laborExpense.toLocaleString()}
+                          </span>
+                        </button>
+
+                        {/* Assessment / Survey Card */}
+                        <button
+                          onClick={() => setFinanceCategoryFilter(financeCategoryFilter === 'assessment' ? 'all' : 'assessment')}
+                          className={cn(
+                            "flex flex-col items-start p-4 rounded-xl border-4 transition-all text-left w-full cursor-pointer",
+                            financeCategoryFilter === 'assessment' 
+                              ? "border-[#FF6B00] bg-orange-50/10 text-[#FF6B00] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] -translate-y-0.5" 
+                              : "border-black bg-white hover:border-[#FF6B00] text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm border-none">📋</span>
+                            <span className="text-[9px] font-black uppercase tracking-tight">Survey / Assess</span>
+                          </div>
+                          <span className="text-xs font-black mt-2">
+                            Rp {ledgerStats.assessmentExpense.toLocaleString()}
+                          </span>
+                        </button>
+
+                        {/* Other Card */}
+                        <button
+                          onClick={() => setFinanceCategoryFilter(financeCategoryFilter === 'other' ? 'all' : 'other')}
+                          className={cn(
+                            "flex flex-col items-start p-4 rounded-xl border-4 transition-all text-left w-full cursor-pointer",
+                            financeCategoryFilter === 'other' 
+                              ? "border-[#FF6B00] bg-orange-50/10 text-[#FF6B00] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] -translate-y-0.5" 
+                              : "border-black bg-white hover:border-[#FF6B00] text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm border-none">⚙️</span>
+                            <span className="text-[9px] font-black uppercase tracking-tight">Lain-lain</span>
+                          </div>
+                          <span className="text-xs font-black mt-2">
+                            Rp {ledgerStats.otherExpense.toLocaleString()}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-8 border-b border-black/10 bg-neutral-50/60 backdrop-blur-sm flex flex-col md:flex-row items-center gap-6">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                      <Input 
+                        placeholder="Search Transactions (Description, Project, Date...)" 
+                        className="pl-12 h-14 bg-white/80 border border-white/40 rounded-2xl font-black uppercase text-xs text-black shadow-[inset_2px_2px_5px_#cbd5e1,inset_-2px_-2px_5px_#ffffff] focus:outline-none"
+                        value={financeSearch}
+                        onChange={(e) => {
+                          setFinanceSearch(e.target.value);
+                          setFinancePage(1);
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-4 bg-white/80 backdrop-blur-sm p-2 rounded-2xl border border-white/40 shadow-[3px_3px_8px_#cbd5e1]">
+                       <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-10 w-10 border border-white/40 rounded-xl bg-white shadow-[2px_2px_4px_#cbd5e1] hover:-translate-y-0.5 transition-all text-neutral-700"
+                        disabled={financePage === 1}
+                        onClick={() => setFinancePage(p => p - 1)}
+                       >
+                         <ChevronLeft className="w-4 h-4" />
+                       </Button>
+                       <span className="text-[10px] font-black uppercase tracking-widest text-[#FF6B00]">{financePage} / {totalFinancePages || 1}</span>
+                       <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-10 w-10 border border-white/40 rounded-xl bg-white shadow-[2px_2px_4px_#cbd5e1] hover:-translate-y-0.5 transition-all text-neutral-700"
+                        disabled={financePage === totalFinancePages || totalFinancePages === 0}
+                        onClick={() => setFinancePage(p => p + 1)}
+                       >
+                         <ChevronRight className="w-4 h-4" />
+                       </Button>
+                    </div>
+                  </div>
+                  <CardContent className="p-0 overflow-hidden">
+                    <div className="max-h-[800px] overflow-y-auto">
+                      <Table>
+                        <TableHeader className="bg-neutral-50 sticky top-0 z-10">
+                          <TableRow className="border-b-4 border-black">
+                            <TableHead className="px-4 md:px-8 py-4 md:py-6 text-[10px] font-black uppercase tracking-widest text-neutral-400">Date & Ref</TableHead>
+                            <TableHead className="px-4 md:px-8 py-4 md:py-6 text-[10px] font-black uppercase tracking-widest text-neutral-400">Account Details</TableHead>
+                            <TableHead className="px-4 md:px-8 py-4 md:py-6 text-[10px] font-black uppercase tracking-widest text-neutral-400">Method & Evidence</TableHead>
+                            <TableHead className="px-4 md:px-8 py-4 md:py-6 text-[10px] font-black uppercase tracking-widest text-neutral-400 text-right">Debit/Credit</TableHead>
+                            <TableHead className="px-4 md:px-8 py-4 md:py-6 text-[10px] font-black uppercase tracking-widest text-neutral-400 text-right pr-12">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedFinance.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={4} className="h-64 text-center py-20 bg-neutral-50/50">
+                                <FileText className="w-12 h-12 text-neutral-200 mx-auto mb-4" />
+                                <p className="text-xl font-black uppercase tracking-tighter text-neutral-300">No transactions recorded yet</p>
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            paginatedFinance.map((t) => (
+                              <TableRow key={t.id} className="group border-b border-black/5 last:border-0 hover:bg-neutral-50/50 transition-all duration-300">
+                                <TableCell className="px-4 md:px-8 py-4 md:py-6">
+                                   <div className="space-y-1">
+                                     <p className="text-xs font-black font-mono text-black">{new Date(t.date).toLocaleDateString()}</p>
+                                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-tighter">ID: #{t.id.substring(0,6).toUpperCase()}</p>
+                                   </div>
+                                </TableCell>
+                                <TableCell className="px-4 md:px-8 py-4 md:py-6">
+                                  {editingTransactionId === t.id ? (
+                                    <div className="space-y-2">
+                                      <Input 
+                                        className="h-9 text-xs font-black uppercase"
+                                        value={editFormData.description}
+                                        onChange={e => setEditFormData({...editFormData, description: e.target.value})}
+                                      />
+                                      <select 
+                                        className="w-full h-9 rounded-xl border-2 border-black/10 px-3 text-[10px] font-black uppercase"
+                                        value={editFormData.category}
+                                        onChange={e => setEditFormData({...editFormData, category: e.target.value as any})}
+                                      >
+                                        <option value="material">Material</option>
+                                        <option value="labor">Labor</option>
+                                        <option value="assessment">Survey</option>
+                                        <option value="client_payment">Client Payment</option>
+                                        <option value="other">Other</option>
+                                      </select>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <p className="text-sm font-black uppercase text-black leading-tight">{t.description}</p>
+                                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                                        {t.projectName && (
+                                          <Badge className="bg-neutral-100 text-neutral-500 border-none text-[8px] font-black uppercase px-2 py-0.5">Project: {t.projectName}</Badge>
+                                        )}
+                                        <Badge className={cn(
+                                          "text-[8px] font-black uppercase border-none px-2 py-0.5",
+                                          t.category === 'client_payment' ? "bg-green-100 text-green-600" :
+                                          t.category === 'material' ? "bg-blue-100 text-blue-600" :
+                                          t.category === 'labor' ? "bg-yellow-100 text-yellow-600" : "bg-neutral-100 text-neutral-500"
+                                        )}>{t.category === 'client_payment' ? "💰 Pemasukan" : t.category === 'material' ? "🧱 Material" : t.category === 'labor' ? "👷 Upah" : t.category === 'assessment' ? "📋 Survey" : "⚙️ Lain-lain"}</Badge>
+                                        {t.subCategory && (
+                                          <Badge className="bg-purple-150 text-purple-700 bg-purple-100 border-none text-[8px] font-black uppercase px-2 py-0.5">
+                                            {t.subCategory === 'tol' ? "🚗 Tol & Parkir" :
+                                             t.subCategory === 'bensin' ? "⛽ Bensin" :
+                                             t.subCategory === 'makan' ? "🍲 Makan Tim" :
+                                             t.subCategory === 'jajan' ? "💸 Saku/Jajan" :
+                                             t.subCategory === 'atk' ? "📎 ATK/Brosur" :
+                                             t.subCategory === 'operasional' ? "🛠️ Alat & Ops" :
+                                             t.subCategory === 'darurat' ? "🚨 Darurat" : "❓ Lainnya"}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      {t.recordedBy && (
+                                        <p className="text-[8px] font-black uppercase text-neutral-400 mt-1">
+                                          Penginput: <span className="text-[#FF6B00]">{t.recordedBy} ({t.recordedRole || "system"})</span>
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="px-4 md:px-8 py-4 md:py-6">
+                                  <div className="flex items-center gap-4">
+                                    {editingTransactionId === t.id ? (
+                                      <select 
+                                        className="h-9 rounded-xl border-2 border-black/10 px-3 text-[10px] font-black uppercase"
+                                        value={editFormData.method}
+                                        onChange={e => setEditFormData({...editFormData, method: e.target.value as any})}
+                                      >
+                                        <option value="Transfer">Transfer</option>
+                                        <option value="Cash">Cash</option>
+                                        <option value="Digital Wallet">E-Wallet</option>
+                                      </select>
+                                    ) : (
+                                      <Badge variant="outline" className="border-2 border-black/10 text-[9px] font-black uppercase tracking-widest">{t.method || "System"}</Badge>
+                                    )}
+                                    {t.receiptUrl && (
+                                      <Dialog>
+                                        <DialogTrigger
+                                          render={
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-neutral-100 hover:bg-black hover:text-white transition-all">
+                                              <Camera className="w-4 h-4" />
+                                            </Button>
+                                          }
+                                        />
+                                        <DialogContent className="max-w-2xl bg-black border-none p-4 rounded-3xl">
+                                          <img src={t.receiptUrl} alt="Receipt Evidence" className="w-full h-auto rounded-xl shadow-2xl" />
+                                        </DialogContent>
+                                      </Dialog>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className={cn(
+                                  "px-4 md:px-8 py-4 md:py-6 text-right font-mono font-black text-lg",
+                                  t.type === 'income' ? "text-green-600" : "text-red-500"
+                                )}>
+                                  {editingTransactionId === t.id ? (
+                                    <div className="flex justify-end items-center gap-2">
+                                       <span className="text-xs text-neutral-400">Rp</span>
+                                       <Input 
+                                         type="number"
+                                         className="h-9 w-32 text-right font-black"
+                                         value={editFormData.amount}
+                                         onChange={e => setEditFormData({...editFormData, amount: Number(e.target.value)})}
+                                       />
+                                    </div>
+                                  ) : (
+                                    <>{t.type === 'income' ? "+" : "-"} {formatRupiah(t.amount)}</>
+                                  )}
+                                </TableCell>
+                                <TableCell className="pr-8 text-right">
+                                   <div className="flex justify-end gap-2">
+                                     {editingTransactionId === t.id ? (
+                                       <>
+                                         <Button size="icon" variant="ghost" className="h-8 w-8 text-green-500 border-2 border-black/5" onClick={saveEditTransaction}>
+                                           <Check className="w-4 h-4" />
+                                         </Button>
+                                         <Button size="icon" variant="ghost" className="h-8 w-8 text-neutral-400 border-2 border-black/5" onClick={() => setEditingTransactionId(null)}>
+                                           <X className="w-4 h-4" />
+                                         </Button>
+                                       </>
+                                     ) : (
+                                       <>
+                                         <Button size="icon" variant="ghost" className="h-8 w-8 text-neutral-400 hover:text-black hover:bg-neutral-100" onClick={() => handleEditTransaction(t)}>
+                                           <FileEdit className="w-4 h-4" />
+                                         </Button>
+                                         <Button size="icon" variant="ghost" className="h-8 w-8 text-neutral-400 hover:text-red-500 hover:bg-red-50" onClick={() => {if(confirm("Hapus transaksi ini?")) deleteTransaction(t.id)}}>
+                                           <Trash2 className="w-4 h-4" />
+                                         </Button>
+                                       </>
+                                     )}
+                                   </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CardContent>
                 </Card>
 
-                <div className="space-y-8">
-                  {/* Budget Health Warning Panel */}
-                  <Card className="border-4 border-black rounded-[2rem] p-8 bg-black text-white shadow-xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                       <ShieldCheck className="w-40 h-40" />
+                <div className="md:col-span-3 space-y-8">
+                  {/* Budget Health Warning Panel (Budget Overwatch) with Horizontal Slides/Scroll Mode and Neumorphic Glass Theme */}
+                  <Card className="border border-white/20 rounded-[2.5rem] p-8 bg-[#121212]/90 text-white shadow-[10px_10px_25px_rgba(0,0,0,0.3)] relative overflow-hidden backdrop-blur-xl">
+                    <div className="absolute top-0 right-0 p-4 opacity-5">
+                       <ShieldCheck className="w-56 h-56 text-white" />
                     </div>
-                    <h3 className="text-2xl font-black uppercase tracking-tighter mb-6 flex items-center gap-3">
-                      <Sparkles className="w-6 h-6 text-accent" /> Budget Overwatch
-                    </h3>
-                    <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-6 mb-6">
+                      <div className="space-y-1">
+                        <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3 text-white">
+                          <Sparkles className="w-7 h-7 text-amber-400 fill-amber-400" /> Budget Overwatch
+                        </h3>
+                        <p className="text-xs font-mono font-bold text-neutral-400 uppercase">
+                          Review allocation caps per active project in interactive slide view.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-amber-400/20 text-amber-400 border border-amber-400/30 text-[10px] font-black uppercase px-3 py-1 rounded-full">
+                          Swipe / Scroll Side-by-side &rarr;
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-row gap-6 overflow-x-auto pb-6 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                        {projects.filter(p => p.totalBudget > 0).map(p => {
                           const projectExpenses = transactions.filter(t => t.projectId === p.id && t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
                           const percentage = (projectExpenses / p.totalBudget) * 100;
@@ -3900,56 +4999,60 @@ export default function AdminPanel() {
                           const isWarning = percentage > 85 && !isOver;
 
                           return (
-                            <div key={p.id} className="space-y-3 p-4 bg-white/5 rounded-2xl border border-white/10">
-                              <div className="flex justify-between items-start">
-                                <div className="space-y-1">
-                                  <p className="text-xs font-black uppercase text-white/90">{p.name}</p>
-                                  <p className="text-[10px] font-bold text-white/40">Allocated Capital: Rp {p.totalBudget.toLocaleString()}</p>
+                            <div 
+                              key={p.id} 
+                              className="min-w-[290px] sm:min-w-[340px] max-w-[380px] snap-center shrink-0 space-y-4 p-5 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[6px_6px_18px_rgba(0,0,0,0.4),-4px_-4px_12px_rgba(255,255,255,0.02)] hover:bg-white/10 transition-all duration-300 flex flex-col justify-between"
+                            >
+                              <div className="space-y-3">
+                                <div className="flex justify-between items-start gap-2">
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-black uppercase text-white tracking-widest truncate max-w-[180px]">{p.name}</p>
+                                    <p className="text-[10px] font-bold text-neutral-400 uppercase">Capital Limit: <span className="font-mono text-neutral-200">Rp {p.totalBudget.toLocaleString()}</span></p>
+                                  </div>
+                                  <div className="shrink-0 flex items-center">
+                                    {isOver && <Badge className="bg-red-500 text-white border border-red-700 animate-pulse text-[8px] font-black uppercase px-2 py-0.5">Over!</Badge>}
+                                    {isWarning && <Badge className="bg-amber-400 text-black border border-amber-600 animate-bounce text-[8px] font-black uppercase px-2 py-0.5">Warning</Badge>}
+                                  </div>
                                 </div>
-                                {isOver && <Badge className="bg-red-500 text-white border-none text-[8px] font-black uppercase">Over Budget!</Badge>}
-                                {isWarning && <Badge className="bg-yellow-500 text-black border-none text-[8px] font-black uppercase">Warning Level</Badge>}
+                                <Progress value={Math.min(100, percentage)} className="h-2.5 rounded-full bg-neutral-800 border border-neutral-700/50 overflow-hidden" />
                               </div>
-                              <Progress value={Math.min(100, percentage)} className={cn(
-                                "h-2 rounded-full",
-                                isOver ? "bg-red-900 border-red-500" : isWarning ? "bg-yellow-900 border-yellow-500" : "bg-neutral-800"
-                              )} />
-                              <div className="flex justify-between items-center">
-                                <p className="text-[10px] font-black uppercase tracking-tighter text-neutral-400">Current Spent: {percentage.toFixed(1)}%</p>
-                                <p className="text-xs font-mono font-bold text-accent">Rp {projectExpenses.toLocaleString()}</p>
+                              <div className="flex justify-between items-center pt-2">
+                                <p className="text-[10px] font-black uppercase tracking-tighter text-neutral-400">Spent: {percentage.toFixed(1)}%</p>
+                                <p className="text-xs font-mono font-black text-amber-300">Rp {projectExpenses.toLocaleString()}</p>
                               </div>
                             </div>
                           );
                        })}
                        {projects.filter(p => p.totalBudget > 0).length === 0 && (
-                         <div className="py-12 text-center border-2 border-dashed border-white/10 rounded-3xl">
+                         <div className="py-12 w-full text-center border border-dashed border-white/10 rounded-2xl">
                             <p className="text-xs font-black uppercase text-white/30 tracking-widest">No Active Projects with Budgets</p>
                          </div>
                        )}
                     </div>
                   </Card>
 
-                  <Card className="border-4 border-black rounded-[2rem] p-8 shadow-xl">
-                    <h3 className="text-2xl font-black uppercase tracking-tighter mb-6 flex items-center gap-3">
-                      <CreditCard className="w-6 h-6 text-blue-500" /> Pending Transfers
+                  <Card className="border border-white/30 backdrop-blur-md bg-white/65 rounded-[2.5rem] p-8 shadow-[10px_10px_25px_#cbd5e1,-10px_-10px_25px_#ffffff]">
+                    <h3 className="text-2.5xl font-black uppercase tracking-tighter mb-6 flex items-center gap-3">
+                      <CreditCard className="w-6 h-6 text-[#FF6B00]" /> Pending Transfers
                     </h3>
                     <div className="space-y-4">
                       {wages.filter(w => w.status === 'pending').map(w => (
-                        <div key={w.id} className="flex items-center justify-between p-4 bg-neutral-50 border-2 border-black/5 rounded-2xl group hover:border-black transition-all">
+                        <div key={w.id} className="flex items-center justify-between p-4 border border-white/40 bg-white/40 backdrop-blur-sm rounded-2xl hover:bg-white/80 hover:shadow-[3px_3px_8px_#cbd5e1] transition-all">
                           <div>
                             <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">{w.workerName}</p>
-                            <p className="text-xs font-black mt-0.5">Rp {w.amount.toLocaleString()}</p>
+                            <p className="text-xs font-black text-neutral-900 mt-0.5">Rp {w.amount.toLocaleString()}</p>
                           </div>
                           <Button 
                             size="sm" 
                             onClick={() => updateWageStatus(w.id, 'paid')}
-                            className="bg-black text-white hover:bg-neutral-800 text-[10px] font-black uppercase h-10 rounded-xl px-4 shadow-lg group-hover:bg-accent group-hover:text-white transition-all"
+                            className="bg-black text-white hover:bg-neutral-800 text-[10px] font-black uppercase h-10 rounded-xl px-4 shadow-[4px_4px_10px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all animate-bounce"
                           >
                             Execute Transfer
                           </Button>
                         </div>
                       ))}
                       {wages.filter(w => w.status === 'pending').length === 0 && (
-                        <div className="py-8 text-center bg-green-50 rounded-2xl border-2 border-green-100">
+                        <div className="py-8 text-center bg-green-50/40 border border-green-500/20 rounded-2xl shadow-[inset_2px_2px_5px_rgba(16,185,129,0.05)]">
                           <p className="text-[10px] text-green-600 font-black uppercase tracking-widest">All payrolls settled &check;</p>
                         </div>
                       )}
@@ -4608,11 +5711,11 @@ export default function AdminPanel() {
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Title</label>
-                      <Input value={newGallery.title} onChange={e => setNewGallery({...newGallery, title: e.target.value})} />
+                      <Input value={newGallery.title || ""} onChange={e => setNewGallery({...newGallery, title: e.target.value})} />
                     </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Category</label>
-                      <select className="w-full h-10 rounded-md border border-black/10 px-3 text-sm" value={newGallery.category} onChange={e => setNewGallery({...newGallery, category: e.target.value})}>
+                      <select className="w-full h-10 rounded-md border border-black/10 px-3 text-sm" value={newGallery.category || ""} onChange={e => setNewGallery({...newGallery, category: e.target.value})}>
                         <option value="project">Project</option>
                         <option value="interior">Interior</option>
                         <option value="renovation">Renovation</option>
@@ -4620,11 +5723,11 @@ export default function AdminPanel() {
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <label className="uppercase-soft text-[10px]">Image URL</label>
-                      <Input value={newGallery.imageUrl} onChange={e => setNewGallery({...newGallery, imageUrl: e.target.value})} />
+                      <Input value={newGallery.imageUrl || ""} onChange={e => setNewGallery({...newGallery, imageUrl: e.target.value})} />
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <label className="uppercase-soft text-[10px]">Description</label>
-                      <Textarea value={newGallery.description} onChange={e => setNewGallery({...newGallery, description: e.target.value})} />
+                      <Textarea value={newGallery.description || ""} onChange={e => setNewGallery({...newGallery, description: e.target.value})} />
                     </div>
                   </div>
                     <div className="flex justify-end gap-4 mt-6">
@@ -4694,11 +5797,11 @@ export default function AdminPanel() {
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Title</label>
-                      <Input value={newProperty.title} onChange={e => setNewProperty({...newProperty, title: e.target.value})} placeholder="e.g. Lahan Strategis BSD" />
+                      <Input value={newProperty.title || ""} onChange={e => setNewProperty({...newProperty, title: e.target.value})} placeholder="e.g. Lahan Strategis BSD" />
                     </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Type / Category</label>
-                        <select className="w-full h-10 rounded-md border border-black/10 px-3 text-sm" value={newProperty.type} onChange={e => setNewProperty({...newProperty, type: e.target.value as any})}>
+                        <select className="w-full h-10 rounded-md border border-black/10 px-3 text-sm" value={newProperty.type || ""} onChange={e => setNewProperty({...newProperty, type: e.target.value as any})}>
                           <option value="kerjasama">SYNERGY LAB</option>
                           <option value="bangun">TITIP BANGUN</option>
                           <option value="jual">JUAL & SEWA</option>
@@ -4707,7 +5810,7 @@ export default function AdminPanel() {
                     </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Price (Rp)</label>
-                      <Input type="number" value={newProperty.price} onChange={e => setNewProperty({...newProperty, price: Number(e.target.value)})} />
+                      <Input type="number" value={newProperty.price || 0} onChange={e => setNewProperty({...newProperty, price: Number(e.target.value)})} />
                     </div>
                     
                     <div className="space-y-4 md:col-span-2">
@@ -4750,11 +5853,11 @@ export default function AdminPanel() {
 
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Location Description</label>
-                      <Input value={newProperty.location} onChange={e => setNewProperty({...newProperty, location: e.target.value})} placeholder="Area name, city..." />
+                      <Input value={newProperty.location || ""} onChange={e => setNewProperty({...newProperty, location: e.target.value})} placeholder="Area name, city..." />
                     </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Area (m2)</label>
-                      <Input type="number" value={newProperty.area} onChange={e => setNewProperty({...newProperty, area: Number(e.target.value)})} />
+                      <Input type="number" value={newProperty.area || 0} onChange={e => setNewProperty({...newProperty, area: Number(e.target.value)})} />
                     </div>
                     <div className="space-y-4">
                       <label className="uppercase-soft text-[10px]">Pilih Foto Properti</label>
@@ -4781,7 +5884,7 @@ export default function AdminPanel() {
                     </div>
                     <div className="space-y-2 md:col-span-3">
                       <label className="uppercase-soft text-[10px]">Description</label>
-                      <Textarea value={newProperty.description} onChange={e => setNewProperty({...newProperty, description: e.target.value})} />
+                      <Textarea value={newProperty.description || ""} onChange={e => setNewProperty({...newProperty, description: e.target.value})} />
                     </div>
                   </div>
                   <div className="flex justify-end gap-4 mt-6">
@@ -4857,23 +5960,23 @@ export default function AdminPanel() {
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Store Name</label>
-                      <Input value={newVendor.name} onChange={e => setNewVendor({...newVendor, name: e.target.value})} />
+                      <Input value={newVendor.name || ""} onChange={e => setNewVendor({...newVendor, name: e.target.value})} />
                     </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Category</label>
-                      <Input placeholder="e.g. Besi, Semen, Cat" value={newVendor.category} onChange={e => setNewVendor({...newVendor, category: e.target.value})} />
+                      <Input placeholder="e.g. Besi, Semen, Cat" value={newVendor.category || ""} onChange={e => setNewVendor({...newVendor, category: e.target.value})} />
                     </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">Contact Person</label>
-                      <Input value={newVendor.contactName} onChange={e => setNewVendor({...newVendor, contactName: e.target.value})} />
+                      <Input value={newVendor.contactName || ""} onChange={e => setNewVendor({...newVendor, contactName: e.target.value})} />
                     </div>
                     <div className="space-y-2">
                       <label className="uppercase-soft text-[10px]">WhatsApp</label>
-                      <Input value={newVendor.whatsapp} onChange={e => setNewVendor({...newVendor, whatsapp: e.target.value})} />
+                      <Input value={newVendor.whatsapp || ""} onChange={e => setNewVendor({...newVendor, whatsapp: e.target.value})} />
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <label className="uppercase-soft text-[10px]">Address</label>
-                      <Input value={newVendor.address} onChange={e => setNewVendor({...newVendor, address: e.target.value})} />
+                      <Input value={newVendor.address || ""} onChange={e => setNewVendor({...newVendor, address: e.target.value})} />
                     </div>
                   </div>
                   <div className="flex justify-end gap-4 mt-6">

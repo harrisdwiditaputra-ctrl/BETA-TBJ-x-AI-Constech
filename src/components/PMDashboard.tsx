@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, 
@@ -21,12 +22,12 @@ import {
   Loader2, Calendar, CheckCircle2, Clock, MapPin, User, MessageSquare, 
   Phone, HardHat, Package, Camera, BarChart3, ChevronRight, ChevronLeft, Plus, 
   AlertCircle, LayoutDashboard, History, Send, CameraOff, Briefcase, ShieldCheck,
-  Zap, Settings, Image as ImageIcon, Trash2, DollarSign, TrendingUp, Brain, Sparkles, ExternalLink
+  Zap, Settings, Image as ImageIcon, Trash2, DollarSign, TrendingUp, Brain, Sparkles, ExternalLink, Check, X, FileEdit, Search
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { toast } from "sonner";
 import { cn, getDriveImageUrl, formatRupiah, calculateAdminPrice } from "@/lib/utils";
-import { Project, MaterialRequest, Attendance, Workforce } from "@/types";
+import { Project, MaterialRequest, Attendance, Workforce, FinancialTransaction } from "@/types";
 
 import { ImageUpload } from "@/components/ImageUpload";
 
@@ -39,7 +40,7 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
   const { requests, addRequest, updateRequest, updateRequestStatus, deleteRequest } = useMaterialRequests(user?.role);
   const { workforce } = useWorkforce(user?.role);
 
-  const [activeTab, setActiveTab] = useState<"overview" | "projects" | "materials" | "attendance" | "cctv" | "timeline" | "safety" | "rab" | "pm-ai" | "awaiting">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "projects" | "materials" | "attendance" | "cctv" | "timeline" | "safety" | "rab" | "pm-ai" | "awaiting" | "finance">("overview");
   const [activePage, setActivePage] = useState<number>(0);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const { 
@@ -52,10 +53,89 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
     addTimelineEvent,
     updateItem 
   } = useProjectDetails(selectedProject?.id);
+  const project = projectDetails || selectedProject;
   const { logs: siteLogs } = useSiteLogs(selectedProject?.id);
-  const { transactions, addTransaction } = useFinance(selectedProject?.id);
+  const { transactions, addTransaction, updateTransaction, deleteTransaction } = useFinance(selectedProject?.id);
   const { wages, addWage, updateWageStatus } = useWorkerWages(selectedProject?.id);
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<FinancialTransaction>>({});
   const [isScheduling, setIsScheduling] = useState<string | null>(null);
+  const [transactionSearch, setTransactionSearch] = useState("");
+  const [transactionCategoryFilter, setTransactionCategoryFilter] = useState("all");
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const isExpense = t.type === "expense";
+      const matchesSearch = t.description.toLowerCase().includes(transactionSearch.toLowerCase());
+      const matchesCategory = transactionCategoryFilter === "all" || t.category === transactionCategoryFilter;
+      return isExpense && matchesSearch && matchesCategory;
+    });
+  }, [transactions, transactionSearch, transactionCategoryFilter]);
+  
+  // Record Expense State
+  const [showRecordExpense, setShowRecordExpense] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({
+    amount: 0,
+    description: "",
+    category: "material",
+    method: "Cash",
+    receiptUrl: ""
+  });
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+
+  const handleRecordExpense = async () => {
+    if (!selectedProject || !expenseForm.amount || !expenseForm.description) {
+      toast.error("Mohon lengkapi nominal dan deskripsi.");
+      return;
+    }
+    const loadingToast = toast.loading("Mencatat pengeluaran...");
+    try {
+      await addTransaction({
+        projectId: selectedProject.id,
+        projectName: selectedProject.name,
+        type: "expense",
+        category: expenseForm.category as any,
+        amount: expenseForm.amount,
+        description: expenseForm.description,
+        method: expenseForm.method as any,
+        receiptUrl: expenseForm.receiptUrl,
+        date: new Date().toISOString(),
+        status: "completed",
+        recordedBy: user?.displayName || user?.email || "PM",
+        recordedRole: "pm"
+      });
+      setShowRecordExpense(false);
+      setExpenseForm({ amount: 0, description: "", category: "material", method: "Cash", receiptUrl: "" });
+      toast.success("Pengeluaran berhasil dicatat ke Ledger.", { id: loadingToast });
+    } catch (error) {
+      toast.error("Gagal mencatat pengeluaran.", { id: loadingToast });
+    }
+  };
+
+  const handleEditTransaction = (t: FinancialTransaction) => {
+    setEditingTransactionId(t.id);
+    setEditFormData({
+      description: t.description,
+      amount: t.amount,
+      category: t.category,
+      method: t.method
+    });
+  };
+
+  const saveEditTransaction = async () => {
+    if (!editingTransactionId) return;
+    try {
+      await updateTransaction(editingTransactionId, {
+        ...editFormData,
+        recordedBy: user?.displayName || user?.email || "PM",
+        recordedRole: "pm"
+      });
+      setEditingTransactionId(null);
+    } catch (error) {
+      toast.error("Failed to update transaction");
+    }
+  };
+
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [newMilestone, setNewMilestone] = useState({
     title: "",
@@ -215,6 +295,7 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
     {
       title: "Administrative",
       tabs: [
+        { id: "finance", label: "Project Ledger", icon: DollarSign },
         { id: "rab", label: "Project RAB", icon: Briefcase },
         { id: "safety", label: "Safety & HSE", icon: ShieldCheck },
         { id: "pm-ai", label: "PM AI Assistant", icon: Brain },
@@ -584,6 +665,7 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
                         </div>
                       </DialogContent>
                     </Dialog>
+
                     <Button variant="outline" className="w-full h-12 rounded-2xl border-2 border-black/10 uppercase-soft text-[10px] font-black">
                       Reject Proyek
                     </Button>
@@ -654,15 +736,15 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
                       <div className="space-y-1">
                         <p className="uppercase-soft text-[10px]">Progress</p>
-                        <p className="text-2xl font-black">{(selectedProject.progress || 0).toFixed(1)}%</p>
+                        <p className="text-2xl font-black">{(project.progress || 0).toFixed(1)}%</p>
                         <div className="w-full h-2 bg-neutral-100 rounded-full overflow-hidden border border-black/5">
-                          <div className="h-full bg-accent transition-all duration-500" style={{ width: `${selectedProject.progress || 0}%` }} />
+                          <div className="h-full bg-accent transition-all duration-500" style={{ width: `${project.progress || 0}%` }} />
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <p className="uppercase-soft text-[10px]">Budget Used</p>
-                        <p className="text-2xl font-black text-red-500">{formatRupiah(selectedProject.releasedAmount || 0)}</p>
-                        <p className="text-[9px] text-neutral-400 uppercase font-bold text-xs">of {formatRupiah(selectedProject.totalBudget || 0)} Total</p>
+                        <p className="uppercase-soft text-[10px]">Revenue Terkumpul</p>
+                        <p className="text-2xl font-black text-green-500">{formatRupiah(project.releasedAmount || 0)}</p>
+                        <p className="text-[9px] text-neutral-400 uppercase font-bold text-xs">of {formatRupiah(project.totalBudget || 0)} Total</p>
                       </div>
                       <div className="space-y-1">
                         <p className="uppercase-soft text-[10px]">Deadline</p>
@@ -1003,6 +1085,320 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
         </div>
       )}
 
+      {activeTab === "finance" && selectedProject && (
+        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h3 className="text-3xl font-black uppercase tracking-tighter">Project Financial Ledger</h3>
+                <p className="text-neutral-500 uppercase font-bold text-[10px] tracking-widest leading-loose">Monitoring pengeluaran dan arus kas proyek</p>
+              </div>
+              <Button 
+                className="btn-orange h-12 px-8 rounded-xl font-black uppercase text-xs gap-2"
+                onClick={() => setShowRecordExpense(true)}
+              >
+                <Plus className="w-5 h-5" /> Record Expense
+              </Button>
+           </div>
+
+           <Dialog open={showRecordExpense} onOpenChange={setShowRecordExpense}>
+             <DialogContent className="w-[95vw] sm:max-w-xl rounded-[2.5rem] border-4 border-black p-8 font-sans">
+               <DialogHeader>
+                 <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Record Project Expense</DialogTitle>
+                 <DialogDescription className="uppercase-soft text-[10px]">Catat pengeluaran teknis/lapangan untuk {selectedProject.name}.</DialogDescription>
+               </DialogHeader>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-6 overflow-auto max-h-[70vh]">
+                 <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Category</Label>
+                      <select 
+                        className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50"
+                        value={expenseForm.category}
+                        onChange={e => setExpenseForm({...expenseForm, category: e.target.value as any})}
+                      >
+                        <option value="material">Material / Barang</option>
+                        <option value="labor">Labor / Upah Tukang</option>
+                        <option value="assessment">Survey / Operasional</option>
+                        <option value="other">Lain-lain</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Amount (Rp)</Label>
+                       <Input 
+                         type="number" 
+                         value={expenseForm.amount} 
+                         onChange={e => setExpenseForm({...expenseForm, amount: Number(e.target.value)})}
+                         className="h-12 rounded-xl border-2 border-black/10 font-mono font-black"
+                         placeholder="0"
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Payment Method</Label>
+                       <select 
+                         className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50"
+                         value={expenseForm.method}
+                         onChange={e => setExpenseForm({...expenseForm, method: e.target.value as any})}
+                       >
+                         <option value="Cash">Cash / Petty Cash</option>
+                         <option value="Transfer">Bank Transfer</option>
+                         <option value="Digital Wallet">E-Wallet (OVO/Gopay)</option>
+                       </select>
+                    </div>
+                 </div>
+                 <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Description</Label>
+                      <Textarea 
+                        value={expenseForm.description} 
+                        onChange={e => setExpenseForm({...expenseForm, description: e.target.value})}
+                        className="h-[104px] rounded-xl border-2 border-black/10"
+                        placeholder="e.g. Pembelian material semen & pasir termin 1"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Receipt / Evidence</Label>
+                       <div className="flex items-center gap-4">
+                          {expenseForm.receiptUrl ? (
+                            <div className="relative group">
+                               <img src={expenseForm.receiptUrl} className="w-12 h-12 rounded-lg object-cover border-2 border-black" />
+                               <button className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5" onClick={() => setExpenseForm({...expenseForm, receiptUrl: ""})}><Plus className="w-3 h-3 rotate-45" /></button>
+                            </div>
+                          ) : (
+                            <div className="flex-1">
+                               <Input 
+                                 type="file" 
+                                 id="pm-receipt-upload"
+                                 className="hidden"
+                                 accept="image/*"
+                                 capture="environment"
+                                 onChange={async (e) => {
+                                   const file = e.target.files?.[0];
+                                   if (file) {
+                                      setIsUploadingReceipt(true);
+                                      try {
+                                        const url = await uploadImage(file, `receipts/${selectedProject.id}/${Date.now()}_${file.name}`);
+                                        setExpenseForm(prev => ({ ...prev, receiptUrl: url }));
+                                        toast.success("Receipt uploaded!");
+                                      } catch (error) {
+                                        toast.error("Upload failed.");
+                                      } finally {
+                                        setIsUploadingReceipt(false);
+                                      }
+                                   }
+                                 }}
+                               />
+                               <Label htmlFor="pm-receipt-upload" className="flex items-center justify-center h-12 border-2 border-dashed border-black/10 rounded-xl cursor-pointer hover:bg-neutral-50 font-bold text-[10px] uppercase">
+                                  {isUploadingReceipt ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <><Camera className="w-4 h-4 mr-2" /> Snap Receipt</>}
+                               </Label>
+                            </div>
+                          )}
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="col-span-full pt-4">
+                    <Button 
+                      className="w-full bg-black text-white h-14 rounded-2xl font-black uppercase tracking-widest text-xs" 
+                      onClick={handleRecordExpense}
+                    >
+                      Process Financial Entry &rarr;
+                    </Button>
+                 </div>
+               </div>
+             </DialogContent>
+           </Dialog>
+
+           
+            {/* Edit Transaction Dialog */}
+            <Dialog open={editingTransactionId !== null} onOpenChange={(open) => { if (!open) setEditingTransactionId(null); }}>
+              <DialogContent className="w-[95vw] sm:max-w-xl rounded-[2.5rem] border-4 border-black p-8 font-sans">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Edit Transaction Record</DialogTitle>
+                  <DialogDescription className="uppercase-soft text-[10px]">Sesuaikan rincian pengeluaran/pendapatan untuk proyek.</DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-6 overflow-auto max-h-[70vh]">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Category</Label>
+                      <select 
+                        className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50 cursor-pointer text-black"
+                        value={editFormData.category || "material"}
+                        onChange={e => setEditFormData({...editFormData, category: e.target.value as any})}
+                      >
+                        <option value="material">Material / Barang</option>
+                        <option value="labor">Labor / Upah Tukang</option>
+                        <option value="assessment">Survey / Operasional</option>
+                        <option value="other">Lain-lain</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Amount (Rp)</Label>
+                       <Input 
+                         type="number" 
+                         value={editFormData.amount || ""} 
+                         onChange={e => setEditFormData({...editFormData, amount: Number(e.target.value)})}
+                         className="h-12 rounded-xl border-2 border-black/10 font-mono font-black"
+                         placeholder="0"
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Payment Method</Label>
+                       <select 
+                         className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50 cursor-pointer text-black"
+                         value={editFormData.method || "Cash"}
+                         onChange={e => setEditFormData({...editFormData, method: e.target.value as any})}
+                       >
+                         <option value="Cash">Cash / Petty Cash</option>
+                         <option value="Transfer">Bank Transfer</option>
+                         <option value="Digital Wallet">E-Wallet (OVO/Gopay)</option>
+                       </select>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Description</Label>
+                      <Textarea 
+                        value={editFormData.description || ""} 
+                        onChange={e => setEditFormData({...editFormData, description: e.target.value})}
+                        className="h-[104px] rounded-xl border-2 border-black/10 text-xs font-bold font-sans"
+                        placeholder="Deskripsi detail transaksi"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Receipt / Evidence</Label>
+                       <div className="flex items-center gap-4">
+                          {editFormData.receiptUrl ? (
+                            <div className="relative group">
+                               <img src={editFormData.receiptUrl} className="w-12 h-12 rounded-lg object-cover border-2 border-black" />
+                               <button className="absolute -top-2 -right-2 bg-red-400 text-white rounded-full p-0.5" onClick={() => setEditFormData({...editFormData, receiptUrl: ""})}><Plus className="w-3" /></button>
+                            </div>
+                          ) : (
+                            <div className="flex-1">
+                               <Input 
+                                 type="file" 
+                                 id="pm-edit-receipt-upload"
+                                 className="hidden"
+                                 accept="image/*"
+                                 capture="environment"
+                                 onChange={async (e) => {
+                                   const file = e.target.files?.[0];
+                                   if (file) {
+                                      setIsUploadingReceipt(true);
+                                      try {
+                                        const url = await uploadImage(file, `receipts/${selectedProject.id}/${Date.now()}_${file.name}`);
+                                        setEditFormData(prev => ({ ...prev, receiptUrl: url }));
+                                        toast.success("Receipt uploaded!");
+                                      } catch (error) {
+                                        toast.error("Upload failed.");
+                                      } finally {
+                                        setIsUploadingReceipt(false);
+                                      }
+                                   }
+                                 }}
+                               />
+                               <Label htmlFor="pm-edit-receipt-upload" className="flex items-center justify-center h-12 border-2 border-dashed border-black/10 rounded-xl cursor-pointer hover:bg-neutral-50 font-bold text-[10px] uppercase font-sans">
+                                  {isUploadingReceipt ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <><Camera className="w-4 h-4 mr-2" /> Snap Receipt</>}
+                                </Label>
+                            </div>
+                          )}
+                       </div>
+                    </div>
+                  </div>
+
+                  <div className="col-span-full pt-4 flex gap-4">
+                     <Button 
+                       variant="outline"
+                       className="flex-1 border-2 border-black h-14 rounded-2xl font-black uppercase text-xs" 
+                       onClick={() => setEditingTransactionId(null)}
+                     >
+                       Cancel / Batal
+                     </Button>
+                     <Button 
+                       className="flex-1 bg-black text-white h-14 rounded-2xl font-black uppercase tracking-widest text-xs" 
+                       onClick={saveEditTransaction}
+                     >
+                       Save Changes &rarr;
+                     </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+
+
+            {/* Transaction Search Control */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6 items-center bg-zinc-950 p-4 rounded-2xl border border-white/10 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] text-white">
+              <div className="relative flex-1 w-full flex items-center">
+                <Search className="absolute left-3 w-4 h-4 text-neutral-400" />
+                <Input 
+                  placeholder="Cari deskripsi transaksi..."
+                  className="pl-9 h-11 border border-white/10 rounded-xl font-bold uppercase text-[11px] text-white focus-visible:ring-white bg-zinc-800 animate-none"
+                  value={transactionSearch}
+                  onChange={(e) => setTransactionSearch(e.target.value)}
+                />
+              </div>
+            </div>
+<Card className="border-2 border-black rounded-3xl overflow-hidden bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <Table>
+                <TableHeader className="bg-neutral-50">
+                  <TableRow className="border-b-2 border-black">
+                    <TableHead className="py-4 pl-8 font-black uppercase text-[10px]">Date</TableHead>
+                    <TableHead className="font-black uppercase text-[10px]">Description</TableHead>
+                    <TableHead className="font-black uppercase text-[10px]">Method</TableHead>
+                    <TableHead className="font-black uppercase text-[10px] text-right">Amount</TableHead>
+                    <TableHead className="font-black uppercase text-[10px] text-right pr-8">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredTransactions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-20 text-neutral-400 font-bold uppercase text-[10px]">No transaction history recorded by you</TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTransactions.map(t => (
+                      <TableRow key={t.id} className="border-b border-black/5 last:border-0 hover:bg-neutral-50 transition-colors">
+                        <TableCell className="pl-8 py-4 font-mono text-[10px] text-neutral-400">
+                          {new Date(t.date).toLocaleDateString('id-ID')}
+                        </TableCell>
+                        <TableCell>
+                           <p className="font-black text-xs uppercase leading-tight">{t.description}</p>
+                           <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[9px]">
+                             <span className="font-bold text-neutral-400 uppercase">{t.category}</span>
+                             {t.recordedBy && (
+                               <>
+                                 <span className="text-neutral-300 font-bold">&bull;</span>
+                                 <span className="font-black uppercase text-[#FF6B00]">Penginput: {t.recordedBy} ({t.recordedRole || "pm"})</span>
+                               </>
+                             )}
+                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[8px] font-black border-black/20">{t.method}</Badge>
+                        </TableCell>
+                        <TableCell className={cn(
+                          "text-right font-black text-xs",
+                          t.type === 'income' ? "text-green-600" : "text-red-500"
+                        )}>
+                          {t.type === 'income' ? "+" : "-"} {formatRupiah(t.amount)}
+                        </TableCell>
+                        <TableCell className="pr-8 text-right">
+                           <div className="flex justify-end gap-2">
+                             <Button size="icon" variant="ghost" className="h-7 w-7 text-neutral-400 hover:text-black" onClick={() => handleEditTransaction(t)}>
+                               <FileEdit className="w-3.5 h-3.5" />
+                             </Button>
+                             <Button size="icon" variant="ghost" className="h-7 w-7 text-neutral-400 hover:text-red-500" onClick={() => {if(confirm("Hapus transaksi ini?")) deleteTransaction(t.id)}}>
+                               <Trash2 className="w-3.5 h-3.5" />
+                             </Button>
+                           </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+           </Card>
+        </div>
+      )}
+
       {activeTab === "rab" && (
         <div className="space-y-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1015,8 +1411,28 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="md:col-span-2 border border-black/10 rounded-2xl overflow-hidden shadow-sm">
-              <CardHeader className="bg-neutral-50 border-b border-black/10 flex flex-row justify-between items-center">
+            <div className="md:col-span-2 space-y-8">
+              {(user?.role === 'admin' || user?.role === 'pm') && selectedProject && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-6 bg-white border-2 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Harga Produksi</p>
+                    <p className="text-xl font-black">{formatRupiah(items.reduce((sum, item) => sum + (item.totalPrice || 0), 0))}</p>
+                    <p className="text-[8px] uppercase font-bold text-neutral-300 mt-1">Total Biaya Lapangan</p>
+                  </div>
+                  <div className="p-6 bg-white border-2 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Harga Klien</p>
+                    <p className="text-xl font-black">{formatRupiah(project.totalBudget || 0)}</p>
+                    <p className="text-[8px] uppercase font-bold text-neutral-300 mt-1">Nilai Kontrak</p>
+                  </div>
+                  <div className="p-6 bg-black text-white border-2 border-black rounded-2xl shadow-[4px_4px_0px_0px_#FF6B00]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-accent">Estimasi Profit</p>
+                    <p className="text-xl font-black text-green-400">+{formatRupiah((project.totalBudget || 0) - items.reduce((sum, item) => sum + (item.totalPrice || 0), 0))}</p>
+                    <p className="text-[8px] uppercase font-bold text-white/40 mt-1">Marginal Margin 10%</p>
+                  </div>
+                </div>
+              )}
+              <Card className="border border-black/10 rounded-2xl overflow-hidden shadow-sm">
+                <CardHeader className="bg-neutral-50 border-b border-black/10 flex flex-row justify-between items-center">
                 <CardTitle className="text-xl font-black uppercase tracking-tighter">Budget Items & Progress</CardTitle>
                 <Button size="sm" className="btn-sleek h-8 rounded-lg text-[10px]">
                   <Plus className="w-3 h-3 mr-1" /> Add Item
@@ -1103,8 +1519,9 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
                 </Table>
               </CardContent>
             </Card>
+          </div>
 
-            <Card className="border border-black/10 rounded-2xl overflow-hidden shadow-sm">
+          <Card className="border border-black/10 rounded-2xl overflow-hidden shadow-sm">
               <CardHeader className="bg-neutral-50 border-b border-black/10">
                 <CardTitle className="text-xl font-black uppercase tracking-tighter">Project Timeline</CardTitle>
               </CardHeader>

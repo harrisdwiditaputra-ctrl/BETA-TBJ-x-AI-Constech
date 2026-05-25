@@ -8,8 +8,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import ErrorBoundary from "@/components/ErrorBoundary.tsx";
 import Layout from "@/components/Layout.tsx";
-import { useState, useEffect, useMemo } from "react";
-import { useAuth, useProjects, useProjectDetails, useProperties, useMasterData, useCMSConfig, useSystemConfig, useMediaAssets, useCampaigns, useSavedEstimates as useEstimations, incrementAIUsage, useLeads, useFinance, useProjectMaterialRequests, useTechnicalDrawings } from "@/lib/hooks";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useAuth, useProjects, useProjectDetails, useProperties, useMasterData, useCMSConfig, useSystemConfig, useMediaAssets, useCampaigns, useSavedEstimates as useEstimations, incrementAIUsage, useLeads, useFinance, useProjectMaterialRequests, useTechnicalDrawings, uploadImage } from "@/lib/hooks";
 import { WORK_ITEMS_MASTER, QRIS_IMAGE, TBJ_LOGO } from "@/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { WorkItemMaster, Property, AIEstimateResponse, BudgetItem, TimelineEvent, BudgetCategory, TechnicalDrawing } from "@/types";
 import propertyPlaceholder from "@/assets/images/regenerated_image_1778396640970.png";
-import { cn, getDriveImageUrl, calculateAdminPrice, calculateClientPrice, formatRupiah, roundToRatusan } from "@/lib/utils";
+import { cn, getDriveImageUrl, calculateAdminPrice, calculateClientPrice, formatRupiah, roundToRibuan } from "@/lib/utils";
 import { getAIEstimation } from "./services/aiEstimator";
 import { generateAIPDF, generateRABPDF, generateInvoicePDF, generateReceiptPDF } from "@/lib/pdfUtils";
 import { Plus, Trash2, ChevronRight, ChevronLeft, Loader2, Calculator, Search, CheckCircle2, Phone, Mail, Lock, CreditCard, Image as ImageIcon, Calendar, FileCheck, Clock, ExternalLink, Info, ChevronDown, ChevronUp, Home, Wrench, PenTool, Building2, MapPin, Ruler, Layers, FileText, Gavel, Key, Camera, Upload, UserCheck, Map as MapIcon, Share2, Instagram, Download, Star, Settings, User, MessageSquare, ShieldCheck, Sparkles, AlertCircle, Minus, Brain, Quote, Zap, LayoutDashboard, DollarSign, Edit2, ArrowRight, UserPlus, Fingerprint, History, Package, Terminal, X, Briefcase, FileEdit } from "lucide-react";
@@ -37,6 +37,7 @@ import AIAgent from "./components/AIAgent";
 import RabPage from "./pages/RabPage";
 import ImportPage from "./pages/ImportPage";
 import ProjectTimeline from "./components/ProjectTimeline";
+import WhatsAppVerificationPage from "./components/WhatsAppVerificationPage";
 
 function NotFoundRedirect() {
   const navigate = useNavigate();
@@ -543,31 +544,105 @@ const ProjectDetail = () => {
   const { updateProject } = useProjects();
   const pdfLogo = TBJ_LOGO;
 
+  // Helper to get real-time price from master data if available, but respect overrides
+  const getResolvedPrice = useCallback((item: BudgetItem) => {
+    // Prioritize the pricePerUnit stored in the item (allows manual overrides)
+    let basePrice = item.pricePerUnit || 0;
+    
+    // Only fetch from master data if the item's price is 0 or uninitialized
+    if (basePrice === 0 && item.masterItemId && masterData) {
+      const master = masterData.find(m => m.id === item.masterItemId);
+      if (master) basePrice = master.price;
+    }
+    
+    const markup = sysConfig?.globalMarkup || 0;
+    const isAHSP = item.isAHSP || (item.code && /^(AHSP|P|G|M|U|T)[0-9]/.test(item.code)) || false;
+    
+    const pricePerUnit = user?.role === 'admin' || user?.role === 'pm' 
+      ? calculateAdminPrice(basePrice, markup, isAHSP) 
+      : calculateClientPrice(basePrice, markup, isAHSP);
+      
+    const totalPrice = roundToRibuan(pricePerUnit * item.quantity);
+    
+    return { pricePerUnit, totalPrice, basePrice };
+  }, [masterData, sysConfig?.globalMarkup, user?.role]);
+
+  const handleDownloadRAB = useCallback(() => {
+    if (!project) return;
+    const cats = categories.map(c => ({ id: c.id, name: c.name }));
+    const formattedItems = items.map(item => {
+      let basePrice = item.pricePerUnit || 0;
+      if (basePrice === 0 && item.masterItemId && masterData) {
+        const master = masterData.find(m => m.id === item.masterItemId);
+        if (master) basePrice = master.price;
+      }
+      const isAHSP = item.isAHSP || (item.code && /^(AHSP|P|G|M|U|T)[0-9]/.test(item.code)) || false;
+      const price = calculateClientPrice(basePrice, sysConfig?.globalMarkup || 20, isAHSP);
+      return {
+        name: item.name,
+        code: item.code || "",
+        unit: item.unit,
+        quantity: item.quantity,
+        pricePerUnit: price,
+        totalPrice: roundToRibuan(price * item.quantity),
+        categoryId: item.categoryId,
+        technicalSpecs: item.technicalSpecs || ""
+      };
+    });
+    
+    generateRABPDF(
+      `RAB ${project.name}`, 
+      cats, 
+      formattedItems, 
+      pdfLogo, 
+      { 
+        name: project.name, 
+        location: project.location || "Jakarta", 
+        client: project.clientName || "Klien Terhormat", 
+        phone: project.clientPhone || "",
+        rabNumber: project.id ? `RAB-${project.id.substring(0,8).toUpperCase()}` : undefined
+      }, 
+      { 
+        discount: project.discount || 0, 
+        taxPercentage: project.taxPercentage || 0, 
+        assessmentDeposit: project.assessmentDeposit || 0 
+      }
+    );
+    toast.success("RAB PDF Generated!");
+  }, [project, categories, items, masterData, sysConfig, pdfLogo]);
+
   // Dynamic Grand Total Sync (Auto-Rounding to 1000)
   useEffect(() => {
     if (project && items.length > 0 && sysConfig && (user?.role === 'admin' || user?.role === 'pm')) {
-      const msMarkup = sysConfig.globalMarkup || 0;
-      
-      // Calculate subtotal by summing up marked-up prices for each item
+      // Always calculate using Client Price for total contract budget (selling price)
       const subtotal = items.reduce((sum, item) => {
-        const itemPrice = calculateClientPrice(item.totalPrice, msMarkup, item.isAHSP);
-        return sum + itemPrice;
+        let basePrice = item.pricePerUnit || 0;
+        if (basePrice === 0 && item.masterItemId && masterData) {
+          const master = masterData.find(m => m.id === item.masterItemId);
+          if (master) basePrice = master.price;
+        }
+        const markup = sysConfig?.globalMarkup || 0;
+        const isAHSP = item.isAHSP || (item.code && /^(AHSP|P|G|M|U|T)[0-9]/.test(item.code)) || false;
+        
+        const pricePerUnit = calculateClientPrice(basePrice, markup, isAHSP);
+        const totalPrice = roundToRibuan(pricePerUnit * item.quantity);
+        return sum + totalPrice;
       }, 0);
       
       const discount = project.discount || 0;
       const deposit = project.assessmentDeposit || 0;
       const taxRate = (project.taxPercentage || 0) / 100;
       
-      const taxableAmount = subtotal - discount - deposit;
-      const taxAmount = taxableAmount * taxRate;
-      const final = taxableAmount + taxAmount;
-      const roundedTotal = roundToRatusan(final);
+      const beforeTax = subtotal - discount;
+      const taxAmount = beforeTax > 0 ? (beforeTax * taxRate) : 0;
+      const final = beforeTax + taxAmount - deposit;
+      const roundedTotal = roundToRibuan(final);
       
       if (project.totalBudget !== roundedTotal) {
         updateProject(project.id, { totalBudget: roundedTotal });
       }
     }
-  }, [project?.id, items, sysConfig, project?.discount, project?.assessmentDeposit, project?.taxPercentage]);
+  }, [project?.id, items, sysConfig, project?.discount, project?.assessmentDeposit, project?.taxPercentage, masterData]);
 
   if (user?.tier === 'prospect' && !user?.assessmentBooked) {
     return (
@@ -592,7 +667,7 @@ const ProjectDetail = () => {
   const { assets: projectMedia, addAsset: addMedia, deleteAsset: deleteMedia } = useMediaAssets(undefined, id);
   const { drawings, addDrawing, deleteDrawing } = useTechnicalDrawings(id);
   const { requests: materialRequests, addRequest: addMaterialRequest } = useProjectMaterialRequests(id);
-  const { transactions } = useFinance(id);
+  const { transactions, addTransaction } = useFinance(id);
   
   const projectTransactions = useMemo(() => {
     return transactions.filter(t => t.projectId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -652,6 +727,8 @@ const ProjectDetail = () => {
     }
   }, [searchQuery, masterData]);
 
+  const [selectedMasterItemId, setSelectedMasterItemId] = useState<string | null>(null);
+
   const selectMasterItem = (item: WorkItemMaster) => {
     setNewItemName(item.name);
     setNewItemUnit(item.unit);
@@ -665,6 +742,7 @@ const ProjectDetail = () => {
       item.code?.startsWith("P-") || 
       false
     );
+    setSelectedMasterItemId(item.id);
     setSearchQuery("");
     setIsSearching(false);
   };
@@ -704,6 +782,44 @@ const ProjectDetail = () => {
   const [categoryToDelete, setCategoryToDelete] = useState<BudgetCategory | null>(null);
   const [photoToDelete, setPhotoToDelete] = useState<{id: string, name: string} | null>(null);
 
+  // Record Expense State
+  const [showRecordExpense, setShowRecordExpense] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({
+    amount: 0,
+    description: "",
+    category: "material",
+    method: "Cash",
+    receiptUrl: ""
+  });
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+
+  const handleRecordExpense = async () => {
+    if (!expenseForm.amount || !expenseForm.description) {
+      toast.error("Mohon lengkapi nominal dan deskripsi.");
+      return;
+    }
+    const loadingToast = toast.loading("Mencatat pengeluaran...");
+    try {
+      await addTransaction({
+        projectId: id,
+        projectName: project.name,
+        type: "expense",
+        category: expenseForm.category as any,
+        amount: expenseForm.amount,
+        description: expenseForm.description,
+        method: expenseForm.method as any,
+        receiptUrl: expenseForm.receiptUrl,
+        date: new Date().toISOString(),
+        status: "completed"
+      });
+      setShowRecordExpense(false);
+      setExpenseForm({ amount: 0, description: "", category: "material", method: "Cash", receiptUrl: "" });
+      toast.success("Pengeluaran berhasil dicatat.", { id: loadingToast });
+    } catch (error) {
+      toast.error("Gagal mencatat pengeluaran.", { id: loadingToast });
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (selectedItems.size === 0) return;
     const loadingToast = toast.loading(`Menghapus ${selectedItems.size} item...`);
@@ -712,7 +828,7 @@ const ProjectDetail = () => {
       for (const itemId of itemIds) {
         const item = items.find(i => i.id === itemId);
         if (item) {
-          await deleteItem(itemId, item.totalPrice);
+          await deleteItem(itemId);
         }
       }
       setSelectedItems(new Set());
@@ -779,7 +895,7 @@ const ProjectDetail = () => {
       {isDrawingsOnly ? (
          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-2xl border-2 border-black animate-in fade-in slide-in-from-top-4 duration-500">
              <div className="flex items-center gap-4">
-                <Button variant="outline" size="sm" className="h-10 rounded-xl font-black uppercase text-[10px] gap-2 border-2 border-black hover:bg-black hover:text-white transition-colors" onClick={() => navigate("/")}>
+                <Button variant="outline" size="sm" className="h-10 rounded-xl font-black uppercase text-[10px] gap-2 border-2 border-black hover:bg-black hover:text-white transition-colors" onClick={() => navigate((user?.role === "admin" || user?.role === "pm") ? "/" : "/profile")}>
                    <ChevronLeft className="w-4 h-4" /> Back to Dashboard
                 </Button>
                 <div className="space-y-0.5">
@@ -798,7 +914,7 @@ const ProjectDetail = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="space-y-1 w-full overflow-hidden">
             <div className="flex items-center gap-3">
-              <Link to={(user?.role === "admin" || user?.role === "pm") ? "/projects" : "/"}>
+              <Link to={(user?.role === "admin" || user?.role === "pm") ? "/" : "/profile"}>
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full border border-black/5 shrink-0">
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
@@ -1243,7 +1359,7 @@ const ProjectDetail = () => {
              <Card className="border-2 border-black rounded-[2.5rem] p-8 space-y-6 self-start bg-neutral-900 text-white shadow-[8px_8px_0px_0px_#FF6B00]">
                 <h4 className="text-xl font-black uppercase tracking-tighter italic">Doc Archives</h4>
                 <div className="space-y-3">
-                   <Button variant="outline" className="w-full h-14 rounded-xl border-2 border-white/20 bg-white/5 hover:bg-white/10 hover:border-white text-white justify-between px-6" onClick={() => generateRABPDF(project.name, categories, items, undefined, { name: project.name, location: project.location || "", client: project.clientName || "" }, { discount: project.discount, taxPercentage: project.taxPercentage, assessmentDeposit: project.assessmentDeposit })}>
+                   <Button variant="outline" className="w-full h-14 rounded-xl border-2 border-white/20 bg-white/5 hover:bg-white/10 hover:border-white text-white justify-between px-6" onClick={handleDownloadRAB}>
                       <div className="flex items-center gap-3">
                          <FileText className="w-4 h-4 text-accent" />
                          <span className="text-[10px] font-black uppercase">RAB Proyek (.PDF)</span>
@@ -1441,11 +1557,104 @@ const ProjectDetail = () => {
         <div className="grid md:grid-cols-3 gap-8">
            <div className="md:col-span-2 space-y-6">
               <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                <CardHeader className="bg-neutral-50 border-b-2 border-black flex justify-between items-center">
-                   <CardTitle className="text-xl font-black uppercase tracking-tighter">Transaction LEDGER</CardTitle>
-                   <Badge variant="outline" className="border-black font-black uppercase text-[8px] bg-neutral-100">Project Fin-001</Badge>
+                <CardHeader className="bg-neutral-50 border-b-2 border-black flex flex-col sm:flex-row justify-between items-center gap-4">
+                   <div className="flex items-center gap-3">
+                      <DollarSign className="w-6 h-6 text-accent" />
+                      <CardTitle className="text-xl font-black uppercase tracking-tighter">Transaction LEDGER</CardTitle>
+                   </div>
+                   {(user?.role === 'admin' || user?.role === 'pm') && (
+                     <Button 
+                       className="w-full sm:w-auto h-10 px-6 rounded-xl bg-red-600 text-white font-black uppercase text-[10px] gap-2 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5"
+                       onClick={() => setShowRecordExpense(true)}
+                     >
+                       <Plus className="w-4 h-4" /> Record Project Expense
+                     </Button>
+                   )}
                 </CardHeader>
                 <CardContent className="p-0">
+                  {/* Record Expense Dialog */}
+                  <Dialog open={showRecordExpense} onOpenChange={setShowRecordExpense}>
+                    <DialogContent className="w-[95vw] sm:max-w-md rounded-[2.5rem] border-4 border-black p-8 max-h-[90vh] overflow-auto">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Record Project Expense</DialogTitle>
+                        <DialogDescription className="uppercase-soft text-[10px]">Catat pengeluaran teknis/lapangan untuk proyek ini.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-6 py-6 font-sans">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Category</Label>
+                            <select 
+                              className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50"
+                              value={expenseForm.category}
+                              onChange={e => setExpenseForm({...expenseForm, category: e.target.value as any})}
+                            >
+                              <option value="material">Material</option>
+                              <option value="labor">Labor/Upah</option>
+                              <option value="assessment">Survey/Assessment</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Amount (Rp)</Label>
+                            <Input 
+                              type="number" 
+                              value={expenseForm.amount} 
+                              onChange={e => setExpenseForm({...expenseForm, amount: Number(e.target.value)})}
+                              className="h-12 rounded-xl border-2 border-black/10 font-mono font-black"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Description</Label>
+                          <Input 
+                            value={expenseForm.description} 
+                            onChange={e => setExpenseForm({...expenseForm, description: e.target.value})}
+                            className="h-12 rounded-xl border-2 border-black/10"
+                            placeholder="e.g. Pembelian Semen 50 Sak"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Method</Label>
+                          <select 
+                            className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50"
+                            value={expenseForm.method}
+                            onChange={e => setExpenseForm({...expenseForm, method: e.target.value as any})}
+                          >
+                            <option value="Cash">Cash</option>
+                            <option value="Transfer">Transfer</option>
+                            <option value="Digital Wallet">E-Wallet</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Receipt / Evidence</Label>
+                           <Input 
+                             type="file" 
+                             onChange={async (e) => {
+                               const file = e.target.files?.[0];
+                               if (file) {
+                                  setIsUploadingReceipt(true);
+                                  try {
+                                    const url = await uploadImage(file, `receipts/${id}/${Date.now()}_${file.name}`);
+                                    setExpenseForm(prev => ({ ...prev, receiptUrl: url }));
+                                    toast.success("Foto bon berhasil diunggah.");
+                                  } catch (error) {
+                                    toast.error("Gagal mengunggah foto bon.");
+                                  } finally {
+                                    setIsUploadingReceipt(false);
+                                  }
+                               }
+                             }}
+                             className="h-12 rounded-xl border-2 border-black/10"
+                             accept="image/*"
+                             capture="environment"
+                           />
+                           {isUploadingReceipt && <div className="flex items-center gap-2 text-[10px] font-bold text-accent"><Loader2 className="w-3 h-3 animate-spin" /> Mengunggah...</div>}
+                           {expenseForm.receiptUrl && <p className="text-[10px] text-green-600 font-bold uppercase">✓ Evidence Linked</p>}
+                        </div>
+                        <Button className="w-full bg-black text-white h-14 rounded-2xl font-black uppercase tracking-widest text-xs" onClick={handleRecordExpense}>Submit Expense &rarr;</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-neutral-50/50 hover:bg-neutral-50/50 border-b-2 border-black">
@@ -1983,18 +2192,7 @@ const ProjectDetail = () => {
                             className="overflow-hidden mt-3 space-y-3"
                           >
                              <Button variant="outline" className="w-full h-12 px-6 border border-neutral-200 rounded-2xl gap-2 font-black uppercase text-[10px] shadow-sm" onClick={() => {
-                               const cats = categories.map(c => ({ id: c.id, name: c.name }));
-                               const formattedItems = items.map(item => ({
-                                 name: item.name,
-                                 unit: item.unit,
-                                 quantity: item.quantity,
-                                 pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP),
-                                 totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP),
-                                 categoryId: item.categoryId,
-                                 technicalSpecs: item.technicalSpecs
-                               }));
-                               generateRABPDF(`RAB ${project.name}`, cats, formattedItems, pdfLogo, { name: project.name, location: project.location || "Jakarta", client: project.clientName || "Klien Terhormat", phone: project.clientPhone }, { discount: project.discount, taxPercentage: project.taxPercentage, assessmentDeposit: project.assessmentDeposit });
-                               toast.success("RAB PDF Generated!");
+                               handleDownloadRAB();
                                setShowRABActions(false);
                              }}>
                                <Download className="w-4 h-4" /> Export RAB PDF
@@ -2036,7 +2234,13 @@ const ProjectDetail = () => {
                                               <div className="absolute z-50 w-full mt-2 bg-white border-2 border-black rounded-2xl shadow-xl max-h-60 overflow-auto scrollbar-hide">
                                                 {searchResults.map(item => (
                                                   <div key={item.id} className="p-4 hover:bg-neutral-50 cursor-pointer border-b-2 border-black/5 last:border-0" onClick={() => selectMasterItem(item)}>
-                                                    <div className="flex justify-between items-center mb-1"><span className="font-black text-[11px] uppercase tracking-tighter">{item.name}</span><Badge variant="outline" className="text-[9px] border-black/10 uppercase-soft">{item.category}</Badge></div>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                      <span className="font-black text-[11px] uppercase tracking-tighter">{item.name}</span>
+                                                      <div className="flex gap-1">
+                                                        {item.soldCount > 0 && <Badge className="bg-green-500 text-white text-[7px] uppercase font-black px-1.5 h-4">Terjual {item.soldCount}</Badge>}
+                                                        <Badge variant="outline" className="text-[9px] border-black/10 uppercase-soft">{item.category}</Badge>
+                                                      </div>
+                                                    </div>
                                                     <div className="flex justify-between text-[10px] font-bold text-neutral-400 italic"><span>Satuan: {item.unit}</span><span>Rp {item.price.toLocaleString('id-ID')}</span></div>
                                                   </div>
                                                 ))}
@@ -2068,7 +2272,8 @@ const ProjectDetail = () => {
                                       </div>
                                       <DialogFooter><Button className="btn-accent w-full h-12 shadow-md" onClick={() => { 
                                         if(selectedCatId && newItemName) { 
-                                          addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate, isAHSPItem); 
+                                          const mItem = masterData.find(m => m.id === selectedMasterItemId);
+                                          addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate, isAHSPItem, selectedMasterItemId || undefined, mItem?.code); 
                                           setNewItemName(""); 
                                           setNewItemSpecs(""); 
                                           setNewItemQty(1); 
@@ -2087,23 +2292,10 @@ const ProjectDetail = () => {
                           </div>
                         )}
                       </div>
-                   </div>
+                    </div>
 
-                   <div className="hidden md:flex flex-wrap gap-4">
-                      <Button variant="outline" className="h-12 px-6 border-2 border-black rounded-2xl gap-2 font-black uppercase text-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-neutral-100" onClick={() => {
-                        const cats = categories.map(c => ({ id: c.id, name: c.name }));
-                        const formattedItems = items.map(item => ({
-                          name: item.name,
-                          unit: item.unit,
-                          quantity: item.quantity,
-                          pricePerUnit: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP),
-                          totalPrice: user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP),
-                          categoryId: item.categoryId,
-                          technicalSpecs: item.technicalSpecs
-                        }));
-                        generateRABPDF(`RAB ${project.name}`, cats, formattedItems, pdfLogo, { name: project.name, location: project.location || "Jakarta", client: project.clientName || "Klien Terhormat", phone: project.clientPhone }, { discount: project.discount, taxPercentage: project.taxPercentage, assessmentDeposit: project.assessmentDeposit });
-                        toast.success("RAB PDF Generated!");
-                      }}>
+                    <div className="hidden md:flex flex-wrap gap-4">
+                      <Button variant="outline" className="h-12 px-6 border-2 border-black rounded-2xl gap-2 font-black uppercase text-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-neutral-100" onClick={handleDownloadRAB}>
                         <Download className="w-4 h-4" /> Export RAB PDF
                       </Button>
 
@@ -2155,7 +2347,13 @@ const ProjectDetail = () => {
                                       <div className="absolute z-50 w-full mt-2 bg-white border-2 border-black rounded-2xl shadow-xl max-h-60 overflow-auto scrollbar-hide">
                                         {searchResults.map(item => (
                                           <div key={item.id} className="p-4 hover:bg-neutral-50 cursor-pointer border-b-2 border-black/5 last:border-0" onClick={() => selectMasterItem(item)}>
-                                            <div className="flex justify-between items-center mb-1"><span className="font-black text-[11px] uppercase tracking-tighter">{item.name}</span><Badge variant="outline" className="text-[9px] border-black/10 uppercase-soft">{item.category}</Badge></div>
+                                            <div className="flex justify-between items-center mb-1">
+                                              <span className="font-black text-[11px] uppercase tracking-tighter">{item.name}</span>
+                                              <div className="flex gap-1">
+                                                {item.soldCount > 0 && <Badge className="bg-green-500 text-white text-[7px] uppercase font-black px-1.5 h-4">Terjual {item.soldCount}</Badge>}
+                                                <Badge variant="outline" className="text-[9px] border-black/10 uppercase-soft">{item.category}</Badge>
+                                              </div>
+                                            </div>
                                             <div className="flex justify-between text-[10px] font-bold text-neutral-400 italic"><span>Satuan: {item.unit}</span><span>Rp {item.price.toLocaleString('id-ID')}</span></div>
                                           </div>
                                         ))}
@@ -2187,7 +2385,8 @@ const ProjectDetail = () => {
                               </div>
                               <DialogFooter><Button className="btn-accent w-full h-12 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" onClick={() => { 
                                 if(selectedCatId && newItemName) { 
-                                  addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate, isAHSPItem); 
+                                  const mItem = masterData.find(m => m.id === selectedMasterItemId);
+                                  addItem(selectedCatId, newItemName, newItemQty, newItemUnit, newItemPrice, newItemSpecs, newItemPriority, 0, newItemDueDate, isAHSPItem, selectedMasterItemId || undefined, mItem?.code); 
                                   setNewItemName(""); 
                                   setNewItemSpecs(""); 
                                   setNewItemQty(1); 
@@ -2235,26 +2434,22 @@ const ProjectDetail = () => {
                       </div>
                    </div>
 
-                   <div className="text-right space-y-1 w-full md:w-auto">
+                    <div className="text-right space-y-1 w-full md:w-auto">
                       <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Grand Total (Rounded)</p>
                       <p className="text-4xl font-black text-accent italic">
                         {(() => {
-                           const ahspTotal = items.filter(i => i.isAHSP).reduce((sum, i) => sum + i.totalPrice, 0);
-                           const nonAhspTotal = items.filter(i => !i.isAHSP).reduce((sum, i) => sum + i.totalPrice, 0);
-                           
-                           const msMarkup = sysConfig?.globalMarkup || 0;
-                           const markedUpNonAhsp = calculateClientPrice(nonAhspTotal, msMarkup);
-                           const markedUpAhsp = calculateClientPrice(ahspTotal, msMarkup, true); 
-                           
-                           const subtotalTotal = markedUpNonAhsp + markedUpAhsp;
+                           // Use resolved prices for subtotal
+                           const subtotalTotal = items.reduce((sum, item) => {
+                             const resolved = getResolvedPrice(item);
+                             return sum + resolved.totalPrice;
+                           }, 0);
                            
                            const discount = project.discount || 0;
                            const deposit = project.assessmentDeposit || 0;
                            const taxRate = (project.taxPercentage || 0) / 100;
                            
-                           const beforeTax = subtotalTotal - discount - deposit;
-                           const taxAmount = beforeTax * taxRate;
-                           const final = beforeTax + taxAmount;
+                           // Logika Baru: Subtotal + PPN - Deposit (Diskon sudah masuk di subtotal/item)
+                           const final = (subtotalTotal * (1 + taxRate)) - deposit;
                            
                            const roundedTotal = Math.ceil(final / 1000) * 1000;
                            return formatRupiah(roundedTotal);
@@ -2281,7 +2476,10 @@ const ProjectDetail = () => {
                     </div>
                   </div>
                   <Badge className="bg-black text-white h-10 px-6 rounded-2xl font-black uppercase text-[12px] shadow-[4px_4px_0px_0px_#FF6B00]">
-                    Subtotal: {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(items.filter(i => i.categoryId === category.id).reduce((sum, i) => sum + i.totalPrice, 0), sysConfig?.globalMarkup) : calculateClientPrice(items.filter(i => i.categoryId === category.id).reduce((sum, i) => sum + i.totalPrice, 0), sysConfig?.globalMarkup))}
+                    Subtotal: {formatRupiah(items.filter(i => i.categoryId === category.id).reduce((sum, item) => {
+                      const resolved = getResolvedPrice(item);
+                      return sum + resolved.totalPrice;
+                    }, 0))}
                   </Badge>
                 </div>
                 
@@ -2295,12 +2493,18 @@ const ProjectDetail = () => {
                             onCheckedChange={() => toggleSelectAll(category.id)}
                           />
                         </TableHead>
+                        <TableHead className="w-[80px] uppercase font-black text-[10px] tracking-tight">Kode</TableHead>
                         <TableHead className="w-[300px] uppercase font-black text-[10px] tracking-tight">Deskripsi Pekerjaan</TableHead>
                         <TableHead className="text-center uppercase font-black text-[10px] tracking-tight">Prioritas</TableHead>
                         <TableHead className="text-center uppercase font-black text-[10px] tracking-tight">Deadline</TableHead>
                         <TableHead className="text-center uppercase font-black text-[10px] tracking-tight">Vol / Sat</TableHead>
-                        <TableHead className="text-right uppercase font-black text-[10px] tracking-tight">Harga Satuan</TableHead>
-                        <TableHead className="text-right uppercase font-black text-[10px] tracking-tight">Total</TableHead>
+                        {(user?.role === "admin" || user?.role === "pm") && (
+                          <>
+                            <TableHead className="text-right uppercase font-black text-[10px] tracking-tight text-neutral-400">Modal (Unit/Total)</TableHead>
+                            <TableHead className="text-right uppercase font-black text-[10px] tracking-tight text-accent">Admin (Unit/Total)</TableHead>
+                          </>
+                        )}
+                        <TableHead className="text-right uppercase font-black text-[10px] tracking-tight">Klien (Unit/Total)</TableHead>
                         <TableHead className="w-[140px] text-center uppercase font-black text-[10px] tracking-tight">Progress</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
@@ -2313,6 +2517,9 @@ const ProjectDetail = () => {
                               checked={selectedItems.has(item.id)}
                               onCheckedChange={() => toggleSelectItem(item.id)}
                             />
+                          </TableCell>
+                          <TableCell className="text-center">
+                             <span className="font-mono text-[10px] font-black text-neutral-400">{item.code || "-"}</span>
                           </TableCell>
                           <TableCell className="py-6">
                             <div className="space-y-1">
@@ -2348,11 +2555,32 @@ const ProjectDetail = () => {
                              <p className="font-black text-xs">{item.quantity}</p>
                              <p className="text-[10px] font-bold uppercase text-neutral-400">{item.unit}</p>
                           </TableCell>
+                          {(user?.role === "admin" || user?.role === "pm") && (
+                            <>
+                              <TableCell className="text-right font-mono text-[10px]">
+                                <div className="flex flex-col gap-1 items-end">
+                                  <Input 
+                                    type="number"
+                                    className="w-24 h-7 text-right font-mono text-[10px] border-black/5 bg-transparent"
+                                    value={item.pricePerUnit || 0}
+                                    onChange={(e) => updateItem(item.id, { pricePerUnit: Number(e.target.value) })}
+                                  />
+                                  <span className="text-neutral-400 font-bold px-2">{formatRupiah(getResolvedPrice(item).basePrice * item.quantity)}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-[10px]">
+                                <div className="flex flex-col">
+                                  <span className="text-accent">{formatRupiah(calculateAdminPrice(getResolvedPrice(item).basePrice, sysConfig?.globalMarkup, item.isAHSP))}</span>
+                                  <span className="text-accent font-bold">{formatRupiah(calculateAdminPrice(getResolvedPrice(item).basePrice, sysConfig?.globalMarkup, item.isAHSP) * item.quantity)}</span>
+                                </div>
+                              </TableCell>
+                            </>
+                          )}
                           <TableCell className="text-right font-mono text-xs">
-                            {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.pricePerUnit, sysConfig?.globalMarkup, item.isAHSP))}
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-black text-xs text-accent">
-                            {formatRupiah(user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP))}
+                            <div className="flex flex-col">
+                              <span className="text-neutral-600">{formatRupiah(calculateClientPrice(getResolvedPrice(item).basePrice, sysConfig?.globalMarkup, item.isAHSP))}</span>
+                              <span className="text-black font-black">{formatRupiah(calculateClientPrice(getResolvedPrice(item).basePrice, sysConfig?.globalMarkup, item.isAHSP) * item.quantity)}</span>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col items-center gap-2">
@@ -2411,13 +2639,42 @@ const ProjectDetail = () => {
                 <div className="bg-black text-white rounded-[2rem] p-8 shadow-[8px_8px_0px_0px_#FF6B00]">
                   <div className="space-y-4">
                     {(() => {
-                        const subtotal = items.reduce((sum, item) => sum + (user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP) : calculateClientPrice(item.totalPrice, sysConfig?.globalMarkup, item.isAHSP)), 0);
+                        const markup = sysConfig?.globalMarkup || 0;
+                        const modalTotal = items.reduce((sum, item) => sum + (getResolvedPrice(item).basePrice * item.quantity), 0);
+                        const adminTotal = items.reduce((sum, item) => sum + (calculateAdminPrice(getResolvedPrice(item).basePrice, markup, item.isAHSP) * item.quantity), 0);
+                        const clientTotal = items.reduce((sum, item) => sum + (calculateClientPrice(getResolvedPrice(item).basePrice, markup, item.isAHSP) * item.quantity), 0);
+                        
+                        // We use clientTotal as the base for client-facing subtotal
+                        const subtotal = clientTotal;
+
                         return (
                           <>
                             <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-white/50 border-b border-white/10 pb-4">
-                              <span>Total RAB Bruto</span>
+                              <span>Total RAB Bruto (Klien)</span>
                               <span>{formatRupiah(subtotal)}</span>
                             </div>
+
+                            {(user?.role === "admin" || user?.role === "pm") && (
+                              <div className="py-4 space-y-3 bg-white/5 rounded-2xl px-4 border border-white/10">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-accent/70">Internal Analysis (TBJ OS)</p>
+                                <div className="flex justify-between items-center text-[10px] font-bold uppercase">
+                                  <span className="text-white/60">Total Harga Modal</span>
+                                  <span>{formatRupiah(modalTotal)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] font-bold uppercase">
+                                  <span className="text-white/60">Total Harga Produksi (Admin)</span>
+                                  <span>{formatRupiah(adminTotal)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] font-bold uppercase">
+                                  <span className="text-white/60">Total Harga Jual (Klien)</span>
+                                  <span>{formatRupiah(clientTotal)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs font-black uppercase pt-2 border-t border-white/10 text-green-400">
+                                  <span>Estimasi Profit TBJ</span>
+                                  <span>+ {formatRupiah(clientTotal - adminTotal)}</span>
+                                </div>
+                              </div>
+                            )}
                             
                             {project.discount && (
                               <div className="flex justify-between items-center text-xs font-bold uppercase text-red-400">
@@ -2629,7 +2886,7 @@ const ProjectDetail = () => {
             <Button variant="outline" className="rounded-xl uppercase-soft h-12" onClick={() => setItemToDelete(null)}>Batal</Button>
             <Button variant="destructive" className="rounded-xl uppercase-soft h-12 bg-red-600 font-bold" onClick={async () => {
               if (itemToDelete) {
-                await deleteItem(itemToDelete.id, itemToDelete.totalPrice);
+                await deleteItem(itemToDelete.id);
                 toast.success("Item berhasil dihapus.");
                 setItemToDelete(null);
               }
@@ -2831,8 +3088,10 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
       // Tiered AI Analysis Limit Check
       const isStaff = user?.role === "admin" || user?.role === "pm";
       const isTier3 = user?.tier === "deal";
-      // Tier 1: Email (5), Tier 2: WA verified (10), Tier 3: Deal (Unlimited)
-      const freeLimit = user?.waVerified ? 10 : 5;
+      // Tier 1 (Unverified WA): 1 analysis allowed
+      // Tier 2 (Verified WA): 10 analyses allowed
+      // Tier 3 (Deal) & Staff: Unlimited
+      const freeLimit = user?.waVerified ? 10 : 1;
       
       setIsAnalyzing(true);
       const loadingToast = toast.loading("AI sedang menganalisa data proyek Anda...");
@@ -2911,7 +3170,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
     ? aiEstimation.totalEstimatedCost 
     : selectedItems.reduce((sum, si) => {
         const itemPrice = user?.role === "admin" || user?.role === "pm" 
-          ? calculateAdminPrice(si.item.price) 
+          ? calculateAdminPrice(si.item.price, systemConfig?.globalMarkup) 
           : calculateClientPrice(si.item.price, systemConfig?.globalMarkup);
         return sum + (itemPrice * si.qty);
       }, 0) + (interiorEstimate > 0 ? (user?.role === "admin" || user?.role === "pm" ? calculateAdminPrice(interiorEstimate, systemConfig?.globalMarkup) : calculateClientPrice(interiorEstimate, systemConfig?.globalMarkup)) : 0) + designFee;
@@ -5393,6 +5652,15 @@ export default function App() {
   const isPM = user?.role === "pm";
   const isManagerial = isAdmin || isPM;
   const isClient = user?.role === "user";
+
+  if (user && isClient && !user.waVerified) {
+    return (
+      <ErrorBoundary>
+        <WhatsAppVerificationPage user={user} updateProfile={updateProfile} onLogout={logout} />
+        <Toaster position="top-right" expand={false} richColors />
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <ErrorBoundary>

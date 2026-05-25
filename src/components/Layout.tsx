@@ -46,17 +46,17 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
   ];
 
   return (
-    <div className="min-h-screen bg-white flex flex-col sleek-grid overflow-x-hidden">
+    <div className="min-h-screen bg-[#F1F3F6] flex flex-col sleek-grid overflow-x-hidden font-sans">
       {/* Floating Ticker handled internally with fixed positioning */}
       <Ticker />
       
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-neutral-100 sticky top-0 z-40">
+      <header className="bg-white/60 backdrop-blur-md border-b border-white/40 sticky top-0 z-40 shadow-[0_4px_12px_rgba(163,177,198,0.15)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
             <div className="flex items-center">
               <Link to="/" className="flex-shrink-0 flex items-center gap-3 group">
-                <div className="w-12 h-12 flex items-center justify-center transition-transform group-hover:rotate-6 rounded-xl overflow-hidden border-2 border-accent bg-white shadow-[4px_4px_0px_0px_rgba(255,107,0,0.2)]">
+                <div className="w-11 h-11 flex items-center justify-center transition-transform group-hover:rotate-6 rounded-xl overflow-hidden border border-white bg-white/80 shadow-[4px_4px_10px_rgba(0,0,0,0.06)]">
                   <img 
                     src={headerLogo} 
                     alt="TBJ Logo" 
@@ -65,20 +65,20 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
                   />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-black text-2xl tracking-tighter uppercase leading-none text-accent">TBJ</span>
-                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-accent">Constech Hub</span>
+                  <span className="font-campton-book font-bold text-2xl tracking-tighter uppercase leading-none text-[#ff6B00]">TBJ</span>
+                  <span className="text-[9px] font-avenir-medium uppercase tracking-[0.2em] text-[#ff6B00]">Constech Hub</span>
                 </div>
               </Link>
-              <nav className="hidden md:ml-12 md:flex md:space-x-1">
+              <nav className="hidden md:ml-12 md:flex md:space-x-1 font-sans">
                 {navigation.map((item) => (
                   <Link
                     key={item.name}
                     to={item.href}
                     className={cn(
-                      "px-4 py-2 text-[11px] font-bold uppercase tracking-widest transition-all rounded-xl",
+                      "px-4 py-2 text-[10px] font-avenir-medium uppercase tracking-widest transition-all rounded-xl",
                       location.pathname === item.href
-                        ? "bg-accent text-white shadow-lg shadow-accent/20"
-                        : "text-neutral-500 hover:text-white hover:bg-accent"
+                        ? "bg-[#ff6B00] text-white shadow-[0_4px_12px_rgba(255,107,0,0.35)]"
+                        : "text-neutral-500 hover:text-[#ff6B00] hover:bg-white/40"
                     )}
                   >
                     {item.name}
@@ -88,17 +88,17 @@ export default function Layout({ children, user, onLogout, onLogin }: LayoutProp
             </div>
             <div className="hidden md:flex items-center gap-6">
               {user ? (
-                <div className="flex items-center gap-4 pl-6 border-l border-black/10">
+                <div className="flex items-center gap-4 pl-6 border-l border-neutral-200">
                   <div className="text-right">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-900">{user.displayName}</p>
+                    <p className="text-[11px] font-avenir-medium font-bold uppercase tracking-wider text-neutral-800">{user.displayName}</p>
                     <p className="text-[10px] font-mono text-neutral-400">{user.email}</p>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={onLogout} className="hover:bg-titanium hover:text-white rounded-md">
-                    <LogOut className="w-5 h-5" />
+                  <Button variant="ghost" size="icon" onClick={onLogout} className="hover:bg-[#ff6B00]/10 hover:text-[#ff6B00] rounded-xl transition-all duration-300">
+                    <LogOut className="w-4 h-4 text-neutral-500" />
                   </Button>
                 </div>
               ) : (
-                <Button variant="default" className="btn-sleek h-10 px-6 text-[11px]" onClick={onLogin}>Login</Button>
+                <Button variant="default" className="btn-sleek h-10 px-6 text-[10.5px] font-avenir-medium" onClick={onLogin}>Login</Button>
               )}
             </div>
             <div className="flex items-center md:hidden">

@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Search, Plus, Minus, Trash2, Download, Share2, Instagram, Phone, Mail, Building2, Save, FileText, ChevronRight, Calculator, MoreHorizontal, Eraser, Edit3, Loader2, History as HistoryIcon } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { cn, formatRupiah, calculateAdminPrice, calculateClientPrice } from "@/lib/utils";
+import { cn, formatRupiah, calculateAdminPrice, calculateClientPrice, roundToRibuan } from "@/lib/utils";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
@@ -118,6 +118,9 @@ export default function RabPage({ user }: { user: any }) {
     address: "Lokasi Proyek",
     date: new Date().toLocaleDateString('id-ID'),
     contact: user?.whatsapp || "",
+    discount: 0,
+    taxPercentage: 0,
+    assessmentDeposit: 0,
   });
 
   // Access Control
@@ -125,8 +128,8 @@ export default function RabPage({ user }: { user: any }) {
     // Admin and PM can always access
     if (user?.role === 'admin' || user?.role === 'pm') return;
     
-    // Tier 2 and Tier 3 clients can view
-    if (user?.tier === 'survey' || user?.tier === 'deal') return;
+    // Tier 1 (Prospect), Tier 2 (Survey), and Tier 3 (Deal) clients can view
+    if (user?.tier === 'prospect' || user?.tier === 'survey' || user?.tier === 'deal') return;
 
     // Otherwise redirect
     if (!user) navigate("/");
@@ -152,14 +155,15 @@ export default function RabPage({ user }: { user: any }) {
 
   const addItemToRab = (master: WorkItemMaster) => {
     const markup = systemConfig?.globalMarkup || 20;
-    const price = canEdit ? calculateAdminPrice(master.price, markup) : calculateClientPrice(master.price, markup);
+    // We calculate display price dynamically based on client price to represent the official contract value
+    const displayPrice = calculateClientPrice(master.price, markup, master.isAHSP);
     
     const newItem: RabItem = {
       ...master,
       instanceId: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      price,
+      // We keep 'price' as the base price from masterData
       volume: 1,
-      total: price,
+      total: displayPrice, // Initial total (Client price)
       code: master.code || master.id,
       notes: "",
       technicalSpecs: master.technicalSpecs || ""
@@ -185,11 +189,29 @@ export default function RabPage({ user }: { user: any }) {
     await saveEstimate(draftData);
   };
 
+  // Real-time Price Recalculation Effect
+  useEffect(() => {
+    if (!systemConfig?.globalMarkup) return;
+    
+    setRabItems(prev => prev.map(item => {
+      const markup = systemConfig.globalMarkup;
+      const displayPrice = calculateClientPrice(item.price, markup, item.isAHSP);
+        
+      return {
+        ...item,
+        total: (item.volume || 0) * displayPrice
+      };
+    }));
+  }, [systemConfig?.globalMarkup]);
+
   const updateItemById = (instanceId: string, updates: Partial<RabItem>) => {
     setRabItems(prev => prev.map(item => {
       if (item.instanceId === instanceId) {
         const updatedItem = { ...item, ...updates };
-        updatedItem.total = (updatedItem.volume || 0) * (updatedItem.price || 0);
+        const markup = systemConfig?.globalMarkup || 20;
+        const displayPrice = calculateClientPrice(updatedItem.price, markup, updatedItem.isAHSP);
+        
+        updatedItem.total = (updatedItem.volume || 0) * displayPrice;
         return updatedItem;
       }
       return item;
@@ -218,18 +240,82 @@ export default function RabPage({ user }: { user: any }) {
     return groups;
   }, [rabItems, categories]);
 
-  const grandTotal = rabItems.reduce((sum, item) => sum + item.total, 0);
+  const grandTotalRaw = rabItems.reduce((sum, item) => sum + item.total, 0);
+  const amountBeforeTax = grandTotalRaw - (projectInfo.discount || 0);
+  const taxAmount = amountBeforeTax > 0 ? (amountBeforeTax * (projectInfo.taxPercentage / 100)) : 0;
+  const grandTotal = Math.ceil((amountBeforeTax + taxAmount - (projectInfo.assessmentDeposit || 0)) / 1000) * 1000;
 
   const exportToPDF = async () => {
-    toast.promise(generateRABPDF(projectInfo.projectName, categories.map(c => ({ id: c, name: c })), rabItems.map(item => ({
-      ...item,
-      quantity: item.volume,
-      pricePerUnit: item.price,
-      totalPrice: item.total
-    })), pdfLogo), {
+    toast.promise(generateRABPDF(
+      projectInfo.projectName, 
+      categories.map(c => ({ id: c, name: c })), 
+      rabItems.map(item => {
+        const pricePerUnit = calculateClientPrice(item.price, systemConfig?.globalMarkup, item.isAHSP || false);
+        const totalPrice = roundToRibuan(pricePerUnit * item.volume);
+
+        return {
+          ...item,
+          quantity: item.volume,
+          pricePerUnit,
+          totalPrice,
+          technicalSpecs: item.technicalSpecs
+        };
+      }), 
+      pdfLogo,
+      {
+        name: projectInfo.projectName,
+        location: projectInfo.address,
+        client: projectInfo.clientName,
+        phone: projectInfo.contact
+      },
+      {
+        discount: projectInfo.discount,
+        taxPercentage: projectInfo.taxPercentage,
+        assessmentDeposit: projectInfo.assessmentDeposit
+      }
+    ), {
       loading: 'Generating PDF...',
       success: 'RAB PDF Exported!',
       error: 'Failed to generate PDF'
+    });
+  };
+
+  const shareExportToPDF = async () => {
+    const summaryText = `Halo Bpk/Ibu ${projectInfo.clientName || 'Klien'},\n\nBerikut adalah RINGKASAN RAB untuk Proyek ${projectInfo.projectName}:\nTotal Estimasi: ${formatRupiah(grandTotal)}\n\nTerlampir dokumen PDF detailnya. Semoga berkenan dan menjadi awal kerjasama yang baik.\n\nTerima kasih.\nTBJ Constech OS`;
+
+    toast.promise(generateRABPDF(
+      projectInfo.projectName, 
+      categories.map(c => ({ id: c, name: c })), 
+      rabItems.map(item => {
+        const pricePerUnit = calculateClientPrice(item.price, systemConfig?.globalMarkup, item.isAHSP || false);
+        const totalPrice = roundToRibuan(pricePerUnit * item.volume);
+
+        return {
+          ...item,
+          quantity: item.volume,
+          pricePerUnit,
+          totalPrice,
+          technicalSpecs: item.technicalSpecs
+        };
+      }), 
+      pdfLogo,
+      {
+        name: projectInfo.projectName,
+        location: projectInfo.address,
+        client: projectInfo.clientName,
+        phone: projectInfo.contact
+      },
+      {
+        discount: projectInfo.discount,
+        taxPercentage: projectInfo.taxPercentage,
+        assessmentDeposit: projectInfo.assessmentDeposit
+      },
+      true,
+      summaryText
+    ), {
+      loading: 'Preparing share...',
+      success: 'RAB PDF shared!',
+      error: 'Failed to share PDF'
     });
   };
 
@@ -240,6 +326,9 @@ export default function RabPage({ user }: { user: any }) {
       address: est.address || "",
       date: est.date || new Date().toISOString(),
       contact: est.contact || user?.whatsapp || "",
+      discount: est.discount || 0,
+      taxPercentage: est.taxPercentage || 0,
+      assessmentDeposit: est.assessmentDeposit || 0,
     });
     // Ensure all items have instanceId for removal functionality
     setRabItems((est.items || []).map((item: any) => ({
@@ -271,6 +360,9 @@ export default function RabPage({ user }: { user: any }) {
         <div className="flex flex-wrap gap-3 w-full md:w-auto">
           <Button variant="outline" className="flex-1 md:flex-none border-neutral-200 text-neutral-600 hover:bg-neutral-50 rounded-full gap-2 h-10 md:h-12 px-4 md:px-8 uppercase-soft text-[9px] md:text-[10px] font-black" onClick={exportToPDF}>
             <Download className="w-4 h-4" /> Export PDF
+          </Button>
+          <Button variant="outline" className="flex-1 md:flex-none border-neutral-200 text-green-600 hover:bg-green-50 rounded-full gap-2 h-10 md:h-12 px-4 md:px-8 uppercase-soft text-[9px] md:text-[10px] font-black" onClick={() => shareExportToPDF()}>
+            <Share2 className="w-4 h-4" /> Bagikan WA
           </Button>
           {canEdit && (
             <Button 
@@ -349,6 +441,9 @@ export default function RabPage({ user }: { user: any }) {
                     address: "Lokasi Proyek",
                     date: new Date().toLocaleDateString('id-ID'),
                     contact: user?.whatsapp || "",
+                    discount: 0,
+                    taxPercentage: 0,
+                    assessmentDeposit: 0,
                   });
                   setActiveTab("editor");
                   toast.success("Mulai membuat RAB baru.");
@@ -476,6 +571,39 @@ export default function RabPage({ user }: { user: any }) {
                   className="rounded-none border-0 border-b border-neutral-100 focus-visible:ring-0 focus-visible:border-black px-0 h-8 text-sm font-bold uppercase w-full" 
                 />
               </div>
+              <div className="pt-4 space-y-4">
+                <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400 border-b border-neutral-100 pb-2">Financial Adj.</p>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] uppercase font-black text-neutral-300">Discount Amount</Label>
+                  <Input 
+                    disabled={!canEdit}
+                    type="number"
+                    value={projectInfo.discount} 
+                    onChange={e => setProjectInfo({...projectInfo, discount: Number(e.target.value)})} 
+                    className="rounded-none border-0 border-b border-neutral-100 focus-visible:ring-0 focus-visible:border-black px-0 h-8 text-sm font-bold uppercase w-full" 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] uppercase font-black text-neutral-300">Tax (%)</Label>
+                  <Input 
+                    disabled={!canEdit}
+                    type="number"
+                    value={projectInfo.taxPercentage} 
+                    onChange={e => setProjectInfo({...projectInfo, taxPercentage: Number(e.target.value)})} 
+                    className="rounded-none border-0 border-b border-neutral-100 focus-visible:ring-0 focus-visible:border-black px-0 h-8 text-sm font-bold uppercase w-full" 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] uppercase font-black text-neutral-300">Survey Deposit</Label>
+                  <Input 
+                    disabled={!canEdit}
+                    type="number"
+                    value={projectInfo.assessmentDeposit} 
+                    onChange={e => setProjectInfo({...projectInfo, assessmentDeposit: Number(e.target.value)})} 
+                    className="rounded-none border-0 border-b border-neutral-100 focus-visible:ring-0 focus-visible:border-black px-0 h-8 text-sm font-bold uppercase w-full" 
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -485,6 +613,34 @@ export default function RabPage({ user }: { user: any }) {
               <p className="text-2xl md:text-3xl font-black tracking-tighter">Rp {(grandTotal || 0).toLocaleString('id-ID')}</p>
               <p className="text-[10px] font-bold text-neutral-400 uppercase">Total Estimated Budget</p>
             </div>
+
+            {canEdit && (
+              <div className="pt-4 mt-4 border-t border-neutral-200 space-y-4">
+                <p className="text-[9px] font-black uppercase tracking-widest text-accent">TBJ Internal Analysis</p>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase">
+                    <span className="text-neutral-400">Internal Modal Total</span>
+                    <span className="text-neutral-900">{formatRupiah(rabItems.reduce((sum, item) => sum + (item.price * item.volume), 0))}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase">
+                    <span className="text-neutral-400">Internal Admin Total</span>
+                    <span className="text-neutral-900">{formatRupiah(rabItems.reduce((sum, item) => sum + (calculateAdminPrice(item.price, systemConfig?.globalMarkup, item.isAHSP) * item.volume), 0))}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase">
+                    <span className="text-neutral-400">Client Sale Total</span>
+                    <span className="text-neutral-900">{formatRupiah(rabItems.reduce((sum, item) => sum + (calculateClientPrice(item.price, systemConfig?.globalMarkup, item.isAHSP) * item.volume), 0))}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase text-green-600">
+                    <span>Estimasi Profit</span>
+                    <span>+ {formatRupiah(rabItems.reduce((sum, item) => {
+                      const admin = calculateAdminPrice(item.price, systemConfig?.globalMarkup, item.isAHSP) * item.volume;
+                      const client = calculateClientPrice(item.price, systemConfig?.globalMarkup, item.isAHSP) * item.volume;
+                      return sum + (client - admin);
+                    }, 0))}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -521,11 +677,30 @@ export default function RabPage({ user }: { user: any }) {
                           className="h-12 rounded-2xl border-neutral-100 focus:border-black transition-all"
                           value={newCategoryName}
                           onChange={e => setNewCategoryName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && newCategoryName) {
+                              const trimmed = newCategoryName.trim();
+                              if (categories.includes(trimmed)) {
+                                toast.error("Category already exists");
+                                return;
+                              }
+                              setCategories([...categories, trimmed]);
+                              setNewCategoryName("");
+                              setShowAddCategory(false);
+                              toast.success("Category added");
+                            }
+                          }}
+                          autoFocus
                         />
                       </div>
                       <Button className="w-full btn-sleek h-12 rounded-2xl" onClick={() => {
                         if (newCategoryName) {
-                          setCategories([...categories, newCategoryName]);
+                          const trimmed = newCategoryName.trim();
+                          if (categories.includes(trimmed)) {
+                            toast.error("Category already exists");
+                            return;
+                          }
+                          setCategories([...categories, trimmed]);
                           setNewCategoryName("");
                           setShowAddCategory(false);
                           toast.success("Category added");
@@ -600,27 +775,30 @@ export default function RabPage({ user }: { user: any }) {
                   <TableHead className="text-[9px] font-black uppercase text-neutral-400">Description</TableHead>
                   <TableHead className="w-[100px] text-center text-[9px] font-black uppercase text-neutral-400">Volume</TableHead>
                   <TableHead className="w-[80px] text-center text-[9px] font-black uppercase text-neutral-400">Unit</TableHead>
-                  <TableHead className="w-[150px] text-right text-[9px] font-black uppercase text-neutral-400">Estimasi Anggaran</TableHead>
-                  <TableHead className="w-[150px] text-right text-[9px] font-black uppercase text-neutral-400 px-6">Total</TableHead>
+                  {canEdit && (
+                    <>
+                      <TableHead className="w-[120px] text-right text-[9px] font-black uppercase text-neutral-400">Modal (U/T)</TableHead>
+                      <TableHead className="w-[120px] text-right text-[9px] font-black uppercase text-accent">Admin (U/T)</TableHead>
+                    </>
+                  )}
+                  <TableHead className="w-[150px] text-right text-[9px] font-black uppercase text-neutral-600 px-6">Klien (U/T)</TableHead>
                   {canEdit && <TableHead className="w-[50px]"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {Object.entries(groupedItems).map(([catName, items]) => (
                   <React.Fragment key={catName}>
-                    {items.length > 0 && (
-                      <TableRow className="bg-neutral-50/50 border-b border-neutral-100">
-                        <TableCell colSpan={canEdit ? 8 : 7} className="py-2 px-6">
-                          <div className="flex items-center gap-3">
-                            <Checkbox 
-                              checked={items.every(i => selectedIndexes.has(i.instanceId))}
-                              onCheckedChange={() => toggleSelectAllEditor(catName)}
-                            />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-black">{catName}</span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
+                    <TableRow className="bg-neutral-50/50 border-b border-neutral-100">
+                      <TableCell colSpan={canEdit ? 8 : 7} className="py-2 px-6">
+                        <div className="flex items-center gap-3">
+                          <Checkbox 
+                            checked={items.length > 0 && items.every(i => selectedIndexes.has(i.instanceId))}
+                            onCheckedChange={() => toggleSelectAllEditor(catName)}
+                          />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-black">{catName}</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                     {items.map((item, index) => {
                       const isExpanded = expandedItems.has(item.instanceId);
                       return (
@@ -660,11 +838,32 @@ export default function RabPage({ user }: { user: any }) {
                               />
                             </TableCell>
                             <TableCell className="text-center font-bold text-[10px] uppercase text-neutral-400">{item.unit}</TableCell>
-                            <TableCell className="text-right font-bold text-[10px] text-neutral-600">
-                              Rp {(item.price || 0).toLocaleString('id-ID')}
-                            </TableCell>
-                            <TableCell className="text-right font-black text-xs tracking-tighter px-6">
-                              Rp {(item.total || 0).toLocaleString('id-ID')}
+                            {canEdit && (
+                              <>
+                                <TableCell className="text-right">
+                                  <div className="flex flex-col gap-1">
+                                    <Input 
+                                      type="number"
+                                      className="h-7 text-right border-neutral-100 rounded-lg font-bold text-[10px] bg-transparent focus-visible:ring-black"
+                                      value={item.price || 0}
+                                      onChange={e => updateItemById(item.instanceId, { price: Number(e.target.value) })}
+                                    />
+                                    <span className="text-[10px] font-mono font-bold text-neutral-400 px-2">{formatRupiah(item.price * (item.volume || 0))}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex flex-col">
+                                    <span className="text-[10px] font-mono text-accent">{formatRupiah(calculateAdminPrice(item.price, systemConfig?.globalMarkup, item.isAHSP))}</span>
+                                    <span className="text-[10px] font-mono font-bold text-accent">{formatRupiah(calculateAdminPrice(item.price, systemConfig?.globalMarkup, item.isAHSP) * (item.volume || 0))}</span>
+                                  </div>
+                                </TableCell>
+                              </>
+                            )}
+                            <TableCell className="text-right px-6">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] font-mono text-neutral-600">{formatRupiah(calculateClientPrice(item.price, systemConfig?.globalMarkup, item.isAHSP))}</span>
+                                <span className="text-xs font-black tracking-tighter text-black">{formatRupiah(calculateClientPrice(item.price, systemConfig?.globalMarkup, item.isAHSP) * (item.volume || 0))}</span>
+                              </div>
                             </TableCell>
                             {canEdit && (
                               <TableCell>

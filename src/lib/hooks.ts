@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { auth, db, storage, handleFirestoreError, OperationType } from "@/lib/firebase";
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from "firebase/auth";
-import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy, addDoc, updateDoc, deleteDoc, getDocs, writeBatch, limit } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy, addDoc, updateDoc, deleteDoc, getDocs, writeBatch, limit, increment } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { Project, BudgetCategory, BudgetItem, UserProfile, Property, WorkItemMaster, Workforce, Attendance, MaterialRequest, CMSConfig, Campaign, SystemConfig, Vendor, GalleryItem, TimelineEvent, MediaAsset, MediaCategory, MasterDataVersion, FinancialTransaction, WorkerWage, TechnicalDrawing } from "@/types";
 import { WORK_ITEMS_MASTER } from "@/constants";
-import { roundToRatusan } from "./utils";
+import { roundToRibuan, calculateClientPrice } from "./utils";
 import { nuclearWipe } from "./database";
 import { toast } from "sonner";
 
@@ -113,8 +113,11 @@ export function useAuth() {
   const logout = async () => {
     try {
       await signOut(auth);
+      setUser(null);
+      toast.success("Berhasil logout.");
     } catch (error) {
       console.error("Logout error:", error);
+      setUser(null);
     }
   };
 
@@ -431,6 +434,94 @@ export function useProjectDetails(projectId: string | undefined) {
     };
   }, [projectId]);
 
+  const recalculateProjectStats = async (pId: string = projectId!) => {
+    try {
+      const pDoc = await getDoc(doc(db, "projects", pId));
+      if (!pDoc.exists()) return;
+      const pData = pDoc.data() as Project;
+      
+      const itemsSnapshot = await getDocs(collection(db, "projects", pId, "items"));
+      const allItems = itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }) as BudgetItem);
+      
+      // Get System Config for Markup
+      const configDoc = await getDoc(doc(db, "system_settings", "global_config"));
+      const markup = configDoc.exists() ? (configDoc.data() as SystemConfig).globalMarkup : 20;
+
+      // Fetch Master Data for pricing lookup
+      const masterSnapshot = await getDocs(collection(db, "master_data"));
+      const masterMap = new Map(masterSnapshot.docs.map(d => [d.id, d.data().price]));
+
+      const resolveBasePrice = (item: BudgetItem) => {
+        // Prioritize the price stored in the item itself (allows per-project overrides)
+        if (item.pricePerUnit > 0) {
+          return item.pricePerUnit;
+        }
+        // Fallback to master data if item has no price set
+        if (item.masterItemId && masterMap.has(item.masterItemId)) {
+          return masterMap.get(item.masterItemId)!;
+        }
+        return item.pricePerUnit || 0;
+      };
+
+      let subtotalTotal = 0;
+      allItems.forEach(item => {
+        const itemBasePrice = resolveBasePrice(item);
+        const itemMarkedUpPrice = item.isAHSP 
+          ? calculateClientPrice(itemBasePrice, markup, true)
+          : calculateClientPrice(itemBasePrice, markup, false);
+        subtotalTotal += roundToRibuan(itemMarkedUpPrice * item.quantity);
+      });
+      
+      const discount = pData.discount || 0;
+      const deposit = pData.assessmentDeposit || 0;
+      const taxRate = (pData.taxPercentage || 0) / 100;
+      
+      const beforeTax = subtotalTotal - discount;
+      const taxAmount = beforeTax > 0 ? (beforeTax * taxRate) : 0;
+      const finalGrandTotal = roundToRibuan(beforeTax + taxAmount - deposit);
+
+      // Progress & Released Amount Calculation
+      let releasedAmount = 0;
+      let weightedProgressSum = 0;
+      
+      if (subtotalTotal > 0) {
+        allItems.forEach(item => {
+          const itemBasePrice = resolveBasePrice(item);
+          const itemMarkedUpPrice = item.isAHSP 
+            ? calculateClientPrice(itemBasePrice, markup, true)
+            : calculateClientPrice(itemBasePrice, markup, false);
+          
+          const itemTotalDisplayPrice = roundToRibuan(itemMarkedUpPrice * item.quantity);
+
+          if (item.progress === 100) {
+            releasedAmount += itemTotalDisplayPrice;
+          }
+          weightedProgressSum += (item.progress || 0) * itemTotalDisplayPrice;
+        });
+      }
+      
+      const totalProgress = subtotalTotal > 0 ? Math.round(weightedProgressSum / subtotalTotal) : 0;
+      const finalReleasedAmount = subtotalTotal > 0 ? (releasedAmount / subtotalTotal) * finalGrandTotal : 0;
+      
+      // Real-time Timeline Calculation based on AHSP logic
+      const dailyCapacity = 2000000; 
+      const totalDays = Math.ceil(subtotalTotal / dailyCapacity) || 14; 
+      const newStartDate = pData.startDate || new Date().toISOString();
+      const endDateObj = new Date(newStartDate);
+      endDateObj.setDate(endDateObj.getDate() + totalDays);
+      const newEndDate = endDateObj.toISOString();
+
+      await updateDoc(doc(db, "projects", pId), {
+        totalBudget: finalGrandTotal,
+        progress: totalProgress,
+        releasedAmount: Math.round(finalReleasedAmount),
+        endDate: newEndDate
+      });
+    } catch (error) {
+      console.error("Error recalculating stats:", error);
+    }
+  };
+
   const addCategory = async (name: string) => {
     if (!projectId) return;
     try {
@@ -444,11 +535,11 @@ export function useProjectDetails(projectId: string | undefined) {
     }
   };
 
-  const addItem = async (categoryId: string, name: string, quantity: number, unit: string, pricePerUnit: number, technicalSpecs?: string, priority?: BudgetItem["priority"], progress: number = 0, endDate?: string, isAHSP: boolean = false) => {
+  const addItem = async (categoryId: string, name: string, quantity: number, unit: string, pricePerUnit: number, technicalSpecs?: string, priority?: BudgetItem["priority"], progress: number = 0, endDate?: string, isAHSP: boolean = false, masterItemId?: string, code?: string) => {
     if (!projectId) return;
     try {
-      const roundedPrice = roundToRatusan(pricePerUnit);
-      const totalPrice = roundToRatusan(quantity * roundedPrice);
+      const roundedPrice = roundToRibuan(pricePerUnit);
+      const totalPrice = roundToRibuan(quantity * roundedPrice);
       await addDoc(collection(db, "projects", projectId, "items"), {
         projectId,
         categoryId,
@@ -461,8 +552,24 @@ export function useProjectDetails(projectId: string | undefined) {
         progress: progress || 0,
         priority: priority || "Medium",
         endDate: endDate || "",
-        isAHSP
+        isAHSP,
+        masterItemId: masterItemId || null,
+        code: code || null
       });
+
+      await recalculateProjectStats();
+
+      // Update Master Data Stats if this is from master data
+      if (masterItemId) {
+        const masterRef = doc(db, "master_data", masterItemId);
+        const masterSnap = await getDoc(masterRef);
+        if (masterSnap.exists()) {
+          await updateDoc(masterRef, {
+            soldCount: increment(1),
+            revenue: increment(totalPrice)
+          });
+        }
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `projects/${projectId}/items`);
     }
@@ -471,24 +578,44 @@ export function useProjectDetails(projectId: string | undefined) {
   const deleteCategory = async (categoryId: string) => {
     if (!projectId) return;
     try {
-      // Delete all items in category first
+      // Delete all items in category first and update master stats
       const itemsToDelete = items.filter(i => i.categoryId === categoryId);
       for (const item of itemsToDelete) {
+        if (item.masterItemId) {
+          const masterRef = doc(db, "master_data", item.masterItemId);
+          const masterSnap = await getDoc(masterRef);
+          if (masterSnap.exists()) {
+            await updateDoc(masterRef, {
+              soldCount: increment(-1),
+              revenue: increment(-item.totalPrice)
+            });
+          }
+        }
         await deleteDoc(doc(db, "projects", projectId, "items", item.id));
       }
       await deleteDoc(doc(db, "projects", projectId, "categories", categoryId));
+      await recalculateProjectStats();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `projects/${projectId}/categories/${categoryId}`);
     }
   };
 
-  const deleteItem = async (itemId: string, itemPrice: number) => {
+  const deleteItem = async (itemId: string) => {
     if (!projectId || !project) return;
     try {
+      const itemToUpdate = items.find(i => i.id === itemId);
+      if (itemToUpdate && itemToUpdate.masterItemId) {
+        const masterRef = doc(db, "master_data", itemToUpdate.masterItemId);
+        const masterSnap = await getDoc(masterRef);
+        if (masterSnap.exists()) {
+          await updateDoc(masterRef, {
+            soldCount: increment(-1),
+            revenue: increment(-itemToUpdate.totalPrice)
+          });
+        }
+      }
       await deleteDoc(doc(db, "projects", projectId, "items", itemId));
-      await updateDoc(doc(db, "projects", projectId), {
-        totalBudget: Math.max(0, project.totalBudget - itemPrice)
-      });
+      await recalculateProjectStats();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `projects/${projectId}/items/${itemId}`);
     }
@@ -507,24 +634,7 @@ export function useProjectDetails(projectId: string | undefined) {
     if (!projectId) return;
     try {
       await updateDoc(doc(db, "projects", projectId, "items", itemId), { progress });
-      
-      // Recalculate project total progress (weighted by price)
-      const itemsSnapshot = await getDocs(collection(db, "projects", projectId, "items"));
-      const allItems = itemsSnapshot.docs.map(d => d.data() as BudgetItem);
-      
-      const totalBudget = allItems.reduce((acc, item) => acc + (item.totalPrice || 0), 0);
-      let totalProgress = 0;
-      
-      if (totalBudget > 0) {
-        const weightedProgress = allItems.reduce((acc, item) => {
-          return acc + ((item.progress || 0) * (item.totalPrice || 0));
-        }, 0);
-        totalProgress = Math.round(weightedProgress / totalBudget);
-      } else if (allItems.length > 0) {
-        totalProgress = Math.round(allItems.reduce((acc, item) => acc + (item.progress || 0), 0) / allItems.length);
-      }
-      
-      await updateDoc(doc(db, "projects", projectId), { progress: totalProgress });
+      await recalculateProjectStats();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}/items/${itemId}`);
     }
@@ -534,22 +644,40 @@ export function useProjectDetails(projectId: string | undefined) {
     if (!projectId) return;
     try {
       let finalData = { ...data };
+      const itemToUpdate = items.find(i => i.id === itemId);
       
       // If updating quantity or price, recalculate and round totalPrice
       if (data.quantity !== undefined || data.pricePerUnit !== undefined) {
-        const itemToUpdate = items.find(i => i.id === itemId);
         if (itemToUpdate) {
           const qty = data.quantity !== undefined ? data.quantity : itemToUpdate.quantity;
-          const price = data.pricePerUnit !== undefined ? roundToRatusan(data.pricePerUnit) : itemToUpdate.pricePerUnit;
+          const price = data.pricePerUnit !== undefined ? roundToRibuan(data.pricePerUnit) : itemToUpdate.pricePerUnit;
           
           finalData.pricePerUnit = price;
-          finalData.totalPrice = roundToRatusan(qty * price);
+          finalData.totalPrice = roundToRibuan(qty * price);
         }
       } else if (data.totalPrice !== undefined) {
-        finalData.totalPrice = roundToRatusan(data.totalPrice);
+        finalData.totalPrice = roundToRibuan(data.totalPrice);
+      }
+
+      // Update Master Data Stats if price changed and masterItemId exists
+      if (itemToUpdate && itemToUpdate.masterItemId && finalData.totalPrice !== undefined) {
+        const priceDiff = finalData.totalPrice - itemToUpdate.totalPrice;
+        if (priceDiff !== 0) {
+          const masterRef = doc(db, "master_data", itemToUpdate.masterItemId);
+          const masterSnap = await getDoc(masterRef);
+          if (masterSnap.exists()) {
+            await updateDoc(masterRef, {
+              revenue: increment(priceDiff)
+            });
+          }
+        }
       }
 
       await updateDoc(doc(db, "projects", projectId, "items", itemId), finalData);
+      
+      if (data.totalPrice !== undefined || data.quantity !== undefined || data.pricePerUnit !== undefined || data.progress !== undefined) {
+        await recalculateProjectStats();
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}/items/${itemId}`);
     }
@@ -631,12 +759,13 @@ export function useProjectDetails(projectId: string | undefined) {
     if (!projectId) return;
     try {
       await updateDoc(doc(db, "projects", projectId), data);
+      await recalculateProjectStats();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
     }
   };
 
-  return { project, categories, items, loading, addCategory, addItem, updateItem, deleteCategory, deleteItem, updateProjectStatus, updateItemProgress, releaseMilestone, addSiteLog, addTimelineEvent, updateTimelineEvent, updateProjectMetadata };
+  return { project, categories, items, loading, addCategory, addItem, updateItem, deleteCategory, deleteItem, updateProjectStatus, updateItemProgress, releaseMilestone, addSiteLog, addTimelineEvent, updateTimelineEvent, updateProjectMetadata, recalculateProjectStats };
 }
 
 export function useProperties() {
@@ -1149,6 +1278,25 @@ export function useMasterData(userRole?: string) {
     }
   };
 
+  const updateMasterCategory = async (id: string, name: string) => {
+    try {
+      await updateDoc(doc(db, "master_categories", id), { name });
+      toast.success("Category updated");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `master_categories/${id}`);
+    }
+  };
+
+  const deleteMasterCategory = async (id: string) => {
+    if (!confirm("Are you sure? This will not delete items in this category, but they will be 'Uncategorized'.")) return;
+    try {
+      await deleteDoc(doc(db, "master_categories", id));
+      toast.success("Category deleted");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `master_categories/${id}`);
+    }
+  };
+
   const resetDatabase = async () => {
     if (!confirm("PERINGATAN: Ini akan menghapus SEMUA proyek dan data klien. Data Master tidak akan dihapus. Lanjutkan?")) return;
     
@@ -1206,7 +1354,7 @@ export function useMasterData(userRole?: string) {
     await nuclearWipe();
   };
 
-  return { masterData, loading, addMasterItem, updateMasterItem, deleteMasterItem, saveVersion, masterVersions, activateVersion, deleteVersion, addMasterCategory, resetDatabase, clearMasterData, bulkAddMasterItems };
+  return { masterData, loading, addMasterItem, updateMasterItem, deleteMasterItem, saveVersion, masterVersions, activateVersion, deleteVersion, addMasterCategory, updateMasterCategory, deleteMasterCategory, resetDatabase, clearMasterData, bulkAddMasterItems };
 }
 
 export function useMasterCategories() {
@@ -1361,7 +1509,7 @@ export function useWorkforce(userRole?: string, userTier?: string) {
 
   const updateWorkforce = async (id: string, data: Partial<Workforce>) => {
     try {
-      await updateDoc(doc(db, "workforce", id), data);
+      await setDoc(doc(db, "workforce", id), data, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `workforce/${id}`);
     }
@@ -1778,14 +1926,26 @@ export function useFinance(projectId?: string) {
 
   const addTransaction = async (data: Omit<FinancialTransaction, "id">) => {
     try {
-      await addDoc(collection(db, "financial_transactions"), {
-        ...data,
-        date: data.date || new Date().toISOString(),
-        status: data.status || "completed"
-      });
+      const cleanData = Object.fromEntries(
+        Object.entries({
+          ...data,
+          date: data.date || new Date().toISOString(),
+          status: data.status || "completed"
+        }).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(db, "financial_transactions"), cleanData);
       toast.success("Transaksi berhasil dicatat ke sistem akuntansi.");
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, "financial_transactions");
+    }
+  };
+
+  const updateTransaction = async (id: string, data: Partial<FinancialTransaction>) => {
+    try {
+      await updateDoc(doc(db, "financial_transactions", id), data);
+      toast.success("Catatan transaksi telah diperbarui.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, "financial_transactions");
     }
   };
 
@@ -1798,7 +1958,7 @@ export function useFinance(projectId?: string) {
     }
   };
 
-  return { transactions, loading, addTransaction, deleteTransaction };
+  return { transactions, loading, addTransaction, updateTransaction, deleteTransaction };
 }
 
 export function useProjectMaterialRequests(projectId: string) {

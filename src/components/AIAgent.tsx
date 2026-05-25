@@ -160,25 +160,25 @@ export default function AIAgent() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 py-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
-            <Bot className="w-8 h-8 text-accent" /> TBJ AI AGENT
+    <div className="max-w-4xl mx-auto space-y-6 py-6 font-sans">
+      <div className="flex justify-between items-center px-2">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-campton-book font-bold tracking-tighter flex items-center gap-3 text-neutral-800">
+            <Bot className="w-7 h-7 text-[#ff6B00]" /> TBJ AI AGENT
           </h1>
-          <p className="uppercase-soft text-neutral-500">Konsultasi Konstruksi & Desain Real-time via AI.</p>
+          <p className="text-[10px] md:text-xs uppercase-soft tracking-wider text-neutral-500">Konsultasi Konstruksi & Desain Real-time via AI.</p>
         </div>
-        <Badge className="bg-[#FF6B00] text-white border-none px-4 py-1 rounded-full animate-pulse shadow-[0_0_15px_rgba(255,107,0,0.5)]">
-          <Sparkles className="w-3 h-3 mr-2" /> AI Powered
+        <Badge className="bg-[#FF6B00] text-white border-none px-4 py-1.5 rounded-full animate-pulse shadow-[0_4px_12px_rgba(255,107,0,0.35)] font-avenir-medium tracking-wider text-[9px]">
+          <Sparkles className="w-3 h-3 mr-1.5" /> AI MASTER
         </Badge>
       </div>
 
-      <Card className="border-2 border-black rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[70vh] min-h-[500px] max-h-[800px] relative">
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-10">
+      <Card className="border border-white/60 bg-white/70 backdrop-blur-md rounded-3xl overflow-hidden shadow-[8px_8px_24px_#cbd5e1,-8px_-8px_24px_#ffffff] flex flex-col h-[70vh] min-h-[500px] max-h-[800px] relative">
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2.5 z-10">
           <Button 
             variant="outline" 
             size="icon" 
-            className="w-8 h-8 rounded-full border-2 border-black bg-white/80 backdrop-blur-sm hover:bg-black hover:text-white transition-all shadow-md"
+            className="w-8 h-8 rounded-full border border-neutral-200/60 bg-white/90 backdrop-blur-sm hover:bg-[#ff6B00] hover:text-white transition-all shadow-sm"
             onClick={scrollToTop}
           >
             <ChevronRight className="w-4 h-4 -rotate-90" />
@@ -186,7 +186,7 @@ export default function AIAgent() {
           <Button 
             variant="outline" 
             size="icon" 
-            className="w-8 h-8 rounded-full border-2 border-black bg-white/80 backdrop-blur-sm hover:bg-black hover:text-white transition-all shadow-md"
+            className="w-8 h-8 rounded-full border border-neutral-200/60 bg-white/90 backdrop-blur-sm hover:bg-[#ff6B00] hover:text-white transition-all shadow-sm"
             onClick={scrollToBottom}
           >
             <ChevronRight className="w-4 h-4 rotate-90" />
@@ -194,7 +194,7 @@ export default function AIAgent() {
         </div>
         <div 
           ref={scrollRef}
-          className="flex-grow p-4 md:p-6 bg-white overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain"
+          className="flex-grow p-4 md:p-6 bg-transparent overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain"
           style={{ 
             scrollBehavior: 'smooth',
             WebkitOverflowScrolling: 'touch'
@@ -207,50 +207,52 @@ export default function AIAgent() {
                 msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
               )}>
                 <div className={cn(
-                  "w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 border-2 border-black shadow-sm overflow-hidden",
-                  msg.role === "user" ? "bg-black text-white" : "bg-white"
+                  "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 border border-white bg-white/80 shadow-md overflow-hidden",
+                  msg.role === "user" ? "bg-neutral-850 text-white font-bold" : "bg-white"
                 )}>
-                  {msg.role === "user" ? <User className="w-5 h-5" /> : <img src={assistantLogo} className="w-full h-full object-contain p-1" referrerPolicy="no-referrer" />}
+                  {msg.role === "user" ? <User className="w-4 h-4 text-neutral-800" /> : <img src={assistantLogo} className="w-full h-full object-contain p-1.5" referrerPolicy="no-referrer" />}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className={cn(
-                    "p-4 rounded-2xl border-2 border-black shadow-sm",
-                    msg.role === "user" ? "bg-neutral-50" : "bg-[#FFF5ED] border-[#FF6B00]/30"
+                    "p-4 rounded-2xl border transition-all shadow-[2px_2px_8px_rgba(203,213,225,0.2)] text-neutral-800 leading-relaxed text-sm whitespace-pre-wrap",
+                    msg.role === "user" 
+                      ? "bg-white/90 border-white/60" 
+                      : "bg-[#FFF9F5] border-[#FF6B00]/15"
                   )}>
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.parts?.[0]?.text || ""}</p>
+                    <p className="font-avenir-medium text-neutral-700">{msg.parts?.[0]?.text || ""}</p>
                     {msg.image && (
-                      <div className="mt-3 rounded-xl overflow-hidden border-2 border-black">
+                      <div className="mt-3 rounded-xl overflow-hidden border border-neutral-100 shadow-inner">
                         <img src={msg.image} alt="User upload" className="w-full h-auto" />
                       </div>
                     )}
                   </div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400 px-1">
-                    {msg.role === "user" ? "Anda" : "TBJ AI Agent"} • {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <p className="text-[9px] font-avenir-medium uppercase tracking-widest text-neutral-400 px-1">
+                    {msg.role === "user" ? "Client" : "TBJ AI Agent"} • {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               </div>
             ))}
             {isLoading && (
               <div className="flex gap-4 mr-auto">
-                <div className="w-10 h-10 rounded-2xl bg-accent text-white flex items-center justify-center border-2 border-black animate-pulse">
-                  <Bot className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-full bg-[#ff6B00]/10 text-[#ff6B00] flex items-center justify-center border border-[#ff6B00]/20 animate-pulse">
+                  <Bot className="w-4 h-4" />
                 </div>
-                <div className="p-4 rounded-2xl border-2 border-black bg-white flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-accent" />
-                  <span className="text-xs font-black uppercase tracking-widest">AI Agent sedang berpikir...</span>
+                <div className="p-4 rounded-2xl border border-[#ff6B00]/10 bg-white/80 backdrop-blur-sm flex items-center gap-2.5 shadow-sm">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#ff6B00]" />
+                  <span className="text-[10px] font-avenir-medium uppercase tracking-wider text-neutral-500">AI Agent sedang menganalisis spesifikasi...</span>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        <div className="p-6 bg-neutral-50 border-t-2 border-black space-y-4">
+        <div className="p-4 md:p-6 bg-white/40 border-t border-white/60 space-y-4 backdrop-blur-md">
           {selectedImage && (
-            <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-black shadow-md group">
+            <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-white/80 shadow-[4px_4px_10px_rgba(0,0,0,0.05)] group">
               <img src={selectedImage} className="w-full h-full object-cover" />
               <button 
                 onClick={() => setSelectedImage("")}
-                className="absolute top-1 right-1 bg-black text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-1 right-1 bg-neutral-900/80 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -259,50 +261,50 @@ export default function AIAgent() {
           <div className="flex gap-3">
             <div className="relative flex-grow">
               <Input 
-                placeholder="Tanyakan sesuatu tentang proyek Anda..." 
-                className="h-14 pl-4 pr-12 rounded-2xl border-2 border-black shadow-sm focus:ring-accent"
+                placeholder="Tulis instruksi atau lampirkan gambar ruangan..." 
+                className="h-13 pl-4 pr-12 rounded-xl border border-white/60 bg-white/75 focus:bg-white focus:border-[#ff6B00]/40 focus:ring-4 focus:ring-[#ff6B00]/5 shadow-sm font-avenir-medium"
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleGenerate()}
               />
-              <label className="absolute right-3 top-3.5 cursor-pointer hover:text-accent transition-colors">
-                <ImageIcon className="w-6 h-6" />
+              <label className="absolute right-3.5 top-3 text-neutral-400 hover:text-[#ff6B00] cursor-pointer transition-colors p-1">
+                <ImageIcon className="w-5 h-5" />
                 <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
               </label>
             </div>
             <Button 
-              className="h-14 w-14 rounded-2xl bg-[#FF6B00] hover:bg-[#E65F00] transition-all border-2 border-black shadow-lg text-white"
+              className="h-13 w-13 rounded-xl bg-[#FF6B00] hover:bg-[#E65F00] transition-all text-white shadow-[0_4px_12px_rgba(255,107,0,0.3)] active:scale-95"
               onClick={handleGenerate}
               disabled={isLoading || (!input.trim() && !selectedImage)}
             >
-              <Send className="w-6 h-6" />
+              <Send className="w-4 text-white" />
             </Button>
           </div>
-          <p className="text-[9px] text-center uppercase font-bold text-neutral-400">
-            AI Agent dapat melakukan kesalahan. Selalu verifikasi estimasi dengan tim teknis kami.
+          <p className="text-[9px] text-center uppercase tracking-wider font-avenir-medium text-neutral-400">
+            TBJ AI Agent terhubung dengan 161 Master Item konstruksi. Konsultasi dilindungi protokol enkripsi cloud.
           </p>
         </div>
       </Card>
 
       <Dialog open={showTokenInfo} onOpenChange={setShowTokenInfo}>
-        <DialogContent className="max-w-md border-4 border-black rounded-[2.5rem] bg-white overflow-hidden p-0">
-          <div className="bg-accent p-6 text-white text-center space-y-2">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2 border-2 border-white/30 backdrop-blur-sm">
-              <Zap className="w-8 h-8 text-white fill-white" />
+        <DialogContent className="max-w-md border border-white/60 rounded-[2rem] bg-white/95 backdrop-blur-md overflow-hidden p-0 shadow-2xl">
+          <div className="bg-[#ff6B00] p-6 text-white text-center space-y-2">
+            <div className="w-14 h-14 bg-white/15 rounded-full flex items-center justify-center mx-auto mb-2 border border-white/10 backdrop-blur-sm">
+              <Zap className="w-6 h-6 text-white fill-white animate-bounce" />
             </div>
-            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic">AI Analysis Berhasil!</DialogTitle>
-            <p className="text-xs font-bold uppercase tracking-widest text-[#FFE0CC]">Status Penggunaan TBJ AI Agent</p>
+            <DialogTitle className="text-xl font-campton-book font-bold uppercase tracking-tight">AI Analysis Berhasil!</DialogTitle>
+            <p className="text-[10px] font-avenir-medium uppercase tracking-widest text-[#FFE2D1]">Status Penggunaan TBJ AI Agent</p>
           </div>
           
-          <div className="p-8 space-y-6">
+          <div className="p-6 md:p-8 space-y-6 font-sans">
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl bg-neutral-50 border-2 border-black/5 flex flex-col items-center justify-center text-center">
-                <p className="text-[10px] font-black uppercase text-neutral-400 mb-1">Digunakan</p>
-                <p className="text-2xl font-black text-black">1 <span className="text-sm font-bold text-neutral-400">Token</span></p>
+              <div className="p-4 rounded-2xl bg-neutral-50/50 border border-neutral-100 flex flex-col items-center justify-center text-center shadow-inner">
+                <p className="text-[10px] font-avenir-medium uppercase text-neutral-400 mb-1">Digunakan</p>
+                <p className="text-xl font-campton-book font-bold text-neutral-800">1 <span className="text-xs font-normal text-neutral-400">Token</span></p>
               </div>
-              <div className="p-4 rounded-2xl bg-neutral-50 border-2 border-black/5 flex flex-col items-center justify-center text-center">
-                <p className="text-[10px] font-black uppercase text-neutral-400 mb-1">Sisa Token</p>
-                <p className="text-2xl font-black text-[#FF6B00]">
+              <div className="p-4 rounded-2xl bg-neutral-50/50 border border-neutral-100 flex flex-col items-center justify-center text-center shadow-inner">
+                <p className="text-[10px] font-avenir-medium uppercase text-neutral-400 mb-1">Sisa Token</p>
+                <p className="text-xl font-campton-book font-bold text-[#FF6B00]">
                   {user?.waVerified ? (
                     Math.max(0, (sysConfig?.aiVerifiedLimit || 10) - (user?.aiUsageCount || 0))
                   ) : (
@@ -312,23 +314,23 @@ export default function AIAgent() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 p-3 bg-blue-50 border-2 border-blue-100 rounded-xl">
-                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <p className="text-[10px] leading-tight font-bold text-blue-900 uppercase tracking-tight">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-3.5 bg-blue-50/50 border border-blue-100 rounded-xl">
+                <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                <p className="text-[10px] leading-relaxed font-avenir-medium text-blue-900 uppercase tracking-wide">
                   Tahukah Anda? User dengan WhatsApp terverifikasi mendapatkan kuota 10x Lipat lebih banyak.
                 </p>
               </div>
               
-              <div className="bg-neutral-900 rounded-2xl p-6 text-white space-y-4 shadow-xl border-2 border-black">
+              <div className="bg-neutral-900/95 rounded-2xl p-6 text-white space-y-4 shadow-[4px_4px_15px_rgba(0,0,0,0.15)]">
                 <div className="space-y-1">
-                  <h4 className="text-sm font-black uppercase flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#FF6B00]" /> Unlimited Access?
+                  <h4 className="text-xs font-campton-book font-medium uppercase tracking-wide flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#FF6B00]" /> Unlimited Access
                   </h4>
-                  <p className="text-[10px] text-neutral-400 font-medium">Bantu kami meningkatkan kualitas layanan dengan mengisi survey singkat dan dapatkan akses AI tanpa batas!</p>
+                  <p className="text-[10px] text-neutral-400 font-avenir-medium leading-relaxed">Bantu kami meningkatkan kualitas layanan dengan mengisi survey singkat dan dapatkan akses AI tanpa batas!</p>
                 </div>
                 <Button 
-                  className="w-full btn-orange h-10 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2"
+                  className="w-full bg-[#ff6B00] text-white hover:bg-[#e66000] shadow-[0_4px_10px_rgba(255,107,0,0.3)] transition-all rounded-xl font-avenir-medium uppercase tracking-widest text-[10px] h-10 flex items-center justify-center gap-2"
                   onClick={() => window.open("https://forms.gle/placeholder", "_blank")}
                 >
                   Isi Survey Sekarang <ExternalLink className="w-3 h-3" />
@@ -337,10 +339,10 @@ export default function AIAgent() {
             </div>
           </div>
           
-          <DialogFooter className="p-6 bg-neutral-50 border-t-2 border-black/5 flex sm:justify-center">
+          <DialogFooter className="p-4 bg-neutral-50 border-t border-neutral-100 flex sm:justify-center">
             <Button 
               variant="outline" 
-              className="w-full sm:w-auto border-2 border-black rounded-xl font-black uppercase text-xs h-12 px-8 hover:bg-black hover:text-white transition-all"
+              className="w-full sm:w-auto border border-neutral-200 bg-white rounded-xl font-avenir-medium uppercase tracking-widest text-[11px] h-11 px-8 hover:bg-[#ff6B00] hover:text-white transition-all shadow-sm"
               onClick={() => setShowTokenInfo(false)}
             >
               Lanjutkan Konsultasi

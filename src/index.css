@@ -1,55 +1,55 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Nunito+Sans:ital,opsz,wght@0,6..12,300..900;1,6..12,300..900&family=JetBrains+Mono:wght@300;400&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "leaflet/dist/leaflet.css";
 
 @theme inline {
-    --font-heading: "Plus Jakarta Sans", sans-serif;
-    --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-heading: "Campton", "Outfit", "Plus Jakarta Sans", sans-serif;
+    --font-sans: "Avenir Next", "Nunito Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
     
-    --radius-sm: 2px;
-    --radius-md: 4px;
-    --radius-lg: 8px;
-    --radius-xl: 12px;
-    --radius-2xl: 16px;
-    --radius-3xl: 20px;
-    --radius-4xl: 24px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 24px;
+    --radius-3xl: 28px;
+    --radius-4xl: 32px;
 
-    --color-background: #F9F9F8; 
-    --color-foreground: #2D2D2D; 
-    --color-primary: #ff6B00; /* Cosmic Orange as Primary */
+    --color-background: #F1F3F6; /* Soft Neumorphic Gray Background */
+    --color-foreground: #2D3748; 
+    --color-primary: #ff6B00; /* Cosmic Orange */
     --color-primary-foreground: #FFFFFF;
-    --color-accent: #ff6B00; /* Cosmic Orange */
-    --color-titanium: #3C3C3C; /* Titanium Grey */
-    --color-space-grey: #4A4A4A; /* Space Grey */
-    --color-dark-grey: #1A1A1A; /* Dark Grey */
-    --color-border: rgba(26, 26, 26, 0.1); /* Dark grey thin border default */
+    --color-accent: #ff6B00; 
+    --color-titanium: #4A5568; 
+    --color-space-grey: #2D3748; 
+    --color-dark-grey: #1A202C; 
+    --color-border: rgba(255, 255, 255, 0.45); 
 }
 
 :root {
-    --background: #F9F9F8;
-    --foreground: #2D2D2D;
-    --card: #FFFFFF;
-    --card-foreground: #2D2D2D;
-    --popover: #FFFFFF;
-    --popover-foreground: #2D2D2D;
+    --background: #F1F3F6;
+    --foreground: #2D3748;
+    --card: rgba(255, 255, 255, 0.7);
+    --card-foreground: #2D3748;
+    --popover: rgba(255, 255, 255, 0.9);
+    --popover-foreground: #2D3748;
     --primary: #ff6B00;
     --primary-foreground: #FFFFFF;
-    --secondary: #F1F1F0;
-    --secondary-foreground: #2D2D2D;
-    --muted: #F1F1F0;
-    --muted-foreground: #717171;
+    --secondary: rgba(255, 255, 255, 0.5);
+    --secondary-foreground: #2D3748;
+    --muted: #E2E8F0;
+    --muted-foreground: #718096;
     --accent: #ff6B00;
     --accent-foreground: #FFFFFF;
-    --space-grey: #4A4A4A;
-    --dark-grey: #1A1A1A;
-    --destructive: #A65D5D;
-    --border: rgba(26, 26, 26, 0.1);
-    --input: rgba(26, 26, 26, 0.05);
+    --space-grey: #2D3748;
+    --dark-grey: #1A202C;
+    --destructive: #E53E3E;
+    --border: rgba(255, 255, 255, 0.45);
+    --input: rgba(255, 255, 255, 0.4);
     --ring: #ff6B00;
-    --radius: 4px;
+    --radius: 16px;
 }
 
 @layer base {
@@ -57,102 +57,114 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased font-light;
-    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+    @apply bg-background text-foreground antialiased font-sans font-normal;
+    background-color: #F1F3F6;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading font-bold tracking-tight;
+    @apply font-heading font-normal tracking-tight text-neutral-800;
   }
 }
 
 @layer components {
+  /* Campton Book: elegant geometric normal typography weight */
+  .font-campton-book {
+    @apply font-heading font-normal tracking-tight;
+  }
+
+  /* Campton Light: exquisite thin geometric style with wider letter spacing */
+  .font-campton-light {
+    @apply font-heading font-light tracking-wide;
+  }
+
+  /* Avenir Next Medium: soft, rounded curves in sans-serif mode */
+  .font-avenir-medium {
+    @apply font-sans font-medium tracking-normal;
+  }
+
+  /* Core design system utility classes */
   .sleek-card {
-    @apply border border-black/5 bg-white/50 backdrop-blur-sm transition-all duration-500 hover:border-accent/20 rounded-lg;
+    @apply border border-white/60 bg-white/70 backdrop-blur-md rounded-3xl transition-all duration-300 shadow-[6px_6px_18px_#cbd5e1,-6px_-6px_18px_#ffffff];
   }
   
+  .neumorphic-inset {
+    @apply shadow-[inset_2px_2px_5px_rgba(163,177,198,0.55),inset_-2px_-2px_5px_#ffffff] bg-slate-50/50 backdrop-blur-sm;
+  }
+
+  .neumorphic-outset {
+    @apply shadow-[6px_6px_18px_#cbd5e1,-6px_-6px_18px_#ffffff] border border-white/60 bg-white/75 backdrop-blur-md;
+  }
+
+  .neumorphic-dark {
+    @apply shadow-[8px_8px_24px_rgba(0,0,0,0.35),-4px_-4px_15px_rgba(255,255,255,0.02)] border border-white/10 bg-neutral-900/90 backdrop-blur-md text-white;
+  }
+
   .sleek-grid {
-    background-image: radial-gradient(circle at 1px 1px, rgba(255, 69, 0, 0.05) 1px, transparent 0);
-    background-size: 24px 24px;
+    background-image: radial-gradient(circle at 1px 1px, rgba(255, 107, 0, 0.035) 1px, transparent 0);
+    background-size: 20px 20px;
   }
 
   .btn-sleek {
-    @apply rounded-none px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-500 border border-black/10 hover:bg-titanium hover:text-white hover:border-titanium;
+    @apply rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-widest transition-all duration-300 border border-white/40 bg-white/70 shadow-[3px_3px_8px_#cbd5e1] hover:-translate-y-0.5 active:translate-y-0 text-neutral-800 hover:bg-neutral-900 hover:text-white;
   }
 
   .btn-accent {
-    @apply rounded-none px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-500 border border-accent bg-accent text-white hover:bg-space-grey hover:text-white hover:border-space-grey;
+    @apply rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-widest transition-all duration-300 border border-transparent bg-[#ff6B00] text-white shadow-[4px_4px_12px_rgba(255,107,0,0.35)] hover:-translate-y-0.5 active:translate-y-0 hover:bg-[#e66000];
   }
 
   .btn-orange {
-    @apply bg-accent text-white hover:bg-[#e66000] transition-colors border-none rounded-xl font-black uppercase tracking-tighter;
+    @apply bg-[#ff6B00] text-white hover:bg-[#e66000] shadow-[3px_3px_8px_rgba(255,107,0,0.35)] transition-all rounded-xl font-bold uppercase tracking-widest text-[11px] h-12 hover:-translate-y-0.5;
   }
 
   .box-thin {
-    @apply border border-dark-grey/10 rounded-2xl transition-all hover:border-dark-grey;
+    @apply border border-white/40 rounded-3xl bg-white/75 backdrop-blur-md shadow-[4px_4px_12px_#cbd5e1] transition-all hover:border-[#ff6B00]/25;
   }
 
   .heading-edge {
-    @apply font-heading font-black text-space-grey tracking-tighter;
+    @apply font-heading font-normal text-neutral-800 tracking-tight;
   }
 
   .input-sleek {
-    @apply rounded-none border-b border-black/10 focus:border-accent focus:ring-0 transition-all bg-transparent px-0 h-10 text-sm font-light;
+    @apply rounded-xl border border-white/40 bg-white/60 focus:bg-white focus:border-[#ff6B00]/65 focus:ring-2 focus:ring-[#ff6B00]/10 transition-all px-4 h-11 text-sm font-sans font-medium shadow-[inset_2px_2px_5px_#e2e8f0];
   }
   
   .heading-sleek {
-    @apply font-heading font-black text-space-grey leading-tight tracking-tighter text-4xl md:text-6xl;
+    @apply font-heading font-normal text-neutral-900 leading-tight tracking-tight text-4xl md:text-6xl;
   }
 
   .tag-sleek {
-    @apply inline-block bg-accent/10 text-accent px-3 py-1 text-[10px] font-sans font-bold uppercase tracking-[0.15em] mb-4 border border-accent/10 rounded-none;
+    @apply inline-block bg-[#ff6B00]/10 text-[#ff6B00] px-3 py-1 text-[9px] font-sans font-bold uppercase tracking-widest mb-4 border border-[#ff6B00]/20 rounded-full;
   }
 }
 
-/* Refined Monospace Typography */
+/* Redefined Monospace Typography */
 .font-mono {
   font-weight: 400;
   letter-spacing: 0.05em;
 }
 
 .uppercase-soft {
-  text-transform: capitalize;
-  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   font-size: 0.7rem;
-  @apply md:text-xs;
+  @apply md:text-[10px];
   opacity: 0.8;
-  font-weight: 500;
-}
-
-/* Leaflet Fixes */
-.leaflet-container {
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-}
-
-@keyframes ticker {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
-.animate-ticker {
-  animation: ticker 40s linear infinite;
-}
-
-.animate-ticker:hover {
-  animation-play-state: paused;
+  font-weight: 600;
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #000;
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* Slider Utilities */
@@ -162,4 +174,285 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* =========================================================================
+   DYNAMIC OVERRIDES FOR SOLID/NEO-BRUTALIST STYLING
+   Translating rigid hard-black designs automatically to soft Neumorphic Glasmorphic shadows
+   ========================================================================= */
+
+/* Border Overrides */
+.border-2.border-black,
+.border-2.border-dark-grey,
+.border-2.border-space-grey,
+.border-2.border-neutral-900,
+.border-2.border-neutral-800 {
+  border-width: 1px !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: 6px 6px 18px rgba(163, 177, 198, 0.28), -6px -6px 18px rgba(255, 255, 255, 0.8) !important;
+  border-radius: 20px !important;
+}
+
+.border-2.border-dashed.border-neutral-200,
+.border-2.border-dashed.border-black\/20,
+.border-2.border-dashed.border-black\/10 {
+  border-width: 1.5px !important;
+  border-style: dashed !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  background-color: rgba(255, 255, 255, 0.4) !important;
+  border-radius: 16px !important;
+}
+
+.border.border-black,
+.border.border-dark-grey,
+.border.border-space-grey,
+.border.border border-neutral-950 {
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: 5px 5px 15px rgba(163, 177, 198, 0.22), -5px -5px 15px rgba(255, 255, 255, 0.85) !important;
+  border-radius: 16px !important;
+}
+
+/* Card Neumorphism Override - Light glass theme (Excluding dark/accent cards) */
+.card:not(.bg-black):not(.bg-neutral-900):not(.bg-neutral-950):not(.bg-space-grey):not(.bg-accent):not(.bg-\[\#ff6B00\]):not(.bg-\[\#FF6B00\]):not(.bg-slate-900):not(.bg-slate-800),
+.bg-white.border-2.border-black,
+.bg-neutral-50.border-2.border-black {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  background-color: rgba(255, 255, 255, 0.76) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  box-shadow: 8px 8px 24px rgba(163, 177, 198, 0.25), -8px -8px 24px rgba(255, 255, 255, 0.85) !important;
+  border-radius: 24px !important;
+  color: #2D3748 !important; /* Force deep slate readable title and body text default */
+}
+
+/* Ensure clear slate colored text for inner standard text blocks within light glass cards */
+.card:not(.bg-black):not(.bg-neutral-900):not(.bg-neutral-950):not(.bg-space-grey):not(.bg-accent):not(.bg-\[\#ff6B00\]):not(.bg-\[\#FF6B00\]):not(.bg-slate-900):not(.bg-slate-800) h1:not(.text-white),
+.card:not(.bg-black):not(.bg-neutral-900):not(.bg-neutral-950):not(.bg-space-grey):not(.bg-accent):not(.bg-\[\#ff6B00\]):not(.bg-\[\#FF6B00\]):not(.bg-slate-900):not(.bg-slate-800) h2:not(.text-white),
+.card:not(.bg-black):not(.bg-neutral-900):not(.bg-neutral-950):not(.bg-space-grey):not(.bg-accent):not(.bg-\[\#ff6B00\]):not(.bg-\[\#FF6B00\]):not(.bg-slate-900):not(.bg-slate-800) h3:not(.text-white),
+.card:not(.bg-black):not(.bg-neutral-900):not(.bg-neutral-950):not(.bg-space-grey):not(.bg-accent):not(.bg-\[\#ff6B00\]):not(.bg-\[\#FF6B00\]):not(.bg-slate-900):not(.bg-slate-800) h4:not(.text-white),
+.card:not(.bg-black):not(.bg-neutral-900):not(.bg-neutral-950):not(.bg-space-grey):not(.bg-accent):not(.bg-\[\#ff6B00\]):not(.bg-\[\#FF6B00\]):not(.bg-slate-900):not(.bg-slate-800) p:not(.text-white),
+.card:not(.bg-black):not(.bg-neutral-900):not(.bg-neutral-950):not(.bg-space-grey):not(.bg-accent):not(.bg-\[\#ff6B00\]):not(.bg-\[\#FF6B00\]):not(.bg-slate-900):not(.bg-slate-800) span:not(.text-white):not(.text-neutral-100):not(.text-[#FFF2EA]):not(.text-orange-100) {
+  color: #2D3748 !important;
+}
+
+/* Exemptions to guarantee that text-white elements, buttons, and badges retain their clean white or custom branding text */
+.text-white,
+.text-white *,
+.text-neutral-50,
+.text-neutral-50 *,
+.text-neutral-100,
+.text-neutral-100 *,
+.text-orange-50,
+.text-orange-50 *,
+.text-[#FFF2EA],
+.text-[#FFF2EA] *,
+button,
+button *,
+.badge.bg-accent,
+.badge.bg-accent * {
+  color: inherit; /* Allow classes to naturally define their colors */
+}
+
+/* Explicit fallback for active interactive elements */
+button.bg-[#ff6B00],
+button.bg-[#ff6B00] *,
+button.bg-accent,
+button.bg-accent * {
+  color: #ffffff !important;
+}
+
+/* Dark Glasmorphic Card Override */
+.card.bg-black,
+.card.bg-neutral-950,
+.card.bg-neutral-900,
+.card.bg-space-grey,
+.card.bg-slate-900,
+.card.bg-slate-800,
+.bg-black.border-2.border-black,
+.bg-neutral-900.border-2.border-black {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background-color: rgba(26, 31, 46, 0.92) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  box-shadow: 8px 8px 24px rgba(0, 0, 0, 0.28), -4px -4px 15px rgba(255, 255, 255, 0.02) !important;
+  border-radius: 24px !important;
+  color: #ffffff !important;
+}
+
+/* Inner elements in dark glass cards must have clean high-contrast white/light-grey text */
+.card.bg-black *,
+.card.bg-neutral-950 *,
+.card.bg-neutral-900 *,
+.card.bg-space-grey *,
+.card.bg-slate-900 *,
+.card.bg-slate-800 *,
+.bg-black.border-2.border-black *,
+.bg-neutral-900.border-2.border-black * {
+  color: #ffffff !important;
+  --text-muted: rgba(255, 255, 255, 0.6) !important;
+}
+
+.card.bg-black .text-neutral-400,
+.card.bg-neutral-900 .text-neutral-400,
+.card.bg-neutral-950 .text-neutral-400,
+.card.bg-black .text-neutral-500,
+.card.bg-neutral-900 .text-neutral-500,
+.card.bg-neutral-950 .text-neutral-500 {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Accent/Orange Glasmorphic Card Override */
+.card.bg-accent,
+.card.bg-\[\#ff6B00\],
+.card.bg-\[\#FF6B00\],
+.bg-accent.border-2.border-black {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  background-color: rgba(255, 107, 0, 0.88) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  box-shadow: 8px 8px 24px rgba(255, 107, 0, 0.25), -4px -4px 15px rgba(255, 255, 255, 0.1) !important;
+  border-radius: 24px !important;
+  color: #ffffff !important;
+}
+
+.card.bg-accent *,
+.card.bg-\[\#ff6B00\] *,
+.card.bg-\[\#FF6B00\] *,
+.bg-accent.border-2.border-black * {
+  color: #ffffff !important;
+}
+
+/* Hard Shadows Overrides */
+[class*="shadow-[4px_4px_0px_0px"],
+[class*="shadow-[6px_6px_0px_0px"],
+[class*="shadow-[8px_8px_0px_0px"],
+[class*="shadow-[8px_8px_0px"],
+[class*="shadow-[12px_12px_0px_rgba"],
+[class*="shadow-[12px_12px_0px_0px"] {
+  box-shadow: 6px 6px 16px rgba(163, 177, 198, 0.28), -6px -6px 16px rgba(255, 255, 255, 0.82) !important;
+}
+
+/* Standard Rounded/Border Radius */
+.rounded-3xl, .rounded-[2.5rem], .rounded-[2rem], .rounded-2xl {
+  border-radius: 20px !important;
+}
+
+.rounded-xl {
+  border-radius: 12px !important;
+}
+
+/* Inputs and Forms */
+input, select, textarea {
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  background-color: rgba(255, 255, 255, 0.6) !important;
+  color: #2D3748 !important; /* Force high-contrast deep slate text */
+  box-shadow: inset 2px 2px 5px rgba(163, 177, 198, 0.2), inset -2px -2px 5px rgba(255, 255, 255, 0.7) !important;
+  transition: all 0.3s ease !important;
+}
+input:focus, select:focus, textarea:focus {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #ff6B00 !important;
+  color: #1A202C !important;
+  box-shadow: inset 1px 1px 3px rgba(163, 177, 198, 0.1), 0 0 10px rgba(255, 107, 0, 0.12) !important;
+}
+
+/* Clear, high-contrast placeholder text */
+input::placeholder, textarea::placeholder {
+  color: #718096 !important;
+  opacity: 0.95 !important;
+}
+
+/* Ensure selector dropdown options have solid white background and clear text */
+select option {
+  background-color: #ffffff !important;
+  color: #2D3748 !important;
+}
+
+/* Neumorphic Dialog Overrides */
+[role="dialog"] {
+  border-radius: 28px !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 12px 12px 36px rgba(163, 177, 198, 0.3), -12px -12px 36px rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Map Pickers */
+.leaflet-container {
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+}
+
+/* =========================================================================
+   FOCUSED CSS OVERRIDES FOR ELEMENT SELECTIONS: UNREADABLE FONT & OVERFLOW CUTOFF
+   ========================================================================= */
+
+/* Ensure the targeted tab bar container handles layout gracefully, allowing flex wrapping so buttons never overflow/cutoff */
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  overflow: visible !important;
+  gap: 10px !important;
+  padding: 6px !important;
+  width: 100% !important;
+}
+
+/* Rule for Selected Element 1 (First Tab Button in row) - Force high contrast white text over branding accent orange background */
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(1) {
+  color: #FFFFFF !important;
+  background-color: #ff6B00 !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 4px 4px 12px rgba(255, 107, 0, 0.3), -4px -4px 12px #ffffff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 14px !important;
+  padding: 8px 16px !important;
+}
+
+/* Rule for Selected Element 2 (Sixth Tab Button in row) - Force high contrast dark slate text over clean off-white background */
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(6) {
+  color: #2D3748 !important;
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.15) !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  box-shadow: 4px 4px 12px rgba(163, 177, 198, 0.25), -4px -4px 12px #ffffff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 14px !important;
+  padding: 8px 16px !important;
+}
+
+/* Fallback for all other buttons in this container to prevent any unreadable font mismatch color issue */
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button {
+  color: #2D3748 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 14px !important;
+  transition: all 0.2s ease !important;
+}
+
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button:hover {
+  background-color: #ff6B00 !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
 }

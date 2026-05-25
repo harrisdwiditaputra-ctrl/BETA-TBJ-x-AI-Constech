@@ -18,7 +18,7 @@ export function calculateAdminPrice(basePrice: number, globalMarkup: number = 20
   if (skipMarkup) return basePrice;
   const markupFactor = 1 + (globalMarkup / 100);
   const rawPrice = basePrice * markupFactor;
-  return roundToRatusan(rawPrice);
+  return roundToRibuan(rawPrice);
 }
 
 export function calculateClientPrice(basePrice: number, globalMarkup: number = 20, skipMarkup: boolean = false) {
@@ -26,14 +26,14 @@ export function calculateClientPrice(basePrice: number, globalMarkup: number = 2
   const markupFactor = 1 + (globalMarkup / 100);
   // Base + Markup + 10% Profit Margin as per instructions
   const rawPrice = basePrice * markupFactor * 1.1;
-  return roundToRatusan(rawPrice);
+  return roundToRibuan(rawPrice);
 }
 
 /**
- * Rounds a number to the nearest 100 (Rupiah standard requested for TBJ)
+ * Rounds a number to the nearest 1000 (Ribuan standard requested for TBJ)
  */
-export function roundToRatusan(amount: number) {
-  return Math.ceil(amount / 100) * 100;
+export function roundToRibuan(amount: number) {
+  return Math.ceil(amount / 1000) * 1000;
 }
 
 export function getDriveImageUrl(url: string) {

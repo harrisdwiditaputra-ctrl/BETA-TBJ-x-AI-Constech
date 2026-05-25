@@ -151,6 +151,24 @@
       },
       "required": ["url", "name", "category", "uploadedBy", "createdAt"]
     },
+    "FinancialTransaction": {
+      "title": "FinancialTransaction",
+      "description": "Catatan transaksi keuangan proyek",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string" },
+        "projectName": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "category": { "type": "string", "enum": ["client_payment", "material", "labor", "assessment", "other"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "method": { "type": "string", "enum": ["Cash", "Transfer", "Digital Wallet"] },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "receiptUrl": { "type": "string" }
+      },
+      "required": ["type", "category", "amount", "description", "date"]
+    },
     "MaterialSuggestion": {
       "title": "MaterialSuggestion",
       "description": "Saran nama material untuk autocomplete",
@@ -229,6 +247,9 @@
       "schema": "WorkItemMaster",
       "description": "Master database AHSP"
     },
+    "/master_data_versions/{id}": {
+      "description": "Arsip versi data master"
+    },
     "/workforce/{workerId}": {
       "schema": "Workforce",
       "description": "Database tenaga kerja"
@@ -256,6 +277,10 @@
     "/media_assets/{assetId}": {
       "schema": "MediaAsset",
       "description": "Koleksi aset media terpusat"
+    },
+    "/financial_transactions/{id}": {
+      "schema": "FinancialTransaction",
+      "description": "Koleksi rekaman transaksi keuangan"
     },
     "/leads/{leadId}": {
       "schema": "Lead",

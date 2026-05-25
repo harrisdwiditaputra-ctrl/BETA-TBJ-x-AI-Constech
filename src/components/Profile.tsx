@@ -37,32 +37,32 @@ export default function Profile() {
 
   if (user?.tier === 'prospect') {
     return (
-      <div className="space-y-12 py-12 flex flex-col items-center text-center">
-        <div className="w-24 h-24 bg-accent/10 rounded-full flex items-center justify-center mb-6">
-          <Lock className="w-12 h-12 text-accent" />
+      <div className="space-y-12 py-12 flex flex-col items-center text-center font-sans">
+        <div className="w-24 h-24 bg-[#ff6B00]/10 rounded-full flex items-center justify-center mb-6 shadow-inner">
+          <Lock className="w-10 h-10 text-[#ff6B00]" />
         </div>
         <div className="space-y-4 max-w-2xl px-4">
-          <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter">Dashboard Locked</h1>
-          <p className="uppercase-soft text-neutral-500 text-base md:text-lg">
-            Dashboard eksklusif hanya tersedia untuk member Tier 2 & 3. 
-            Silahkan lakukan pembayaran Digital Assessment untuk membuka akses penuh.
+          <h1 className="text-3xl md:text-5xl font-campton-book font-bold tracking-tighter text-neutral-800">Dashboard Locked</h1>
+          <p className="text-neutral-500 font-avenir-medium tracking-normal text-base md:text-lg max-w-xl mx-auto leading-relaxed">
+            Dashboard monitoring konstruksi eksklusif hanya tersedia untuk member aktif (Tier 2 & 3). 
+            Silakan lakukan pemesanan Digital Assessment untuk memvalidasi proposal proyek Anda.
           </p>
           <div className="pt-8">
-            <Button onClick={() => navigate("/assistant")} className="btn-accent h-14 px-12 text-sm">
+            <Button onClick={() => navigate("/assistant")} className="btn-accent h-14 px-12 text-xs">
               Book Digital Assessment Now
             </Button>
           </div>
         </div>
         
-        <div className="grid md:grid-cols-3 gap-8 w-full max-w-5xl pt-20">
+        <div className="grid md:grid-cols-3 gap-8 w-full max-w-5xl pt-20 px-4">
           {[
-            { title: "Real-time Tracking", desc: "Pantau progress proyek harian via CCTV & Foto." },
-            { title: "Financial Transparency", desc: "Detail RAB & termin pembayaran yang transparan." },
-            { title: "Priority Support", desc: "Direct chat ke Architect & Project Manager." }
+            { title: "Real-time Tracking", desc: "Pantau progress pembangunan harian via feed dokumentasi foto & schedule terintegrasi." },
+            { title: "Financial Transparency", desc: "Akses detail RAB, invoice termin pembayaran, dan pengeluaran secara transparan." },
+            { title: "Priority Support", desc: "Saluran diskusi langsung (C-level access) ke Lead Architect & Project Manager Anda." }
           ].map((feature, i) => (
-            <div key={i} className="p-8 border-2 border-black rounded-3xl space-y-4">
-              <h3 className="text-xl font-black uppercase tracking-tighter">{feature.title}</h3>
-              <p className="text-xs text-neutral-500 leading-relaxed">{feature.desc}</p>
+            <div key={i} className="p-8 border border-white/60 bg-white/70 backdrop-blur-md rounded-3xl shadow-[5px_5px_15px_#e2e8f0,-5px_-5px_15px_#ffffff] text-center space-y-4">
+              <h3 className="text-lg font-campton-book font-bold uppercase tracking-tight text-neutral-800">{feature.title}</h3>
+              <p className="text-xs text-neutral-500 font-avenir-medium leading-relaxed">{feature.desc}</p>
             </div>
           ))}
         </div>
@@ -83,22 +83,22 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-12 py-8">
+    <div className="space-y-12 py-8 font-sans">
       {id && (
-        <Button variant="ghost" className="uppercase-soft text-[10px] font-black gap-2" onClick={() => navigate(-1)}>
+        <Button variant="ghost" className="text-[10px] uppercase tracking-widest font-avenir-medium gap-2 text-neutral-500 hover:text-[#ff6B00]" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4" /> Back to Admin Panel
         </Button>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b-2 border-black pb-8 gap-4 px-4 md:px-0">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-neutral-200/60 pb-8 gap-4 px-4 md:px-0">
         <div className="space-y-2">
-          <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter">{id ? "Client View" : "Client Dashboard"}</h1>
-          <p className="uppercase-soft text-neutral-500 text-xs md:text-sm">
-            {id ? `Viewing dashboard for ${user?.displayName}` : `Selamat datang, ${user?.displayName}. Pantau progres proyek Anda secara real-time.`}
+          <h1 className="text-3xl md:text-5xl font-campton-book font-bold tracking-tighter text-neutral-800">{id ? "Client View" : "Client Dashboard"}</h1>
+          <p className="text-neutral-500 font-avenir-medium text-xs md:text-sm">
+            {id ? `Viewing dashboard for ${user?.displayName}` : `Selamat datang kembali, ${user?.displayName}. Pantau progres proyek Anda secara real-time.`}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <Badge className="bg-accent text-white rounded-md px-4 py-1 uppercase-soft">Tier {(user?.tier as string) === 'prospect' ? '1' : user?.tier === 'survey' ? '2' : '3'}</Badge>
+        <div className="flex flex-col items-end gap-3">
+          <Badge className="bg-[#ff6B00] text-white border-none rounded-xl px-4 py-1.5 font-avenir-medium text-[9px] uppercase tracking-widest shadow-sm">Tier {(user?.tier as string) === 'prospect' ? '1' : user?.tier === 'survey' ? '2' : '3'}</Badge>
           {!id && (
             <Button variant="outline" size="sm" onClick={() => {
               setProfileFormData({
@@ -108,7 +108,7 @@ export default function Profile() {
                 address: user?.address || ""
               });
               setIsEditingProfile(true);
-            }} className="h-8 rounded-xl border-black text-[10px] font-black uppercase">
+            }} className="h-9 px-4 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-[10px] font-avenir-medium uppercase tracking-wider shadow-sm transition-all duration-200">
               Update Identity
             </Button>
           )}
@@ -116,37 +116,37 @@ export default function Profile() {
       </div>
 
       <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
-        <DialogContent className="border-4 border-black rounded-[2.5rem] max-w-lg p-8">
+        <DialogContent className="border border-white/60 rounded-[2rem] bg-white/95 backdrop-blur-md max-w-lg p-8 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black uppercase tracking-tighter italic text-accent">Identity Verification Form</DialogTitle>
-            <DialogDescription className="uppercase-soft">Data ini digunakan untuk otentikasi kontrak digital TBJ.</DialogDescription>
+            <DialogTitle className="text-xl font-campton-book font-bold uppercase tracking-tight text-[#ff6B00]">Identity Verification Form</DialogTitle>
+            <DialogDescription className="text-neutral-500 font-avenir-medium text-xs">Data ini digunakan untuk otentikasi kontrak digital resmi TBJ.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 pt-6">
+          <div className="space-y-5 pt-6">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Nama Lengkap (Sesuai KTP)</Label>
+              <Label className="text-[10px] font-avenir-medium uppercase tracking-widest text-neutral-400">Nama Lengkap (Sesuai KTP)</Label>
               <Input 
                 value={profileFormData.formalName} 
                 onChange={e => setProfileFormData({...profileFormData, formalName: e.target.value})}
                 placeholder="CONTOH: BUDI SANTOSO"
-                className="h-12 border-2 border-black rounded-xl font-black uppercase"
+                className="h-12 border border-neutral-200 rounded-xl font-campton-book font-medium uppercase shadow-inner"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Nomor KTP (NIK)</Label>
+              <Label className="text-[10px] font-avenir-medium uppercase tracking-widest text-neutral-400">Nomor KTP (NIK)</Label>
               <Input 
                 value={profileFormData.nik} 
                 onChange={e => setProfileFormData({...profileFormData, nik: e.target.value})}
                 placeholder="16 DIGIT NIK"
-                className="h-12 border-2 border-black rounded-xl font-mono font-bold"
+                className="h-12 border border-neutral-200 rounded-xl font-mono font-medium shadow-inner"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">WhatsApp Aktif</Label>
+              <Label className="text-[10px] font-avenir-medium uppercase tracking-widest text-neutral-400">WhatsApp Aktif</Label>
               <Input 
                 value={profileFormData.whatsapp} 
                 onChange={e => setProfileFormData({...profileFormData, whatsapp: e.target.value})}
                 placeholder="081234567890"
-                className="h-12 border-2 border-black rounded-xl font-bold font-mono"
+                className="h-12 border border-neutral-200 rounded-xl font-mono font-medium shadow-inner"
               />
             </div>
             <div className="space-y-2">

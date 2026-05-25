@@ -31,16 +31,16 @@ service cloud.firestore {
       return isSignedIn() && (
         request.auth.token.email == "harrisdwiditaputra@gmail.com" || 
         request.auth.uid == "pcbVzpHTQWb4jGKMhvQN3D13hz93" ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin')
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin')
       );
     }
 
     function isPM() {
       return isSignedIn() && (
-        request.auth.token.email == "harrisdwiditaputra@gmail.com" ||
-        request.auth.uid == "pcbVzpHTQWb4jGKMhvQN3D13hz93" ||
+        isAdmin() ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'pm' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin'))
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'pm'))
       );
     }
 
@@ -49,7 +49,7 @@ service cloud.firestore {
     }
 
     function isVerifiedStaff() {
-      return isStaff() && (request.auth.token.email == "harrisdwiditaputra@gmail.com" || request.auth.uid == "pcbVzpHTQWb4jGKMhvQN3D13hz93" || isEmailVerified());
+      return isStaff() && (request.auth.token.email == "harrisdwiditaputra@gmail.com" || request.auth.uid == "pcbVzpHTQWb4jGKMhvQN3D13hz93" || request.auth.token.email_verified == true);
     }
 
     function isValidId(id) {
@@ -147,27 +147,22 @@ service cloud.firestore {
 
     match /master_categories/{catId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    match /master_items/{itemId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isVerifiedStaff();
     }
 
     match /master_data/{itemId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isVerifiedStaff();
     }
 
     match /workforce/{workerId} {
-      allow read: if isVerifiedStaff(); 
+      allow read: if isSignedIn(); 
       allow write: if isVerifiedStaff();
     }
 
     match /attendance/{logId} {
       allow read: if isStaff();
-      allow create: if isEmailVerified();
+      allow create: if isSignedIn();
       allow update, delete: if isStaff();
     }
 
@@ -185,7 +180,7 @@ service cloud.firestore {
     }
 
     match /vendors/{vendorId} {
-      allow read: if isVerifiedStaff();
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
 
@@ -210,14 +205,14 @@ service cloud.firestore {
     }
 
     match /leads/{leadId} {
-      allow read, update: if isVerifiedStaff();
+      allow read, update: if isStaff();
       allow create: if true;
       allow delete: if isAdmin();
     }
 
     match /financial_transactions/{id} {
       allow read, list: if isStaff() || (isSignedIn() && exists(/databases/$(database)/documents/projects/$(resource.data.projectId)) && get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.ownerId == request.auth.uid);
-      allow create: if isVerifiedStaff();
+      allow create: if isStaff();
       allow update, delete: if isAdmin();
     }
 

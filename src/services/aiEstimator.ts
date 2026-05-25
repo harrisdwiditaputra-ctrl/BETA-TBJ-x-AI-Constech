@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIEstimateResponse } from "../types";
-import { calculateAdminPrice, calculateClientPrice, roundToRatusan } from "../lib/utils";
+import { calculateAdminPrice, calculateClientPrice, roundToRibuan } from "../lib/utils";
 
 export async function getAIEstimation(userProblem: string, category: string, masterData?: any[], userRole: string = 'user', globalMarkup: number = 20): Promise<AIEstimateResponse> {
   try {
@@ -70,8 +70,8 @@ export async function getAIEstimation(userProblem: string, category: string, mas
     
     // Safety check and final rounding for all items returned by AI
     const items = (data.items || []).map((item: any) => {
-      const pricePerUnit = roundToRatusan(item.price || 0);
-      const totalPrice = roundToRatusan(pricePerUnit * (item.volume || 0));
+      const pricePerUnit = roundToRibuan(item.price || 0);
+      const totalPrice = roundToRibuan(pricePerUnit * (item.volume || 0));
       
       return {
         name: item.name,

@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { TBJ_LOGO } from '../constants';
 import { AIEstimateResponse } from '../types';
-import { roundToRatusan } from './utils';
+import { roundToRibuan } from './utils';
 
 // Helper to convert image URL to Base64
 const imageUrlToBase64 = async (url: string): Promise<string> => {
@@ -27,7 +27,9 @@ export const generateRABPDF = async (
   items: any[], 
   customLogoUrl?: string,
   projectIdentity?: { name: string, location: string, client: string, phone?: string, rabNumber?: string },
-  finance?: { discount?: number, taxPercentage?: number, assessmentDeposit?: number }
+  finance?: { discount?: number, taxPercentage?: number, assessmentDeposit?: number },
+  shareMode: boolean = false,
+  shareText?: string
 ) => {
   const doc = new jsPDF();
   const logoUrl = customLogoUrl || TBJ_LOGO;
@@ -42,6 +44,7 @@ export const generateRABPDF = async (
   };
 
   const rabNo = projectIdentity?.rabNumber || generateRABNumber(projectName);
+  const filename = `${rabNo}-${projectName.replace(/\s+/g, '-')}.pdf`;
 
   // Header Helper - Called on every page
   const drawRABHeader = (doc: jsPDF, pageNumber: number) => {
@@ -87,7 +90,7 @@ export const generateRABPDF = async (
     doc.text(`Halaman ${pageNumber} dari ${totalPages}`, 200, pageHeight - 10, { align: 'right' });
   };
 
-  // Header will use headerY starting from 55
+    // Header will use headerY starting from 55
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0);
@@ -105,7 +108,7 @@ export const generateRABPDF = async (
   doc.setFont('helvetica', 'normal');
   doc.text(`TANGGAL: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, 10, headerY);
 
-  let currentY = headerY + 10;
+  let currentY = headerY + 15;
 
   categories.forEach((cat) => {
     const catItems = items.filter(i => i.categoryId === cat.id);
@@ -113,44 +116,49 @@ export const generateRABPDF = async (
 
     if (currentY > 240) {
       doc.addPage();
-      currentY = 20;
+      drawRABHeader(doc, (doc as any).internal.getNumberOfPages());
+      currentY = 55;
     }
 
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setFillColor(255, 107, 0, 0.1); // Light orange background for cat headers
+    doc.setFillColor(30, 30, 30); // Dark neutral gray instead of blue/orange
     doc.rect(10, currentY - 5, 190, 8, 'F');
-    doc.setTextColor(orange[0], orange[1], orange[2]);
+    doc.setTextColor(255, 255, 255); // White text on dark background
     doc.text(cat.name.toUpperCase(), 12, currentY);
     doc.setTextColor(0);
     currentY += 8;
 
-    const tableData = catItems.map(item => [
+    const tableData = catItems.map((item, idx) => [
+      idx + 1,
+      item.code || '-',
       { 
         content: `${item.name}${item.technicalSpecs ? `\nSpesifikasi: ${item.technicalSpecs}` : ''}`, 
         styles: { fontStyle: 'bold' } 
       },
       item.quantity,
       item.unit,
-      `Rp ${item.pricePerUnit.toLocaleString('id-ID')}`,
-      `Rp ${item.totalPrice.toLocaleString('id-ID')}`
+      `Rp ${Math.round(item.pricePerUnit).toLocaleString('id-ID')}`,
+      `Rp ${Math.round(item.totalPrice).toLocaleString('id-ID')}`
     ]);
 
     autoTable(doc, {
       startY: currentY,
-      head: [['URAIAN PEKERJAAN', 'QTY', 'UNIT', 'HARGA SATUAN', 'JUMLAH HARGA']],
+      head: [['NO', 'KODE', 'URAIAN PEKERJAAN', 'QTY', 'UNIT', 'HARGA SATUAN', 'JUMLAH HARGA']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 9, halign: 'center' },
       bodyStyles: { fontSize: 8, cellPadding: 3 },
       columnStyles: {
-        0: { cellWidth: 80 },
-        1: { halign: 'center', cellWidth: 20 },
-        2: { halign: 'center', cellWidth: 20 },
-        3: { halign: 'right', cellWidth: 35 },
-        4: { halign: 'right', cellWidth: 35 }
+        0: { halign: 'center', cellWidth: 8 },
+        1: { halign: 'center', cellWidth: 15 },
+        2: { cellWidth: 62 },
+        3: { halign: 'center', cellWidth: 15 },
+        4: { halign: 'center', cellWidth: 15 },
+        5: { halign: 'right', cellWidth: 35 },
+        6: { halign: 'right', cellWidth: 40 }
       },
-      margin: { left: 10, right: 10 },
+      margin: { left: 10, right: 10, top: 55, bottom: 25 },
       didDrawPage: (data: any) => {
         drawRABHeader(doc, data.pageNumber);
         addRABFooter(doc, data.pageNumber);
@@ -164,12 +172,15 @@ export const generateRABPDF = async (
   const subtotal = Math.round(items.reduce((acc, i) => acc + i.totalPrice, 0));
   const discount = finance?.discount || 0;
   const deposit = finance?.assessmentDeposit || 0;
-  const taxRate = (finance?.taxPercentage || 0) / 100;
-  const beforeTax = subtotal - discount - deposit;
-  const taxAmount = beforeTax * taxRate;
-  const totalBudget = roundToRatusan(beforeTax + taxAmount);
+  const taxPercentage = finance?.taxPercentage || 0;
   
-  if (currentY > 200) { // Slightly lower threshold to be safe
+  const amountBeforeTax = subtotal - discount;
+  const taxAmount = amountBeforeTax > 0 ? (amountBeforeTax * (taxPercentage / 100)) : 0;
+  
+  // Grand Total: (Subtotal - Discount) + Tax - Deposit
+  const totalBudget = roundToRibuan(amountBeforeTax + taxAmount - deposit);
+  
+  if (currentY > 200) { 
     doc.addPage();
     drawRABHeader(doc, (doc as any).internal.getNumberOfPages());
     currentY = 55;
@@ -192,7 +203,7 @@ export const generateRABPDF = async (
   
   if (discount > 0) {
     currentY += lineSpacing;
-    doc.text('POTONGAN HARGA (DISKON):', labelX, currentY + 5);
+    doc.text('DISKON / POTONGAN:', labelX, currentY + 5);
     doc.text(`- Rp ${discount.toLocaleString('id-ID')}`, valueX, currentY + 5, { align: 'right' });
   }
 
@@ -204,7 +215,7 @@ export const generateRABPDF = async (
 
   if (taxAmount > 0) {
     currentY += lineSpacing;
-    doc.text(`PAJAK (${finance?.taxPercentage}%):`, labelX, currentY + 5);
+    doc.text(`PAJAK (${taxPercentage}%):`, labelX, currentY + 5);
     doc.text(`Rp ${Math.round(taxAmount).toLocaleString('id-ID')}`, valueX, currentY + 5, { align: 'right' });
   }
 
@@ -224,7 +235,8 @@ export const generateRABPDF = async (
   currentY += 30;
   if (currentY > 240) {
     doc.addPage();
-    currentY = 20;
+    drawRABHeader(doc, (doc as any).internal.getNumberOfPages());
+    currentY = 55;
   }
   
   doc.setTextColor(0);
@@ -234,12 +246,34 @@ export const generateRABPDF = async (
   
   doc.line(140, currentY + 30, 190, currentY + 30);
   doc.text('Official Estimator', 150, currentY + 35);
+  
+  // Total Pages Handling - ensuring all pages have footers if some were missed
+  const totalPagesCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPagesCount; i++) {
+    doc.setPage(i);
+    // Footers are already handled by didDrawPage for most scenarios, 
+    // but summary page might not have a table.
+    addRABFooter(doc, i);
+  }
 
-  // Draw header for first page
-  drawRABHeader(doc, 1);
-  addRABFooter(doc, 1);
+  if (shareMode && navigator.share && navigator.canShare) {
+    const pdfBlob = doc.output('blob');
+    const file = new File([pdfBlob], filename, { type: 'application/pdf' });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: `RAB - ${projectName}`,
+          text: shareText || `Berikut adalah dokumen RAB untuk Proyek ${projectName}.`,
+        });
+        return;
+      } catch (err) {
+        console.error('Sharing failed', err);
+      }
+    }
+  }
 
-  doc.save(`${rabNo}-${projectName.replace(/\s+/g, '-')}.pdf`);
+  doc.save(filename);
 };
 
 export const generatePOPDF = async (request: any, vendor: any, customLogoUrl?: string, recipientInfo?: { name: string, phone: string, address: string }) => {
