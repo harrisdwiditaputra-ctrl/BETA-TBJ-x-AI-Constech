@@ -18,6 +18,10 @@ export default function WhatsAppVerificationPage({
   updateProfile,
   onLogout,
 }: WhatsAppVerificationPageProps) {
+  const [waNumber, setWaNumber] = useState(user.whatsapp || "");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
   const handleRegisterWhatsApp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!waNumber) {
@@ -30,55 +34,20 @@ export default function WhatsAppVerificationPage({
       await updateProfile({
         whatsapp: waNumber,
         waVerified: true,
-        tier: 2,
+        tier: "deal",
         aiUsageCount: 0,
       });
-      setIsSuccess(true);
-      toast.success("WhatsApp berhasil disimpan!", {
-        description: "Selamat datang di Ecosystem Tier 2.",
+      toast.success("Data berhasil disimpan!", {
+        description: "Mengalihkan ke dashboard...",
       });
       
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 1500);
+      window.location.href = "/";
     } catch (error) {
       console.error("Error updating profile with waVerified:", error);
       toast.error("Gagal memperbarui data.");
       setIsVerifying(false);
     }
   };
-
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen bg-neutral-50/50 flex items-center justify-center p-4 font-sans">
-        <Card className="w-full max-w-md border border-white/60 rounded-[2rem] bg-white/70 backdrop-blur-md shadow-[10px_10px_30px_#cbd5e1,-10px_-10px_30px_#ffffff] overflow-hidden transition-all duration-500 transform scale-[1.01]">
-          <div className="bg-[#FF6B00] text-white p-8 text-center space-y-4 shadow-sm">
-            <div className="w-18 h-18 bg-white/15 rounded-full flex items-center justify-center mx-auto border border-white/10 backdrop-blur-sm animate-bounce shadow-md">
-              <ShieldCheck className="w-9 h-9 text-white" />
-            </div>
-            <h2 className="text-2xl md:text-3xl font-campton-book font-bold tracking-tight">Onboarding Success!</h2>
-            <p className="text-[10px] font-avenir-medium uppercase tracking-widest text-[#FFF2EA]">Selamat datang di TBJ Constech Ecosystem</p>
-          </div>
-          <div className="p-8 space-y-6">
-            <div className="p-6 bg-white/95 border border-[#FF6B00]/10 rounded-2xl flex flex-col items-center justify-center text-center shadow-[4px_4px_15px_rgba(255,107,0,0.05)]">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-[#FF6B00]" />
-                <span className="text-[10px] font-avenir-medium text-neutral-400 uppercase tracking-widest">Free Trial Token</span>
-              </div>
-              <p className="text-5xl font-campton-book font-black text-neutral-800">10</p>
-              <p className="text-[10px] font-avenir-medium uppercase tracking-widest text-[#FF6B00] mt-1.5 font-bold">Free AI Analysis Token</p>
-            </div>
-            <div className="pt-2">
-              <div className="flex items-center justify-center gap-2 text-[9px] font-avenir-medium uppercase tracking-[0.14em] text-neutral-400">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#FF6B00]" />
-                <span>Redirecting...</span>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-neutral-50/50 flex items-center justify-center p-4 font-sans">

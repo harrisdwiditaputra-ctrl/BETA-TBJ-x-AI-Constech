@@ -5306,8 +5306,8 @@ const ClientDashboard = ({ user }: { user: any }) => {
             <Card>
               <CardHeader><CardTitle>Timeline Proyek</CardTitle></CardHeader>
               <CardContent className="space-y-6">
-                {project.milestones && project.milestones.length > 0 ? (
-                  project.milestones.map((ev: any, idx: number) => (
+                {project.timeline && project.timeline.length > 0 ? (
+                  project.timeline.map((ev: any, idx: number) => (
                     <div key={idx} className="flex gap-4">
                       <div className="flex flex-col items-center">
                         <div className={cn(
@@ -5315,7 +5315,7 @@ const ClientDashboard = ({ user }: { user: any }) => {
                           ev.status === "completed" ? "bg-black border-black" : 
                           ev.status === "ongoing" ? "bg-white border-black animate-pulse" : "bg-white border-neutral-200"
                         )} />
-                        {idx < project.milestones.length - 1 && <div className="w-0.5 h-full bg-neutral-200" />}
+                        {idx < project.timeline.length - 1 && <div className="w-0.5 h-full bg-neutral-200" />}
                       </div>
                       <div className="pb-6">
                         <p className="font-bold text-sm">{ev.title}</p>
@@ -5324,7 +5324,7 @@ const ClientDashboard = ({ user }: { user: any }) => {
                     </div>
                   ))
                 ) : (
-                  <p className="text-neutral-400 italic text-sm text-center py-4">Belum ada update milestone untuk proyek ini.</p>
+                  <p className="text-neutral-400 italic text-sm text-center py-4">Belum ada update timeline untuk proyek ini.</p>
                 )}
               </CardContent>
             </Card>
@@ -5680,7 +5680,7 @@ export default function App() {
   const isPM = user?.role === "pm";
   const isManagerial = isAdmin || isPM;
   const isClient = user?.role === "user";
-
+  // DEBUG: Ensuring WhatsAppVerificationPage is loaded
   if (user && isClient && !user.waVerified) {
     return (
       <ErrorBoundary>
