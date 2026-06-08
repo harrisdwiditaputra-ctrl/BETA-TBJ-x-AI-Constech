@@ -20,7 +20,6 @@ export default function WhatsAppVerificationPage({
 }: WhatsAppVerificationPageProps) {
   const [waNumber, setWaNumber] = useState(user.whatsapp || "");
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
 
   const handleRegisterWhatsApp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +40,9 @@ export default function WhatsAppVerificationPage({
         description: "Mengalihkan ke dashboard...",
       });
       
-      window.location.href = "/";
+      setTimeout(() => {
+        window.location.href = "/assistant";
+      }, 2000);
     } catch (error) {
       console.error("Error updating profile with waVerified:", error);
       toast.error("Gagal memperbarui data.");

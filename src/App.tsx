@@ -5680,6 +5680,11 @@ export default function App() {
   const isPM = user?.role === "pm";
   const isManagerial = isAdmin || isPM;
   const isClient = user?.role === "user";
+  
+  if (user && isClient) {
+    console.log("DEBUG: User WA Verified status:", user.waVerified);
+  }
+  
   // DEBUG: Ensuring WhatsAppVerificationPage is loaded
   if (user && isClient && !user.waVerified) {
     return (
