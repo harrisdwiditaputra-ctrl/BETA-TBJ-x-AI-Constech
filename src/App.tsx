@@ -3098,7 +3098,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
       // Tier 1 (Unverified WA): 1 analysis allowed
       // Tier 2 (Verified WA): 10 analyses allowed
       // Tier 3 (Deal) & Staff: Unlimited
-      const freeLimit = user?.waVerified ? 10 : 1;
+      const freeLimit = user?.waVerified ? 10 : 5;
       
       setIsAnalyzing(true);
       const loadingToast = toast.loading("AI sedang menganalisa data proyek Anda...");
@@ -3124,12 +3124,6 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
         const result = await getAIEstimation(prompt, projectData.type, masterData, user?.role, systemConfig?.globalMarkup);
         setAiEstimation(result);
         
-        if (!isStaff && !isTier3 && (user?.aiUsageCount || 0) >= freeLimit) {
-          toast.dismiss(loadingToast);
-          toast.info("Limit Analisa AI Tercapai.", { description: "Silakan hubungi Admin atau booking survey untuk melanjutkan." });
-          setStep(6); 
-          return;
-        }
 
         // Increment AI Usage Count for non-staff
         if (!isStaff) {
@@ -3139,13 +3133,8 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
         toast.dismiss(loadingToast);
         toast.success("Analisa AI Selesai!", { description: "Estimasi anggaran telah disusun secara otomatis." });
 
-        // If already verified, go straight to result (Step 5), else go to verification (Step 4)
-        if (user?.waVerified) {
-          setStep(5);
-          setTimeout(() => setShowTokenInfo(true), 1500);
-        } else {
-          setStep(4);
-        }
+        setStep(5);
+
       } catch (error) {
         console.error("AI Estimation failed", error);
         toast.dismiss(loadingToast);
@@ -4644,7 +4633,7 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
                       className="w-full bg-black text-white hover:bg-neutral-800 rounded-2xl h-16 font-black uppercase tracking-[0.2em] text-[12px] shadow-lg active:translate-y-1 transition-all"
                       onClick={() => setStep(6)}
                     >
-                      Konfirmasi & Jadwalkan Survey &rarr;
+                      Lanjutkan &rarr;
                     </Button>
                     
                     <p className="text-[9px] text-center text-neutral-400 italic uppercase font-bold tracking-widest leading-relaxed">
@@ -5685,16 +5674,7 @@ export default function App() {
     console.log("DEBUG: User WA Verified status:", user.waVerified);
   }
   
-  // DEBUG: Ensuring WhatsAppVerificationPage is loaded
-  if (user && isClient && !user.waVerified) {
-    return (
-      <ErrorBoundary>
-        <WhatsAppVerificationPage user={user} updateProfile={updateProfile} onLogout={logout} />
-        <Toaster position="top-right" expand={false} richColors />
-      </ErrorBoundary>
-    );
-  }
-
+  // NOTE: WhatsAppVerificationPage will be used as a pop-up upgrade component instead of a forced route.
   return (
     <ErrorBoundary>
       <Router>

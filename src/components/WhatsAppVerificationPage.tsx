@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { UserProfile } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Phone, Key, Loader2, LogOut, ShieldCheck, Sparkles, MessageSquare, Zap, AlertTriangle } from "lucide-react";
+import { Phone, Loader2, LogOut, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 interface WhatsAppVerificationPageProps {
@@ -40,9 +40,7 @@ export default function WhatsAppVerificationPage({
         description: "Mengalihkan ke dashboard...",
       });
       
-      setTimeout(() => {
-        window.location.href = "/assistant";
-      }, 2000);
+      window.location.href = "/assistant";
     } catch (error) {
       console.error("Error updating profile with waVerified:", error);
       toast.error("Gagal memperbarui data.");
