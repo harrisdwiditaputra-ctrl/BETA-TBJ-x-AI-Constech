@@ -3023,13 +3023,6 @@ export default function AdminPanel() {
                         </div>
 
                         <div className="flex gap-2 pt-1 md:pt-2">
-                          <Button className="flex-grow btn-sleek h-9 md:h-10 text-[8px] md:text-[9px] font-black uppercase tracking-widest border-2 border-black" onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedProjectTeam(p);
-                            setShowManageTeam(true);
-                          }}>
-                            <Users className="w-3 h-3 mr-2" /> Team
-                          </Button>
                           <Button 
                             variant="outline" 
                             className="h-9 w-9 md:h-10 md:w-10 border-2 border-black text-red-500 hover:bg-neutral-900 hover:text-white rounded-xl p-0 flex items-center justify-center transition-colors"

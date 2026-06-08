@@ -3,6 +3,7 @@ import {
   useProjects, useAuth, useUsers, useAttendance, 
   useMaterialRequests, useWorkforce, useFinance, 
   useWorkerWages, useProjectDetails, useSiteLogs,
+  usePMs, 
   uploadImage 
 } from "@/lib/hooks";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,7 +23,7 @@ import {
   Loader2, Calendar, CheckCircle2, Clock, MapPin, User, MessageSquare, 
   Phone, HardHat, Package, Camera, BarChart3, ChevronRight, ChevronLeft, Plus, 
   AlertCircle, LayoutDashboard, History, Send, CameraOff, Briefcase, ShieldCheck,
-  Zap, Settings, Image as ImageIcon, Trash2, DollarSign, TrendingUp, Brain, Sparkles, ExternalLink, Check, X, FileEdit, Search
+  Zap, Settings, Image as ImageIcon, Trash2, DollarSign, TrendingUp, Brain, Sparkles, ExternalLink, Check, X, FileEdit, Search, Users
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { toast } from "sonner";
@@ -36,11 +37,12 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
   const navigate = useNavigate();
   const { projects, loading: projectsLoading, updateProject } = useProjects(undefined, user?.role);
   const { users } = useUsers(user?.role);
+  const { pms } = usePMs(); // Add this
   const { attendance, checkIn, checkOut } = useAttendance(user?.role);
   const { requests, addRequest, updateRequest, updateRequestStatus, deleteRequest } = useMaterialRequests(user?.role);
   const { workforce } = useWorkforce(user?.role);
 
-  const [activeTab, setActiveTab] = useState<"overview" | "projects" | "materials" | "attendance" | "cctv" | "timeline" | "safety" | "rab" | "pm-ai" | "awaiting" | "finance">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "projects" | "materials" | "team" | "attendance" | "cctv" | "timeline" | "safety" | "rab" | "pm-ai" | "awaiting" | "finance">("overview");
   const [activePage, setActivePage] = useState<number>(0);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const { 
@@ -62,15 +64,23 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
   const [isScheduling, setIsScheduling] = useState<string | null>(null);
   const [transactionSearch, setTransactionSearch] = useState("");
   const [transactionCategoryFilter, setTransactionCategoryFilter] = useState("all");
+  const [currentLedgerPage, setCurrentLedgerPage] = useState(0);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       const isExpense = t.type === "expense";
       const matchesSearch = t.description.toLowerCase().includes(transactionSearch.toLowerCase());
       const matchesCategory = transactionCategoryFilter === "all" || t.category === transactionCategoryFilter;
-      return isExpense && matchesSearch && matchesCategory;
+      const tMonth = new Date(t.date).getMonth();
+      const matchesMonth = tMonth === selectedMonth;
+      return isExpense && matchesSearch && matchesCategory && matchesMonth;
     });
-  }, [transactions, transactionSearch, transactionCategoryFilter]);
+  }, [transactions, transactionSearch, transactionCategoryFilter, selectedMonth]);
+  
+  const paginatedTransactions = useMemo(() => {
+    return filteredTransactions.slice(currentLedgerPage * 10, (currentLedgerPage + 1) * 10);
+  }, [filteredTransactions, currentLedgerPage]);
   
   // Record Expense State
   const [showRecordExpense, setShowRecordExpense] = useState(false);
@@ -282,6 +292,7 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
         { id: "awaiting", label: "Awaiting", icon: Clock },
         { id: "projects", label: "My Projects", icon: Briefcase },
         { id: "materials", label: "Materials", icon: Package },
+        { id: "team", label: "Team", icon: Users },
       ]
     },
     {
@@ -926,6 +937,89 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
       </div>
       )}
 
+      {activeTab === "team" && selectedProject && (
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+          <div className="bg-black text-white p-8 rounded-[2rem] shadow-[8px_8px_0px_0px_rgba(255,107,0,0.5)]">
+             <h2 className="text-3xl font-black uppercase tracking-tighter">Manage Project Team</h2>
+             <p className="text-[10px] uppercase font-bold text-neutral-400 mt-2">Assignment PM and Workforce for {selectedProject.name}</p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Project Status</label>
+              <select 
+                className="w-full h-12 rounded-xl border-2 border-black px-4 font-bold uppercase text-xs text-black"
+                value={selectedProject.status || "draft"}
+                onChange={async (e) => {
+                  const status = e.target.value as any;
+                  await updateProject(selectedProject.id, { status });
+                  toast.success(`Status updated to ${status}`);
+                }}
+              >
+                <option value="draft">Draft</option>
+                <option value="survey">Survey</option>
+                <option value="quoted">Quoted</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="on-hold">On-Hold (Pending DP)</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Project Manager</label>
+              <select 
+                className="w-full h-12 rounded-xl border-2 border-black px-4 font-bold uppercase text-xs text-black"
+                value={selectedProject.pmId || ""}
+                onChange={async (e) => {
+                  const pmId = e.target.value;
+                  await updateProject(selectedProject.id, { pmId });
+                  toast.success("PM assigned successfully");
+                }}
+              >
+                <option value="">Select PM</option>
+                {pms.map(pm => (
+                  <option key={pm.uid} value={pm.uid}>{pm.displayName || pm.email}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Workforce Assignment</label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-96 overflow-y-auto p-4 border-2 border-black rounded-2xl">
+              {workforce.map(worker => {
+                const isAssigned = selectedProject.workerIds?.includes(worker.id);
+                return (
+                  <div 
+                    key={worker.id} 
+                    onClick={async () => {
+                      let newWorkerIds = [...(selectedProject.workerIds || [])];
+                      if (isAssigned) {
+                        newWorkerIds = newWorkerIds.filter(id => id !== worker.id);
+                      } else {
+                        newWorkerIds.push(worker.id);
+                      }
+                      await updateProject(selectedProject.id, { workerIds: newWorkerIds });
+                    }}
+                    className={cn(
+                      "p-4 border-2 rounded-xl cursor-pointer transition-all flex items-center justify-between",
+                      isAssigned ? "border-black bg-black text-white" : "border-neutral-100 hover:border-black"
+                    )}
+                  >
+                    <div className="space-y-0.5">
+                      <p className="text-[10px] font-black uppercase tracking-tight">{worker.name}</p>
+                      <p className="text-[8px] opacity-60 uppercase">{worker.skill}</p>
+                    </div>
+                    {isAssigned && <CheckCircle2 className="w-3 h-3 text-accent" />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === "attendance" && (
         <div className="space-y-8">
           <div className="grid md:grid-cols-3 gap-8">
@@ -1325,7 +1419,7 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
 
 
 
-            {/* Transaction Search Control */}
+            {/* Transaction Search Control & Monthly Selector */}
             <div className="flex flex-col sm:flex-row gap-4 mb-6 items-center bg-zinc-950 p-4 rounded-2xl border border-white/10 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] text-white">
               <div className="relative flex-1 w-full flex items-center">
                 <Search className="absolute left-3 w-4 h-4 text-neutral-400" />
@@ -1336,6 +1430,15 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
                   onChange={(e) => setTransactionSearch(e.target.value)}
                 />
               </div>
+              <select 
+                className="h-11 px-4 border border-white/10 rounded-xl font-bold uppercase text-[11px] bg-zinc-800 text-white"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              >
+                {Array.from({length: 12}).map((_, i) => (
+                   <option key={i} value={i}>{new Date(0, i).toLocaleString('id-ID', {month: 'long'})}</option>
+                ))}
+              </select>
             </div>
 <Card className="border-2 border-black rounded-3xl overflow-hidden bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <Table>

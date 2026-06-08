@@ -2969,7 +2969,14 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
 
   const [step, setStep] = useState(1);
   const navigate = useNavigate();
-  
+
+  // Persist email in localStorage
+  useEffect(() => {
+    if (user?.email) {
+      localStorage.setItem('tbj_client_email', user.email);
+    }
+  }, [user?.email]);
+
   const [otp, setOtp] = useState("");
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -3275,6 +3282,11 @@ const VirtualAssistant = ({ user, updateProfile }: { user: any, updateProfile: (
         <h1 className="text-4xl sm:text-5xl md:text-7xl font-light tracking-tighter text-black uppercase leading-tight md:leading-[0.8] heading-edge">
           Virtual<br className="hidden sm:block"/> Assistant
         </h1>
+        {user?.email && (
+          <p className="text-accent font-bold uppercase text-[10px] md:text-xs">
+            Selamat datang kembali, {user.displayName || user.email}!
+          </p>
+        )}
         <p className="text-neutral-400 uppercase-soft max-w-sm sm:max-w-md mx-auto text-[10px] md:text-sm">
           TBJ Digital Ecosystem: AI-Powered Construction & Design
         </p>
@@ -5100,10 +5112,28 @@ const ClientDashboard = ({ user }: { user: any }) => {
 
   if (selectedProject && project) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-8 animate-in fade-in duration-700">
         <Button variant="ghost" onClick={() => setSelectedProject(null)} className="gap-2">
           <ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke Daftar Proyek
         </Button>
+
+        {/* Profile Section for Client */}
+        <Card className="border-2 border-black rounded-2xl bg-neutral-50 shadow-sm">
+          <CardContent className="p-6 grid md:grid-cols-3 gap-6">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase text-neutral-400">Nama Klien</p>
+              <p className="font-bold uppercase tracking-tight">{user?.displayName || "Nama Klien"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase text-neutral-400">Alamat Proyek</p>
+              <p className="font-bold uppercase tracking-tight text-xs leading-relaxed">{user?.address || "Alamat belum diatur"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase text-neutral-400">No. WhatsApp</p>
+              <p className="font-bold uppercase tracking-tight">{user?.phone || "No. WA belum diatur"}</p>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-8">
@@ -5167,20 +5197,20 @@ const ClientDashboard = ({ user }: { user: any }) => {
                                 <div className="space-y-2">
                                   <p className="text-[10px] font-bold uppercase text-neutral-400">Before</p>
                                   <div className="aspect-square bg-neutral-200 rounded-lg flex items-center justify-center overflow-hidden border border-neutral-300">
-                                    <img src={`https://picsum.photos/seed/${item.id}-before/400/400`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    <img src={`https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=400&fit=crop`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                   </div>
                                 </div>
                                 <div className="space-y-2">
                                   <p className="text-[10px] font-bold uppercase text-neutral-400">Progress</p>
                                   <div className="aspect-square bg-neutral-200 rounded-lg flex items-center justify-center overflow-hidden border border-neutral-300">
-                                    <img src={`https://picsum.photos/seed/${item.id}-progress/400/400`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    <img src={`https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=400&fit=crop`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                   </div>
                                 </div>
                                 <div className="space-y-2">
                                   <p className="text-[10px] font-bold uppercase text-neutral-400">After</p>
                                   <div className="aspect-square bg-neutral-200 rounded-lg flex items-center justify-center overflow-hidden border border-neutral-300">
                                     {item.progress === 100 ? (
-                                      <img src={`https://picsum.photos/seed/${item.id}-after/400/400`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      <img src={`https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=400&fit=crop`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                     ) : (
                                       <ImageIcon className="text-neutral-400" />
                                     )}
@@ -5276,28 +5306,26 @@ const ClientDashboard = ({ user }: { user: any }) => {
             <Card>
               <CardHeader><CardTitle>Timeline Proyek</CardTitle></CardHeader>
               <CardContent className="space-y-6">
-                {[
-                  { title: "Survey & Pengukuran", date: "01 Apr 2026", status: "completed" },
-                  { title: "Tanda Tangan Kontrak", date: "05 Apr 2026", status: "completed" },
-                  { title: "Pekerjaan Struktur", date: "10 Apr 2026", status: "ongoing" },
-                  { title: "Finishing & Interior", date: "25 Apr 2026", status: "pending" },
-                  { title: "Handover", date: "10 Mei 2026", status: "pending" },
-                ].map((ev, idx) => (
-                  <div key={idx} className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className={cn(
-                        "w-4 h-4 rounded-full border-2",
-                        ev.status === "completed" ? "bg-black border-black" : 
-                        ev.status === "ongoing" ? "bg-white border-black animate-pulse" : "bg-white border-neutral-200"
-                      )} />
-                      {idx < 4 && <div className="w-0.5 h-full bg-neutral-200" />}
+                {project.milestones && project.milestones.length > 0 ? (
+                  project.milestones.map((ev: any, idx: number) => (
+                    <div key={idx} className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className={cn(
+                          "w-4 h-4 rounded-full border-2",
+                          ev.status === "completed" ? "bg-black border-black" : 
+                          ev.status === "ongoing" ? "bg-white border-black animate-pulse" : "bg-white border-neutral-200"
+                        )} />
+                        {idx < project.milestones.length - 1 && <div className="w-0.5 h-full bg-neutral-200" />}
+                      </div>
+                      <div className="pb-6">
+                        <p className="font-bold text-sm">{ev.title}</p>
+                        <p className="text-xs text-neutral-500">{ev.date}</p>
+                      </div>
                     </div>
-                    <div className="pb-6">
-                      <p className="font-bold text-sm">{ev.title}</p>
-                      <p className="text-xs text-neutral-500">{ev.date}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-neutral-400 italic text-sm text-center py-4">Belum ada update milestone untuk proyek ini.</p>
+                )}
               </CardContent>
             </Card>
 
@@ -5684,7 +5712,8 @@ export default function App() {
                 )}
                 
                 <Route path="/projects" element={isClient ? <Profile /> : <ProjectsPage user={user} />} />
-                {!isClient && <Route path="/projects/:id" element={<ProjectDetail />} />}
+                {isAdmin && <Route path="/projects/:id" element={<ProjectDetail />} />}
+                {isPM && <Route path="/projects/:id" element={<ProjectDetail />} />}
                 
                 {isAdmin && (
                    <>

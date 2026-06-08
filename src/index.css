@@ -396,63 +396,41 @@ select option {
   border: 1px solid rgba(255, 255, 255, 0.5) !important;
 }
 
-/* =========================================================================
-   FOCUSED CSS OVERRIDES FOR ELEMENT SELECTIONS: UNREADABLE FONT & OVERFLOW CUTOFF
-   ========================================================================= */
-
-/* Ensure the targeted tab bar container handles layout gracefully, allowing flex wrapping so buttons never overflow/cutoff */
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  overflow: visible !important;
-  gap: 10px !important;
-  padding: 6px !important;
-  width: 100% !important;
+/* Focus Mode: Neumorphic button fixes and image updates */
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) button,
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(4) button,
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(4) button {
+   width: 40px !important;
+   flex: 0 0 40px !important;
+   border-radius: 12px !important;
+   background: rgba(255, 255, 255, 0.8) !important;
+   box-shadow: 4px 4px 10px rgba(163, 177, 198, 0.4), -2px -2px 6px #ffffff !important;
+   border: 1px solid rgba(255, 255, 255, 0.5) !important;
+   margin-bottom: 8px !important;
+   padding: 0 !important;
+   display: flex !important;
+   align-items: center !important;
+   justify-content: center !important;
+   height: 40px !important;
+   font-size: 0 !important;
 }
 
-/* Rule for Selected Element 1 (First Tab Button in row) - Force high contrast white text over branding accent orange background */
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(1) {
-  color: #FFFFFF !important;
-  background-color: #ff6B00 !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
-  font-weight: 800 !important;
-  text-transform: uppercase !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
-  box-shadow: 4px 4px 12px rgba(255, 107, 0, 0.3), -4px -4px 12px #ffffff !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  border-radius: 14px !important;
-  padding: 8px 16px !important;
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(6),
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(6),
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(6) {
+   background: #ff6B00 !important;
+   color: #ffffff !important;
 }
 
-/* Rule for Selected Element 2 (Sixth Tab Button in row) - Force high contrast dark slate text over clean off-white background */
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(6) {
-  color: #2D3748 !important;
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  border: 1px solid rgba(0, 0, 0, 0.15) !important;
-  font-weight: 800 !important;
-  text-transform: uppercase !important;
-  box-shadow: 4px 4px 12px rgba(163, 177, 198, 0.25), -4px -4px 12px #ffffff !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  border-radius: 14px !important;
-  padding: 8px 16px !important;
+/* Icons and layout overrides */
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) button svg,
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(4) button svg,
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(4) button svg {
+    color: #4A5568 !important;
 }
 
-/* Fallback for all other buttons in this container to prevent any unreadable font mismatch color issue */
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button {
-  color: #2D3748 !important;
-  font-weight: 700 !important;
-  text-transform: uppercase !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
-  border-radius: 14px !important;
-  transition: all 0.2s ease !important;
-}
-
-div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button:hover {
-  background-color: #ff6B00 !important;
-  color: #FFFFFF !important;
-  border-color: transparent !important;
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(5) svg,
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(5) svg,
+div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(5) svg {
+  color: #ca6a1e !important;
 }
