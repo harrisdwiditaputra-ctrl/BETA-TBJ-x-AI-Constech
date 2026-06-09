@@ -434,3 +434,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-
 div#root:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(4) > button:nth-of-type(5) svg {
   color: #ca6a1e !important;
 }
+
+/* Animations */
+@keyframes ticker {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+@layer utilities {
+  .animate-ticker {
+    animation: ticker 40s linear infinite;
+  }
+  .hover\:pause:hover {
+    animation-play-state: paused;
+  }
+}

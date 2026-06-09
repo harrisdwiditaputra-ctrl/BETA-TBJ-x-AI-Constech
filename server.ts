@@ -48,11 +48,13 @@ async function startServer() {
 
   // Final catch-all for any unhandled requests to avoid raw 404s
   app.use((req, res) => {
-    if (process.env.NODE_ENV === "production") {
-      res.sendFile(path.join(process.cwd(), "dist", "index.html"));
-    } else {
-      res.status(404).send("Not Found - TBJ OS Engine");
+    if (req.path.startsWith("/api/")) {
+      res.status(404).send("API Not Found");
+      return;
     }
+    // Always serve index.html for SPA routes
+    const filePath = path.join(process.cwd(), process.env.NODE_ENV === 'production' ? 'dist' : '', "index.html");
+    res.sendFile(filePath);
   });
 
   app.listen(PORT, "0.0.0.0", () => {
