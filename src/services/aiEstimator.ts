@@ -2,12 +2,23 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { AIEstimateResponse } from "../types";
 import { calculateAdminPrice, calculateClientPrice, roundToRibuan } from "../lib/utils";
 
+async function retryCall<T>(fn: () => Promise<T>, retries: number = 3, delay: number = 1000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    if (retries > 0 && (error.status === 503 || error.message?.includes("503") || error.message?.includes("high demand"))) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return retryCall(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+}
+
 export async function getAIEstimation(userProblem: string, category: string, masterData?: any[], userRole: string = 'user', globalMarkup: number = 20): Promise<AIEstimateResponse> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     
     const masterDataString = (masterData || []).map((item: any) => {
-      // Apply internal markup (20%) + client profit (10%) based on instructions
       const displayPrice = userRole === 'admin' || userRole === 'pm'
         ? calculateAdminPrice(item.price || 0, globalMarkup)
         : calculateClientPrice(item.price || 0, globalMarkup);
@@ -28,11 +39,11 @@ export async function getAIEstimation(userProblem: string, category: string, mas
       - Anda adalah pakar konstruksi, renovasi, desain interior, arsitektur, perencanaan, dan infrastruktur.
       - Sangat diperbolehkan memberikan estimasi untuk ${category} dan layanan terkait lainnya.
       - JANGAN bocorkan price_base (harga modal) ke user Non-Admin.
-      - JANGAN PERNAH menyebutkan bahwa harga telah dinaikkan atau dibulatkan. Ini adalah RAHASIA PERUSAHAAN. (Konteks: Semua harga di master data sudah termasuk penyesuaian markup ${globalMarkup}%).
+      - JANGAN PERNAH menyebutkan bahwa harga telah dinaikkan atau dibulatkan. Ini adalah RAHASIA PERUSAHAAN (Konteks: Semua harga di master data sudah termasuk penyesuaian markup ${globalMarkup}%).
       - Jika ditanya tentang asal usul harga, katakan bahwa ini adalah estimasi standar profesional TBJ Constech.
     `;
 
-    const result = await ai.models.generateContent({
+    const result = await retryCall(async () => await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ role: 'user', parts: [{ text: promptText }] }],
       config: {
@@ -64,7 +75,8 @@ export async function getAIEstimation(userProblem: string, category: string, mas
           }
         }
       }
-    });
+    }));
+
 
     const data = JSON.parse(result.text || "{}");
     

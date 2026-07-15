@@ -27,6 +27,12 @@ interface RabItem extends WorkItemMaster {
   total: number;
   code?: string;
   notes?: string;
+  technicalSpecs: string;
+  priority: "Low" | "Medium" | "High" | "Urgent";
+  dueDate?: string;
+  categoryId: string;
+  quantity: number;
+  unitPrice: number;
 }
 
 export default function RabPage({ user }: { user: any }) {
@@ -44,6 +50,7 @@ export default function RabPage({ user }: { user: any }) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const [deleteEstimateId, setDeleteEstimateId] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<RabItem | null>(null);
 
   const handleBulkRemove = () => {
     if (selectedIndexes.size === 0) return;
@@ -153,7 +160,7 @@ export default function RabPage({ user }: { user: any }) {
     ).slice(0, 15);
   }, [searchQuery, masterData]);
 
-  const addItemToRab = (master: WorkItemMaster) => {
+  const addItemToRab = (master: WorkItemMaster, categoryId: string, specs: string, priority: "Low" | "Medium" | "High" | "Urgent", dueDate: string) => {
     const markup = systemConfig?.globalMarkup || 20;
     // We calculate display price dynamically based on client price to represent the official contract value
     const displayPrice = calculateClientPrice(master.price, markup, master.isAHSP);
@@ -163,10 +170,15 @@ export default function RabPage({ user }: { user: any }) {
       instanceId: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       // We keep 'price' as the base price from masterData
       volume: 1,
+      quantity: 1,
+      unitPrice: displayPrice,
       total: displayPrice, // Initial total (Client price)
       code: master.code || master.id,
       notes: "",
-      technicalSpecs: master.technicalSpecs || ""
+      technicalSpecs: specs,
+      priority: priority,
+      dueDate: dueDate,
+      categoryId: categoryId
     };
     setRabItems([...rabItems, newItem]);
     setSearchQuery("");
@@ -765,31 +777,30 @@ export default function RabPage({ user }: { user: any }) {
             <Table className="min-w-[800px] md:min-w-full">
               <TableHeader className="bg-neutral-50/50">
                 <TableRow className="border-b border-neutral-100 hover:bg-transparent">
-                  <TableHead className="w-[40px] px-6">
+                  <TableHead className="w-[40px] px-1">
                     <Checkbox 
                       checked={rabItems.length > 0 && Array.from(selectedIndexes).length === rabItems.length}
                       onCheckedChange={() => toggleSelectAllEditor()}
                     />
                   </TableHead>
-                  <TableHead className="w-[80px] text-[9px] font-black uppercase text-neutral-400 px-6">Code</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-neutral-400">Description</TableHead>
-                  <TableHead className="w-[100px] text-center text-[9px] font-black uppercase text-neutral-400">Volume</TableHead>
-                  <TableHead className="w-[80px] text-center text-[9px] font-black uppercase text-neutral-400">Unit</TableHead>
+                  <TableHead className="w-[60px] text-[8px] font-black uppercase text-neutral-400 px-1">Code</TableHead>
+                  <TableHead className="w-[80px] text-center text-[8px] font-black uppercase text-neutral-400">Volume</TableHead>
+                  <TableHead className="w-[60px] text-center text-[8px] font-black uppercase text-neutral-400">Unit</TableHead>
                   {canEdit && (
                     <>
-                      <TableHead className="w-[120px] text-right text-[9px] font-black uppercase text-neutral-400">Modal (U/T)</TableHead>
-                      <TableHead className="w-[120px] text-right text-[9px] font-black uppercase text-accent">Admin (U/T)</TableHead>
+                      <TableHead className="w-[100px] text-right text-[8px] font-black uppercase text-neutral-400">Modal (U/T)</TableHead>
+                      <TableHead className="w-[100px] text-right text-[8px] font-black uppercase text-accent">Admin (U/T)</TableHead>
                     </>
                   )}
-                  <TableHead className="w-[150px] text-right text-[9px] font-black uppercase text-neutral-600 px-6">Klien (U/T)</TableHead>
-                  {canEdit && <TableHead className="w-[50px]"></TableHead>}
+                  <TableHead className="w-[120px] text-right text-[8px] font-black uppercase text-neutral-600 px-1">Klien (U/T)</TableHead>
+                  {canEdit && <TableHead className="w-[40px]"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {Object.entries(groupedItems).map(([catName, items]) => (
                   <React.Fragment key={catName}>
                     <TableRow className="bg-neutral-50/50 border-b border-neutral-100">
-                      <TableCell colSpan={canEdit ? 8 : 7} className="py-2 px-6">
+                      <TableCell colSpan={canEdit ? 7 : 6} className="py-2 px-2">
                         <div className="flex items-center gap-3">
                           <Checkbox 
                             checked={items.length > 0 && items.every(i => selectedIndexes.has(i.instanceId))}
@@ -799,35 +810,18 @@ export default function RabPage({ user }: { user: any }) {
                         </div>
                       </TableCell>
                     </TableRow>
-                    {items.map((item, index) => {
+                    {items.slice(0, 5).map((item, index) => {
                       const isExpanded = expandedItems.has(item.instanceId);
                       return (
                         <React.Fragment key={item.instanceId}>
                           <TableRow className="border-b border-neutral-50 hover:bg-neutral-50/30 transition-colors">
-                            <TableCell className="px-6">
+                            <TableCell className="px-1">
                               <Checkbox 
                                 checked={selectedIndexes.has(item.instanceId)}
                                 onCheckedChange={() => toggleSelectIndex(item.instanceId)}
                               />
                             </TableCell>
-                            <TableCell className="font-mono text-[9px] text-neutral-400 font-bold px-6">{item.code || "N/A"}</TableCell>
-                            <TableCell className="max-w-[200px] md:max-w-[350px]">
-                              <div className="flex items-center gap-2">
-                                <p className="font-bold text-[11px] uppercase tracking-tight text-neutral-800 break-words whitespace-normal leading-tight">{item.name}</p>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-5 w-5 rounded-full hover:bg-accent hover:text-white"
-                                  onClick={() => toggleExpand(item.instanceId)}
-                                >
-                                  {isExpanded ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                                </Button>
-                              </div>
-                              <p className="text-[8px] text-neutral-400 uppercase font-bold">{item.category}</p>
-                              {item.technicalSpecs && !isExpanded && (
-                                <p className="text-[8px] text-neutral-500 italic mt-1 truncate max-w-[200px]">{item.technicalSpecs}</p>
-                              )}
-                            </TableCell>
+                            <TableCell className="font-mono text-[8px] text-neutral-400 font-bold px-1">{item.code || "N/A"}</TableCell>
                             <TableCell>
                               <Input 
                                 disabled={!canEdit}
@@ -870,8 +864,11 @@ export default function RabPage({ user }: { user: any }) {
                                 <DropdownMenu>
                                   <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>} />
                                   <DropdownMenuContent align="end" className="rounded-xl">
+                                    <DropdownMenuItem className="text-xs uppercase font-bold gap-2" onClick={() => setEditingItem(item)}>
+                                      <Edit3 className="w-3 h-3" /> Edit Details
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem className="text-xs uppercase font-bold gap-2" onClick={() => toggleExpand(item.instanceId)}>
-                                      <Edit3 className="w-3 h-3" /> Edit Specs
+                                      <FileText className="w-3 h-3" /> Edit Specs
                                     </DropdownMenuItem>
                                     <DropdownMenuItem className="text-xs uppercase font-bold gap-2 text-red-600" onClick={() => removeItem(item.instanceId)}>
                                       <Eraser className="w-3 h-3" /> Remove Item
@@ -939,6 +936,54 @@ export default function RabPage({ user }: { user: any }) {
           </a>
         </div>
       </div>
+
+      {/* Edit Item Confirmation Dialog */}
+      <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <DialogContent className="sm:max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tighter">Edit Item</DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <div className="space-y-1">
+              <Label className="text-[9px] font-black uppercase">Sub Kategori</Label>
+              <Input 
+                value={editingItem?.subCategory || ""}
+                onChange={e => setEditingItem(prev => prev ? {...prev, subCategory: e.target.value} : null)}
+                placeholder="Masukkan sub kategori..."
+                className="rounded-xl border-neutral-100"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[9px] font-black uppercase">Nama Item</Label>
+              <Input 
+                value={editingItem?.name || ""}
+                onChange={e => setEditingItem(prev => prev ? {...prev, name: e.target.value} : null)}
+                placeholder="Nama item..."
+                className="rounded-xl border-neutral-100"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[9px] font-black uppercase">Technical Specs</Label>
+              <Textarea 
+                value={editingItem?.technicalSpecs || ""}
+                onChange={e => setEditingItem(prev => prev ? {...prev, technicalSpecs: e.target.value} : null)}
+                placeholder="Spesifikasi teknis..."
+                className="rounded-xl border-neutral-100"
+              />
+            </div>
+          </div>
+          <DialogFooter className="p-6 pt-0">
+            <Button variant="outline" className="rounded-2xl" onClick={() => setEditingItem(null)}>Batal</Button>
+            <Button className="rounded-2xl" onClick={() => {
+              if (editingItem) {
+                updateItemById(editingItem.instanceId, editingItem);
+                setEditingItem(null);
+                toast.success("Item berhasil diperbarui.");
+              }
+            }}>Simpan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Estimate Confirmation Dialog */}
       <Dialog open={!!deleteEstimateId} onOpenChange={(open) => !open && setDeleteEstimateId(null)}>

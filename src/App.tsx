@@ -703,6 +703,7 @@ const ProjectDetail = () => {
 
   const [editingCategory, setEditingCategory] = useState<BudgetCategory | null>(null);
   const [editCatName, setEditCatName] = useState("");
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
 
   const [isAHSPItem, setIsAHSPItem] = useState(false);
 
@@ -788,8 +789,10 @@ const ProjectDetail = () => {
     amount: 0,
     description: "",
     category: "material",
+    subCategory: "",
     method: "Cash",
-    receiptUrl: ""
+    receiptUrl: "",
+    date: new Date().toISOString().split('T')[0]
   });
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
 
@@ -805,15 +808,16 @@ const ProjectDetail = () => {
         projectName: project.name,
         type: "expense",
         category: expenseForm.category as any,
+        subCategory: expenseForm.subCategory || "",
         amount: expenseForm.amount,
         description: expenseForm.description,
         method: expenseForm.method as any,
         receiptUrl: expenseForm.receiptUrl,
-        date: new Date().toISOString(),
+        date: expenseForm.date ? new Date(expenseForm.date).toISOString() : new Date().toISOString(),
         status: "completed"
       });
       setShowRecordExpense(false);
-      setExpenseForm({ amount: 0, description: "", category: "material", method: "Cash", receiptUrl: "" });
+      setExpenseForm({ amount: 0, description: "", category: "material", subCategory: "", method: "Cash", receiptUrl: "", date: new Date().toISOString().split('T')[0] });
       toast.success("Pengeluaran berhasil dicatat.", { id: loadingToast });
     } catch (error) {
       toast.error("Gagal mencatat pengeluaran.", { id: loadingToast });
@@ -1595,6 +1599,25 @@ const ProjectDetail = () => {
                             </select>
                           </div>
                           <div className="space-y-2">
+                             <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Sub Kategori</Label>
+                             <select 
+                               className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50"
+                               value={expenseForm.subCategory}
+                               onChange={e => setExpenseForm({...expenseForm, subCategory: e.target.value})}
+                             >
+                               <option value="">Pilih Sub Kategori...</option>
+                               <option value="Bensin">Bensin</option>
+                               <option value="Tol">Tol</option>
+                               <option value="Transportasi">Transportasi</option>
+                               <option value="Jajan">Jajan</option>
+                               <option value="Parkir">Parkir</option>
+                               <option value="Material">Material</option>
+                               <option value="Alat">Alat</option>
+                               <option value="Upah">Upah</option>
+                               <option value="Konsumsi">Konsumsi</option>
+                             </select>
+                          </div>
+                          <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Amount (Rp)</Label>
                             <Input 
                               type="number" 
@@ -1624,6 +1647,15 @@ const ProjectDetail = () => {
                             <option value="Transfer">Transfer</option>
                             <option value="Digital Wallet">E-Wallet</option>
                           </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Expense Date (Tanggal)</Label>
+                          <Input 
+                            type="date"
+                            value={expenseForm.date || ""} 
+                            onChange={e => setExpenseForm({...expenseForm, date: e.target.value})}
+                            className="h-12 rounded-xl border-2 border-black/10 text-xs font-black uppercase"
+                          />
                         </div>
                         <div className="space-y-2">
                            <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Receipt / Evidence</Label>
@@ -2460,6 +2492,10 @@ const ProjectDetail = () => {
              </div>
           </div>
 
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-black uppercase tracking-tighter italic">Daftar Kategori</h2>
+            {canEdit && <Button variant="outline" onClick={() => setIsAddingCategory(true)}><Plus className="w-4 h-4 mr-2" /> Tambah Kategori</Button>}
+          </div>
           <div className="space-y-12">
             {categories.map(category => (
               <div key={category.id} className="space-y-6">
@@ -2468,9 +2504,9 @@ const ProjectDetail = () => {
                     <div className="flex items-center gap-2">
                       <h3 className="text-2xl font-black uppercase tracking-tighter italic">{category.name}</h3>
                       {canEdit && (
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-400 hover:text-black rounded-full" onClick={() => { setEditingCategory(category); setEditCatName(category.name); }}><Edit2 className="w-4 h-4" /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-neutral-100 rounded-full" onClick={() => setCategoryToDelete(category)}><Trash2 className="w-4 h-4" /></Button>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-500 hover:text-black hover:bg-neutral-100 rounded-full" onClick={() => { setEditingCategory(category); setEditCatName(category.name); }}><Edit2 className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full" onClick={() => setCategoryToDelete(category)}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                       )}
                     </div>
@@ -2794,6 +2830,43 @@ const ProjectDetail = () => {
               }}
             >
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddingCategory} onOpenChange={(open) => !open && setIsAddingCategory(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tighter">Tambah Kategori Baru</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label className="uppercase-soft text-[10px]">Nama Kategori</Label>
+              <Input 
+                value={newCatName}
+                onChange={e => setNewCatName(e.target.value)}
+                className="h-12 border-2 border-black/10 rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              className="btn-sleek w-full"
+              onClick={async () => {
+                if (newCatName) {
+                  try {
+                    await addCategory(newCatName);
+                    setNewCatName("");
+                    setIsAddingCategory(false);
+                    toast.success("Kategori berhasil ditambahkan");
+                  } catch (e) {
+                    toast.error("Gagal menambahkan kategori");
+                  }
+                }
+              }}
+            >
+              Tambah Kategori
             </Button>
           </DialogFooter>
         </DialogContent>

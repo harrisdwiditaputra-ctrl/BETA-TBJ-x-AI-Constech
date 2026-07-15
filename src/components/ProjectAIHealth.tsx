@@ -151,11 +151,12 @@ export const ProjectAIHealth: React.FC<ProjectAIHealthProps> = ({
               </Badge>
             </div>
             <div className="space-y-1">
-              <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">Financial Index</p>
+              <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">Financial Health Index</p>
               <div className="flex items-baseline gap-2">
                 <p className="text-4xl font-black tracking-tighter">{Math.round(analysis.financialScore)}%</p>
                 <TrendingUp className={cn("w-4 h-4 mb-2", analysis.financialScore > 80 ? "text-green-500" : "text-orange-500")} />
               </div>
+              <p className="text-[10px] text-neutral-500 font-bold">Based on {items.length} work items, comparing cost against market master data.</p>
               <div className="h-1.5 w-full bg-neutral-100 rounded-full overflow-hidden">
                 <div 
                   className={cn("h-full transition-all duration-1000", analysis.financialScore > 80 ? "bg-green-500" : "bg-orange-500")} 

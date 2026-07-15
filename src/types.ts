@@ -50,6 +50,26 @@ export interface Project {
   taxPercentage?: number;
   assessmentDeposit?: number;
   grandTotal?: number;
+  metrics?: ProjectMetrics;
+}
+
+export interface ProjectMetrics {
+  spi: number; // Schedule Performance Index
+  cpi: number; // Cost Performance Index (%)
+  budgetVariance: number;
+  completionPercentage: number;
+  laborProductivity: number;
+  materialWastage: number; // %
+  reworkPercentage: number;
+  ltifr: number; // Lost Time Injury Frequency Rate
+  qualityDefectRate: number;
+  equipmentUtilizationRate: number; // %
+  materialDeliveryOnTime: number; // %
+  changeOrderFrequency: number;
+  cashflowPerformance: number;
+  clientSatisfactionScore: number; // 0-5 or 1-10
+  rfiResponseTime: number; // hours or days
+  lastUpdated: string;
 }
 
 export interface PaymentMilestone {

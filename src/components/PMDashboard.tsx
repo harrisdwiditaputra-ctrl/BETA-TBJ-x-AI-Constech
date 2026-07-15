@@ -89,7 +89,8 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
     description: "",
     category: "material",
     method: "Cash",
-    receiptUrl: ""
+    receiptUrl: "",
+    date: new Date().toISOString().split('T')[0]
   });
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
 
@@ -109,13 +110,13 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
         description: expenseForm.description,
         method: expenseForm.method as any,
         receiptUrl: expenseForm.receiptUrl,
-        date: new Date().toISOString(),
+        date: expenseForm.date ? new Date(expenseForm.date).toISOString() : new Date().toISOString(),
         status: "completed",
         recordedBy: user?.displayName || user?.email || "PM",
         recordedRole: "pm"
       });
       setShowRecordExpense(false);
-      setExpenseForm({ amount: 0, description: "", category: "material", method: "Cash", receiptUrl: "" });
+      setExpenseForm({ amount: 0, description: "", category: "material", method: "Cash", receiptUrl: "", date: new Date().toISOString().split('T')[0] });
       toast.success("Pengeluaran berhasil dicatat ke Ledger.", { id: loadingToast });
     } catch (error) {
       toast.error("Gagal mencatat pengeluaran.", { id: loadingToast });
@@ -369,7 +370,7 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
   if (projectsLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className={cn("space-y-8", isOverscreen ? "py-0" : "py-8")}>
+    <div className={cn("w-full max-w-[1027px] mx-auto space-y-8", isOverscreen ? "py-0" : "py-8")}>
       {!isOverscreen && (
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b-2 border-dark-grey/20 pb-8 gap-6">
           <div className="space-y-2">
@@ -1201,42 +1202,51 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
                  <DialogDescription className="uppercase-soft text-[10px]">Catat pengeluaran teknis/lapangan untuk {selectedProject.name}.</DialogDescription>
                </DialogHeader>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-6 overflow-auto max-h-[70vh]">
-                 <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Category</Label>
+                  <div className="space-y-4 w-full">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Category</Label>
                       <select 
-                        className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50"
+                        className="w-full h-8 rounded-md border-none px-2 text-xs font-bold bg-white shadow-sm"
                         value={expenseForm.category}
                         onChange={e => setExpenseForm({...expenseForm, category: e.target.value as any})}
                       >
-                        <option value="material">Material / Barang</option>
-                        <option value="labor">Labor / Upah Tukang</option>
-                        <option value="assessment">Survey / Operasional</option>
-                        <option value="other">Lain-lain</option>
+                        <option value="material">🧱 Material</option>
+                        <option value="labor">👷 Labor/Upah</option>
+                        <option value="assessment">📋 Survey</option>
+                        <option value="other">⚙️ Lain-lain</option>
                       </select>
                     </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Amount (Rp)</Label>
+                    <div className="space-y-1">
+                       <Label className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Amount (Rp)</Label>
                        <Input 
                          type="number" 
                          value={expenseForm.amount} 
                          onChange={e => setExpenseForm({...expenseForm, amount: Number(e.target.value)})}
-                         className="h-12 rounded-xl border-2 border-black/10 font-mono font-black"
+                         className="h-8 rounded-md border-none bg-white shadow-inner font-mono font-bold text-sm px-2"
                          placeholder="0"
                        />
                     </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Payment Method</Label>
+                    <div className="space-y-1">
+                       <Label className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Method</Label>
                        <select 
-                         className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50"
+                         className="w-full h-8 rounded-md border-none px-2 text-xs font-bold bg-white shadow-sm"
                          value={expenseForm.method}
                          onChange={e => setExpenseForm({...expenseForm, method: e.target.value as any})}
                        >
-                         <option value="Cash">Cash / Petty Cash</option>
-                         <option value="Transfer">Bank Transfer</option>
-                         <option value="Digital Wallet">E-Wallet (OVO/Gopay)</option>
+                         <option value="Cash">Cash</option>
+                         <option value="Transfer">Transfer</option>
+                         <option value="Digital Wallet">E-Wallet</option>
                        </select>
                     </div>
+                     <div className="space-y-1">
+                        <Label className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Date</Label>
+                        <Input 
+                          type="date"
+                          value={expenseForm.date || ""} 
+                          onChange={e => setExpenseForm({...expenseForm, date: e.target.value})}
+                          className="h-8 rounded-md border-none bg-white shadow-sm font-bold text-xs px-2"
+                        />
+                     </div>
                  </div>
                  <div className="space-y-4">
                     <div className="space-y-2">
@@ -1391,7 +1401,7 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
                                />
                                <Label htmlFor="pm-edit-receipt-upload" className="flex items-center justify-center h-12 border-2 border-dashed border-black/10 rounded-xl cursor-pointer hover:bg-neutral-50 font-bold text-[10px] uppercase font-sans">
                                   {isUploadingReceipt ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <><Camera className="w-4 h-4 mr-2" /> Snap Receipt</>}
-                                </Label>
+                               </Label>
                             </div>
                           )}
                        </div>
@@ -1420,85 +1430,84 @@ export default function PMDashboard({ isOverscreen }: { isOverscreen?: boolean }
 
 
             {/* Transaction Search Control & Monthly Selector */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6 items-center bg-zinc-950 p-4 rounded-2xl border border-white/10 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.05)] text-white">
+            <div className="w-full max-w-[1027px] mx-auto pt-2 pb-0">
+              <div className="flex flex-col sm:flex-row gap-2 mb-2 items-center bg-zinc-950 p-2 rounded-xl border border-white/10 shadow-sm text-white">
               <div className="relative flex-1 w-full flex items-center">
-                <Search className="absolute left-3 w-4 h-4 text-neutral-400" />
+                <Search className="absolute left-2 w-3 h-3 text-neutral-400" />
                 <Input 
-                  placeholder="Cari deskripsi transaksi..."
-                  className="pl-9 h-11 border border-white/10 rounded-xl font-bold uppercase text-[11px] text-white focus-visible:ring-white bg-zinc-800 animate-none"
+                  placeholder="Cari..."
+                  className="pl-7 h-8 border border-white/10 rounded-lg font-bold uppercase text-[10px] text-white focus-visible:ring-white bg-zinc-800"
                   value={transactionSearch}
                   onChange={(e) => setTransactionSearch(e.target.value)}
                 />
               </div>
               <select 
-                className="h-11 px-4 border border-white/10 rounded-xl font-bold uppercase text-[11px] bg-zinc-800 text-white"
+                className="h-8 px-2 border border-white/10 rounded-lg font-bold uppercase text-[10px] bg-zinc-800 text-white"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
               >
                 {Array.from({length: 12}).map((_, i) => (
-                   <option key={i} value={i}>{new Date(0, i).toLocaleString('id-ID', {month: 'long'})}</option>
+                   <option key={i} value={i}>{new Date(0, i).toLocaleString('id-ID', {month: 'short'})}</option>
                 ))}
               </select>
             </div>
-<Card className="border-2 border-black rounded-3xl overflow-hidden bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-              <Table>
-                <TableHeader className="bg-neutral-50">
-                  <TableRow className="border-b-2 border-black">
-                    <TableHead className="py-4 pl-8 font-black uppercase text-[10px]">Date</TableHead>
-                    <TableHead className="font-black uppercase text-[10px]">Description</TableHead>
-                    <TableHead className="font-black uppercase text-[10px]">Method</TableHead>
-                    <TableHead className="font-black uppercase text-[10px] text-right">Amount</TableHead>
-                    <TableHead className="font-black uppercase text-[10px] text-right pr-8">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTransactions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-20 text-neutral-400 font-bold uppercase text-[10px]">No transaction history recorded by you</TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredTransactions.map(t => (
-                      <TableRow key={t.id} className="border-b border-black/5 last:border-0 hover:bg-neutral-50 transition-colors">
-                        <TableCell className="pl-8 py-4 font-mono text-[10px] text-neutral-400">
-                          {new Date(t.date).toLocaleDateString('id-ID')}
-                        </TableCell>
-                        <TableCell>
-                           <p className="font-black text-xs uppercase leading-tight">{t.description}</p>
-                           <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[9px]">
-                             <span className="font-bold text-neutral-400 uppercase">{t.category}</span>
-                             {t.recordedBy && (
-                               <>
-                                 <span className="text-neutral-300 font-bold">&bull;</span>
-                                 <span className="font-black uppercase text-[#FF6B00]">Penginput: {t.recordedBy} ({t.recordedRole || "pm"})</span>
-                               </>
-                             )}
-                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[8px] font-black border-black/20">{t.method}</Badge>
-                        </TableCell>
-                        <TableCell className={cn(
-                          "text-right font-black text-xs",
-                          t.type === 'income' ? "text-green-600" : "text-red-500"
-                        )}>
-                          {t.type === 'income' ? "+" : "-"} {formatRupiah(t.amount)}
-                        </TableCell>
-                        <TableCell className="pr-8 text-right">
-                           <div className="flex justify-end gap-2">
-                             <Button size="icon" variant="ghost" className="h-7 w-7 text-neutral-400 hover:text-black" onClick={() => handleEditTransaction(t)}>
-                               <FileEdit className="w-3.5 h-3.5" />
-                             </Button>
-                             <Button size="icon" variant="ghost" className="h-7 w-7 text-neutral-400 hover:text-red-500" onClick={() => {if(confirm("Hapus transaksi ini?")) deleteTransaction(t.id)}}>
-                               <Trash2 className="w-3.5 h-3.5" />
-                             </Button>
-                           </div>
-                        </TableCell>
+                      <Card className="w-full mx-auto border-2 border-black rounded-2xl overflow-hidden bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <div className="overflow-x-hidden w-full">
+                  <Table>
+                    <TableHeader className="bg-neutral-50">
+                      <TableRow className="border-b-2 border-black">
+                        <TableHead className="py-1 pl-2 font-black uppercase text-[8px]">Date</TableHead>
+                        <TableHead className="py-1 font-black uppercase text-[8px]">Desc</TableHead>
+                        <TableHead className="py-1 font-black uppercase text-[8px]">Method</TableHead>
+                        <TableHead className="py-1 font-black uppercase text-[8px] text-right">Amount</TableHead>
+                        <TableHead className="py-1 font-black uppercase text-[8px] text-right pr-2">Actions</TableHead>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTransactions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-10 text-neutral-400 font-bold uppercase text-[9px]">No transaction history recorded</TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredTransactions.map(t => (
+                          <TableRow key={t.id} className="border-b border-black/5 last:border-0 hover:bg-neutral-50">
+                            <TableCell className="pl-2 py-0.5 font-mono text-[8px] text-neutral-400 whitespace-nowrap">
+                              {new Date(t.date).toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit'})}
+                            </TableCell>
+                            <TableCell className="py-0.5">
+                               <p className="font-black text-[8px] uppercase leading-tight truncate max-w-[150px]">{t.description}</p>
+                            </TableCell>
+                            <TableCell className="py-0.5">
+                              <Badge variant="outline" className="text-[7px] font-black border-black/20 whitespace-nowrap px-1">{t.method}</Badge>
+                            </TableCell>
+                            <TableCell className={cn(
+                              "text-right font-black text-[8px] py-0.5 whitespace-nowrap",
+                              t.type === 'income' ? "text-green-600" : "text-red-500"
+                            )}>
+                              {t.type === 'income' ? "+" : "-"} {formatRupiah(t.amount)}
+                            </TableCell>
+                            <TableCell className="pr-4 text-right py-1.5 whitespace-nowrap">
+                                <div className="flex justify-end gap-0.5">
+                                 <Button size="icon" variant="ghost" className="h-5 w-5 text-neutral-400 hover:text-black" onClick={() => handleEditTransaction(t)}>
+                                   <FileEdit className="w-2.5 h-2.5" />
+                                 </Button>
+                                 <Button size="icon" variant="ghost" className="h-5 w-5 text-neutral-400 hover:text-red-500" onClick={() => {
+                                   if(confirm("Hapus transaksi ini?")) {
+                                     deleteTransaction(t.id);
+                                   }
+                                 }}>
+                                   <Trash2 className="w-2.5 h-2.5" />
+                                 </Button>
+                               </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
            </Card>
+         </div>
         </div>
       )}
 

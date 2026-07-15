@@ -11,6 +11,7 @@ import {
   useProjectDetails, useLeads, useTechnicalDrawings
 } from "@/lib/hooks";
 import { ProjectAIHealth } from "./ProjectAIHealth";
+import { ProjectKPIs } from "./ProjectKPIs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -204,7 +205,8 @@ export default function AdminPanel() {
       amount: t.amount,
       category: t.category,
       subCategory: t.subCategory || "",
-      method: t.method
+      method: t.method,
+      date: t.date // Added date
     });
   };
 
@@ -213,6 +215,7 @@ export default function AdminPanel() {
     try {
       await updateTransaction(editingTransactionId, {
         ...editFormData,
+        date: editFormData.date ? new Date(editFormData.date).toISOString() : new Date().toISOString(),
         recordedBy: user?.displayName || user?.email || "Admin",
         recordedRole: "admin"
       });
@@ -603,6 +606,7 @@ export default function AdminPanel() {
     }
   };
   const [selectedProjectAI, setSelectedProjectAI] = useState<Project | any>({});
+  const [selectedProjectKPI, setSelectedProjectKPI] = useState<Project | null>(null);
   const [selectedProjectFinance, setSelectedProjectFinance] = useState<Project | any>({});
   const [editingMilestoneIndex, setEditingMilestoneIndex] = useState<number | null>(null);
   const [milestoneEditPercentage, setMilestoneEditPercentage] = useState<number>(0);
@@ -762,7 +766,8 @@ export default function AdminPanel() {
     subCategory: "",
     method: "Cash" as any,
     receiptUrl: "",
-    itemId: ""
+    itemId: "",
+    date: new Date().toISOString().split('T')[0]
   });
   const [showRecordExpense, setShowRecordExpense] = useState(false);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
@@ -839,7 +844,7 @@ export default function AdminPanel() {
         method: expenseForm.method as any,
         receiptUrl: expenseForm.receiptUrl,
         itemId: expenseForm.itemId || "",
-        date: new Date().toISOString(),
+        date: expenseForm.date ? new Date(expenseForm.date).toISOString() : new Date().toISOString(),
         status: "completed",
         recordedBy: user?.displayName || user?.email || "Admin",
         recordedRole: "admin"
@@ -857,7 +862,8 @@ export default function AdminPanel() {
         subCategory: "",
         method: "Cash",
         receiptUrl: "",
-        itemId: ""
+        itemId: "",
+        date: new Date().toISOString().split('T')[0]
       });
       toast.success("Pengeluaran berhasil dicatat ke Ledger.");
     } catch (error) {
@@ -3069,6 +3075,15 @@ export default function AdminPanel() {
                           >
                              <Brain className="w-3.5 h-3.5 md:w-4 md:h-4" />
                           </Button>
+                          <Button 
+                             className="h-9 w-9 md:h-10 md:w-10 border-2 border-black bg-white text-black hover:bg-neutral-100 rounded-xl p-0 flex items-center justify-center"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               setSelectedProjectKPI(p);
+                             }}
+                          >
+                             <BarChart2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>
@@ -3229,6 +3244,24 @@ export default function AdminPanel() {
                       masterData={masterData}
                       onClose={() => setSelectedProjectAI(null)} 
                     />
+                  </DialogContent>
+                </Dialog>
+              )}
+
+              {selectedProjectKPI && (
+                <Dialog open={!!selectedProjectKPI} onOpenChange={() => setSelectedProjectKPI(null)}>
+                  <DialogContent className="max-w-5xl rounded-3xl border-2 border-black p-8 overflow-hidden bg-neutral-50 shadow-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-black uppercase tracking-tighter">KPI Metrics: {selectedProjectKPI.name}</DialogTitle>
+                      <DialogDescription>Performance Analysis</DialogDescription>
+                    </DialogHeader>
+                    <div className="py-6">
+                      {selectedProjectKPI.metrics ? (
+                        <ProjectKPIs metrics={selectedProjectKPI.metrics} />
+                      ) : (
+                        <p className="text-sm text-neutral-500 italic">No KPI metrics available for this project yet.</p>
+                      )}
+                    </div>
                   </DialogContent>
                 </Dialog>
               )}
@@ -4138,25 +4171,37 @@ export default function AdminPanel() {
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-black uppercase tracking-tighter">New Expense Entry</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-6 py-6">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Allocation (Project/Op)</Label>
-                      <select 
-                        className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-sm font-bold bg-neutral-50"
-                        value={expenseForm.projectId}
-                        onChange={e => setExpenseForm({...expenseForm, projectId: e.target.value})}
-                      >
-                        <option value="">General Operational</option>
-                        {projects.map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Category</Label>
+                  <div className="space-y-4 py-4">
+                    <div className="bg-neutral-100/50 p-4 rounded-2xl space-y-4">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Allocation</Label>
                         <select 
-                          className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-sm font-bold bg-neutral-50"
+                          className="w-full h-10 rounded-lg border-none px-3 text-sm font-bold bg-white shadow-sm"
+                          value={expenseForm.projectId}
+                          onChange={e => setExpenseForm({...expenseForm, projectId: e.target.value})}
+                        >
+                          <option value="">General Operational</option>
+                          {projects.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Description</Label>
+                        <Input 
+                          value={expenseForm.description} 
+                          onChange={e => setExpenseForm({...expenseForm, description: e.target.value})}
+                          className="h-10 rounded-lg border-none bg-white shadow-sm"
+                          placeholder="e.g., Semen 50 Sak"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Category</Label>
+                        <select 
+                          className="w-full h-10 rounded-lg border-none px-3 text-xs font-bold bg-white shadow-sm"
                           value={expenseForm.category}
                           onChange={e => {
                             const cat = e.target.value;
@@ -4165,61 +4210,65 @@ export default function AdminPanel() {
                         >
                           <option value="material">🧱 Material</option>
                           <option value="labor">👷 Labor/Upah</option>
-                          <option value="assessment">📋 Survey/Assessment</option>
+                          <option value="assessment">📋 Survey</option>
                           <option value="other">⚙️ Lain-lain</option>
                         </select>
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Sub-Kategori Detail</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Sub Kategori</Label>
                         <select 
-                          className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-sm font-bold bg-neutral-50"
                           value={expenseForm.subCategory}
                           onChange={e => setExpenseForm({...expenseForm, subCategory: e.target.value})}
+                          className="w-full h-10 rounded-lg border-none px-3 text-xs font-bold bg-white shadow-sm"
                         >
-                          <option value="">-- Tanpa Sub-Kategori / Umum --</option>
-                          <option value="tol">🚗 Tol, Parkir & Transportasi</option>
-                          <option value="bensin">⛽ Bensin & BBM</option>
-                          <option value="makan">🍲 Makan Tim & Konsumsi</option>
-                          <option value="jajan">💸 Uang Saku & Jajan</option>
-                          <option value="atk">📎 ATK & Brosur</option>
-                          <option value="operasional">🛠️ Alat Kerja & Operasional</option>
-                          <option value="darurat">🚨 Kebutuhan Darurat</option>
-                          <option value="lainnya">❓ Lain-lain</option>
+                          <option value="">Pilih Sub Kategori...</option>
+                          <option value="Bensin">⛽ Bensin</option>
+                          <option value="Tol">🛣️ Tol</option>
+                          <option value="Transportasi">🚗 Transportasi</option>
+                          <option value="Jajan">🍭 Jajan</option>
+                          <option value="Parkir">🅿️ Parkir</option>
+                          <option value="Material">🧱 Material</option>
+                          <option value="Alat">🛠️ Alat</option>
+                          <option value="Upah">👷 Upah</option>
+                          <option value="Konsumsi">🍱 Konsumsi</option>
                         </select>
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Amount (Rp)</Label>
-                        <Input 
-                          type="number" 
-                          value={expenseForm.amount} 
-                          onChange={e => setExpenseForm({...expenseForm, amount: Number(e.target.value)})}
-                          className="h-12 rounded-xl border-2 border-black/10 font-mono font-bold px-4"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                         <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Method</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Method</Label>
                         <select 
-                          className="w-full h-12 rounded-xl border-2 border-black/10 px-4 text-xs font-black uppercase bg-neutral-50"
+                          className="w-full h-10 rounded-lg border-none px-3 text-xs font-bold bg-white shadow-sm"
                           value={expenseForm.method}
                           onChange={e => setExpenseForm({...expenseForm, method: e.target.value as any})}
                         >
-                          <option value="Transfer">Bank Transfer</option>
-                          <option value="Cash">Cash / Petty Cash</option>
-                          <option value="Digital Wallet">E-Wallet / Digital</option>
+                          <option value="Transfer">Transfer</option>
+                          <option value="Cash">Cash</option>
+                          <option value="Digital Wallet">E-Wallet</option>
                         </select>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Description</Label>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Amount (Rp)</Label>
                       <Input 
-                        value={expenseForm.description} 
-                        onChange={e => setExpenseForm({...expenseForm, description: e.target.value})}
-                        className="h-12 rounded-xl border-2 border-black/10"
-                        placeholder="e.g., Semen 50 Sak Tiga Roda"
+                        type="number" 
+                        value={expenseForm.amount} 
+                        onChange={e => setExpenseForm({...expenseForm, amount: Number(e.target.value)})}
+                        className="h-12 rounded-xl border-none bg-white shadow-inner font-mono font-bold text-lg px-4"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Upload Receipt (Foto Bon)</Label>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Date</Label>
+                      <Input 
+                        type="date"
+                        value={expenseForm.date || ""} 
+                        onChange={e => setExpenseForm({...expenseForm, date: e.target.value})}
+                        className="h-10 rounded-lg border-none bg-white shadow-sm font-bold text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Upload Receipt (Foto Bon)</Label>
                       <div className="flex items-center gap-4">
                         {expenseForm.receiptUrl ? (
                           <div className="relative group">
@@ -4250,8 +4299,8 @@ export default function AdminPanel() {
                         )}
                       </div>
                     </div>
-                    <Button className="w-full bg-red-600 text-white h-14 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-red-700" onClick={handleRecordExpense}>Submit Expense Entry &rarr;</Button>
                   </div>
+                  <Button className="w-full bg-red-600 text-white h-14 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-red-700" onClick={handleRecordExpense}>Submit Expense Entry &rarr;</Button>
                 </DialogContent>
               </Dialog>
 
@@ -4507,57 +4556,8 @@ export default function AdminPanel() {
                 )}
               </Card>
 
-              <div className="grid md:grid-cols-3 gap-8">
+              <div className="gap-8">
                 <Card className="border border-white/30 backdrop-blur-md bg-white/65 rounded-[2.5rem] overflow-hidden shadow-[10px_10px_25px_#cbd5e1,-10px_-10px_25px_#ffffff]">
-                  <CardHeader className="bg-neutral-900 p-8 border-b border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="space-y-1">
-                      <CardTitle className="text-3xl font-black uppercase tracking-tighter text-white flex items-center gap-3">
-                        <AlertCircle className="w-8 h-8 text-accent" /> Budget Tracker
-                      </CardTitle>
-                      <CardDescription className="text-white/60 uppercase-soft text-xs font-bold font-mono">Comparing Actual Expense vs Planned RAB.</CardDescription>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="divide-y-2 divide-black/5 max-h-[500px] overflow-y-auto">
-                      {projects.map(p => {
-                        const projectExpenses = transactions.filter(t => t.projectId === p.id && t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-                        const isOverBudget = projectExpenses > (p.totalBudget || 0);
-                        const usagePercentage = p.totalBudget ? (projectExpenses / p.totalBudget) * 100 : 0;
-                        
-                        return (
-                          <div key={p.id} className="p-6 space-y-4 hover:bg-neutral-50 transition-colors">
-                            <div className="flex justify-between items-start">
-                              <div className="space-y-1">
-                                <p className="text-xs font-black uppercase tracking-widest">{p.name}</p>
-                                <p className="text-[10px] text-neutral-400 font-bold uppercase">Budget: {formatRupiah(p.totalBudget || 0)}</p>
-                              </div>
-                              {isOverBudget && (
-                                <Badge className="bg-red-600 text-white animate-bounce text-[9px] uppercase font-black">Over Budget!</Badge>
-                              )}
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex justify-between text-[9px] font-black uppercase">
-                                <span className={isOverBudget ? "text-red-600" : "text-neutral-400"}>Actual Usage: {formatRupiah(projectExpenses)}</span>
-                                <span className={usagePercentage > 90 ? "text-red-600" : "text-black"}>{usagePercentage.toFixed(1)}%</span>
-                              </div>
-                              <div className="h-2 w-full bg-neutral-100 rounded-full overflow-hidden border border-black/5">
-                                <div 
-                                  className={cn(
-                                    "h-full transition-all duration-1000",
-                                    usagePercentage > 100 ? "bg-red-600" : usagePercentage > 80 ? "bg-orange-500" : "bg-green-500"
-                                  )} 
-                                  style={{ width: `${Math.min(usagePercentage, 100)}%` }} 
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="md:col-span-2 border border-white/30 backdrop-blur-md bg-white/65 rounded-[2.5rem] overflow-hidden shadow-[10px_10px_25px_#cbd5e1,-10px_-10px_25px_#ffffff]">
                   <CardHeader className="bg-neutral-50/50 p-8 border-b border-black/10 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="space-y-1">
                       <CardTitle className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
@@ -4824,7 +4824,16 @@ export default function AdminPanel() {
                               <TableRow key={t.id} className="group border-b border-black/5 last:border-0 hover:bg-neutral-50/50 transition-all duration-300">
                                 <TableCell className="px-4 md:px-8 py-4 md:py-6">
                                    <div className="space-y-1">
-                                     <p className="text-xs font-black font-mono text-black">{new Date(t.date).toLocaleDateString()}</p>
+                                     {editingTransactionId === t.id ? (
+                                       <Input 
+                                         type="date"
+                                         className="h-9 text-xs font-black uppercase"
+                                         value={editFormData.date?.split('T')[0] || ""}
+                                         onChange={e => setEditFormData({...editFormData, date: e.target.value})}
+                                       />
+                                     ) : (
+                                       <p className="text-xs font-black font-mono text-black">{new Date(t.date).toLocaleDateString()}</p>
+                                     )}
                                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-tighter">ID: #{t.id.substring(0,6).toUpperCase()}</p>
                                    </div>
                                 </TableCell>
@@ -6160,8 +6169,8 @@ export default function AdminPanel() {
                                     number: invoiceNumber,
                                     date: new Date().toLocaleDateString('id-ID'),
                                     dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('id-ID'),
-                                    clientName: client?.displayName || "Klien Terhormat",
-                                    clientPhone: client?.whatsapp || "081213496672",
+                                    clientName: selectedProjectFinance.clientName || client?.displayName || "Klien Terhormat",
+                                    clientPhone: selectedProjectFinance.clientPhone || client?.whatsapp || client?.phoneNumber || "081213496672",
                                     projectName: selectedProjectFinance.name,
                                     items: projectItems.map(it => ({
                                       desc: it.name,
@@ -6262,8 +6271,8 @@ export default function AdminPanel() {
                                           number: invNum,
                                           date: date.toLocaleDateString('id-ID'),
                                           dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('id-ID'),
-                                          clientName: client?.displayName || "Klien Terhormat",
-                                          clientPhone: client?.whatsapp || "081213496672",
+                                          clientName: selectedProjectFinance.clientName || client?.displayName || "Klien Terhormat",
+                                          clientPhone: selectedProjectFinance.clientPhone || client?.whatsapp || client?.phoneNumber || "081213496672",
                                           projectName: selectedProjectFinance.name,
                                           items: [{ desc: m.label, qty: 1, unit: 'Milestone', price: selectedProjectFinance.totalBudget * (m.percentage/100), total: selectedProjectFinance.totalBudget * (m.percentage/100) }],
                                           total: selectedProjectFinance.totalBudget * (m.percentage/100),
@@ -6285,8 +6294,8 @@ export default function AdminPanel() {
                                           number: rectNum,
                                           date: date.toLocaleDateString('id-ID'),
                                           paymentDate: date.toLocaleDateString('id-ID'),
-                                          clientName: client?.displayName || "Klien Terhormat",
-                                          clientPhone: client?.whatsapp || "081213496672",
+                                          clientName: selectedProjectFinance.clientName || client?.displayName || "Klien Terhormat",
+                                          clientPhone: selectedProjectFinance.clientPhone || client?.whatsapp || client?.phoneNumber || "081213496672",
                                           projectName: selectedProjectFinance.name,
                                           items: [{ desc: m.label, qty: 1, unit: 'Milestone', price: selectedProjectFinance.totalBudget * (m.percentage/100), total: selectedProjectFinance.totalBudget * (m.percentage/100) }],
                                           total: selectedProjectFinance.totalBudget * (m.percentage/100),
@@ -6561,32 +6570,32 @@ export default function AdminPanel() {
           )}
 
           {activeTab === "management" && (
-            <div className="space-y-8">
+            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
               <div className="grid md:grid-cols-2 gap-8">
                 <Card className="border-2 border-black rounded-2xl overflow-hidden">
                   <CardHeader className="bg-neutral-50 border-b-2 border-black">
                     <CardTitle className="text-xl font-black uppercase tracking-tighter">Access Control</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-8 space-y-6">
-                    <div className="space-y-4">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="space-y-2">
                       {[
                         { role: "admin", label: "Admin Owner", access: "Full System Access" },
                         { role: "pm", label: "Project Manager", access: "Project & Workforce" },
                         { role: "user", label: "Client/User", access: "Dashboard & AI Analysis" },
                       ].map((r, i) => (
-                        <div key={i} className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
+                        <div key={i} className="flex items-center justify-between p-3 border-2 border-black rounded-lg">
                           <div>
-                            <p className="font-black text-sm uppercase tracking-widest">{r.label}</p>
-                            <p className="text-[10px] text-neutral-400">{r.access}</p>
+                            <p className="font-black text-xs uppercase tracking-widest">{r.label}</p>
+                            <p className="text-[9px] text-neutral-400">{r.access}</p>
                           </div>
-                          <Badge variant="outline" className="border-black rounded-md">
+                          <Badge variant="outline" className="border-black rounded-md text-[9px]">
                             {users.filter(u => u.role === r.role).length} Users
                           </Badge>
                         </div>
                       ))}
                     </div>
                     <Dialog>
-                      <DialogTrigger render={<Button className="w-full btn-sleek h-12 rounded-xl">Manage Permissions</Button>} />
+                      <DialogTrigger render={<Button className="w-full btn-sleek h-10 rounded-lg text-xs">Manage Permissions</Button>} />
                       <DialogContent className="max-w-2xl rounded-3xl border-2 border-black">
                         <DialogHeader>
                           <DialogTitle className="text-xl font-black uppercase tracking-tighter">Permission Matrix</DialogTitle>
@@ -6627,27 +6636,27 @@ export default function AdminPanel() {
                   <CardHeader className="bg-neutral-50 border-b-2 border-black">
                     <CardTitle className="text-xl font-black uppercase tracking-tighter">System Settings</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-8 space-y-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 border-2 border-black rounded-xl bg-accent/5">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-accent/10 rounded-lg">
-                            <Sparkles className="w-5 h-5 text-accent" />
+                  <CardContent className="p-4 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 border-2 border-black rounded-lg bg-accent/5">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-accent/10 rounded-md">
+                            <Sparkles className="w-4 h-4 text-accent" />
                           </div>
                           <div>
-                            <p className="font-black text-sm uppercase tracking-widest">AI Hub Monitoring</p>
-                            <p className="text-[10px] text-neutral-400">Total analysis tokens used system-wide</p>
+                            <p className="font-black text-xs uppercase tracking-widest">AI Hub Monitoring</p>
+                            <p className="text-[9px] text-neutral-400">Total analysis tokens</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-xl font-black">{users.reduce((sum, u) => sum + (u.aiUsageCount || 0), 0)}</p>
-                          <p className="text-[8px] uppercase font-bold text-neutral-400">Total Interactions</p>
+                          <p className="text-sm font-black">{users.reduce((sum, u) => sum + (u.aiUsageCount || 0), 0)}</p>
+                          <p className="text-[8px] uppercase font-bold text-neutral-400">Interactions</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between p-4 border-2 border-black rounded-xl">
+                      <div className="flex items-center justify-between p-3 border-2 border-black rounded-lg">
                         <div>
-                          <p className="font-black text-sm uppercase tracking-widest">Auto-Notification (WA)</p>
+                          <p className="font-black text-xs uppercase tracking-widest">Auto-Notification (WA)</p>
                           <p className="text-[10px] text-neutral-400">Send automatic updates to clients</p>
                         </div>
                         <Button 

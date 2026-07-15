@@ -489,24 +489,20 @@ export const generateInvoicePDF = async (
 
   const tableData = invoiceData.items.map(it => [
     it.desc,
-    it.qty,
-    it.unit,
     `Rp ${it.price.toLocaleString('id-ID')}`,
     `Rp ${it.total.toLocaleString('id-ID')}`
   ]);
 
   autoTable(doc, {
     startY: 85,
-    head: [['DESKRIPSI PEKERJAAN', 'QTY', 'UNIT', 'HARGA', 'TOTAL']],
+    head: [['DESKRIPSI PEKERJAAN', 'HARGA', 'TOTAL']],
     body: tableData,
     theme: 'grid',
     headStyles: { fillColor: [0, 0, 0], fontSize: 9 },
     columnStyles: {
-      0: { cellWidth: 80 },
-      1: { halign: 'center', cellWidth: 15 },
-      2: { halign: 'center', cellWidth: 15 },
-      3: { halign: 'right', cellWidth: 35 },
-      4: { halign: 'right', cellWidth: 35 }
+      0: { cellWidth: 110 },
+      1: { halign: 'right', cellWidth: 40 },
+      2: { halign: 'right', cellWidth: 40 }
     }
   });
 
